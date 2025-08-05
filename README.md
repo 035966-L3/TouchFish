@@ -1,6 +1,5 @@
-# ChatSoftware
-机房摸鱼用。
 
+# 机房聊天软件（断公网可用）
 汪氏军工制作，Luogu UID:824363
 
 孙大佬的网站，bopid.cn
