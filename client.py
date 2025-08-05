@@ -43,8 +43,15 @@ def show():
     msg_input = tk.Text(rt, width=50, height=3, font=('微软雅黑', 20, ""))
     def send_msg():
         tmpp = msg_input.get("1.0", "end")
-        while tmpp[-1] == '\n':
-            tmpp = tmpp[:-1]
+        if len(tmpp) == 0:
+            return
+        try:
+            while tmpp[-1] == '\n' or tmpp[-1] == ' ':
+                tmpp = tmpp[:-1]
+        except:
+            pass
+        if len(tmpp) == 0:
+            return
         tmpp += '\n'
         s.send(bytes(f"{USER_NAME}: {tmpp}", encoding="utf-8"))    
         msg_input.delete('1.0', 'end')
