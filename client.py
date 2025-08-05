@@ -36,21 +36,22 @@ def show():
             return
         text_box.insert('end', rcv_data)
         text_box.see("end")
-    #text_box.insert(tk.END, "114514")
+
     text_box.pack()
     tmp = tk.Label(rt, text="发送信息：")
     tmp.pack()
     msg_input = tk.Text(rt, width=50, height=3, font=('微软雅黑', 20, ""))
-    def get_msg():
+    def send_msg():
         tmpp = msg_input.get("1.0", "end")
         while tmpp[-1] == '\n':
             tmpp = tmpp[:-1]
         tmpp += '\n'
         s.send(bytes(f"{USER_NAME}: {tmpp}", encoding="utf-8"))    
-    but = tk.Button(rt, text="发送", command=get_msg)
+        msg_input.delete('1.0', 'end')
+
+    but = tk.Button(rt, text="发送", command=send_msg)
     msg_input.pack()
     but.pack()
-    #fst()
     while 1:
         rt.update_idletasks()
         rt.update()
@@ -72,19 +73,3 @@ lb3.pack()
 PORT_input.pack()
 but.pack()
 root.mainloop()
-
-
-
-# s = socket.socket()
-
-# ip = input("Connect to IP:")
-# s.connect(ip, 5001))
-
-# while 1:
-#     send = input('Msg to server:')
-#     if send == "exit":
-#         break;
-#     s.send(bytes(send, encoding="utf-8"))
-#     rcv_data = s.recv(1024).decode("UTF-8")
-#     print(f"Msg from server: {rcv_data}")
-# s.close()
