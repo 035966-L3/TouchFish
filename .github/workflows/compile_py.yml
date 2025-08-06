@@ -21,7 +21,7 @@ jobs:
         run: |
           cd bin
           cd linux
-          pyinstaller --onefile --noconsole chat.py
+          pyinstaller --onefile --noconsole ../../chat.py
           rm chat.spec
           rm build/*
           rmdir build
