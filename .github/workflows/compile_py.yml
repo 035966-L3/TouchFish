@@ -61,7 +61,7 @@ jobs:
           rm client.spec
           Copy-Item -Path ./dist/* -destination ./
           remove-item -path "./dist" -recurse
-          remove-item -path "./build" - recurse
+          remove-item -path "./build" -recurse
           cd ../..
           git pull
           git config user.name github-actions
