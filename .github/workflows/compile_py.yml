@@ -58,7 +58,7 @@ jobs:
           pyinstaller --onefile --noconsole ../../client.py
           rm chat.spec
           rm client.spec
-          cp .\dist .
+          cp . .\dist
           rm .\dist
           cd ../..
           git config user.name github-actions
