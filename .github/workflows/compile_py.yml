@@ -22,10 +22,13 @@ jobs:
           cd bin
           cd linux
           pyinstaller --onefile --noconsole ../../chat.py
+          pyinstaller --onefile --noconsole ../../client.py
           rm chat.spec
-          rm -r build/*
+          rm client.spec
+          rm -rf build/*
           rmdir build
-          cp dist/chat .
+          cp -rf dist/chat .
+          cp -rf dist/client .
           rm dist/*
           rmdir dist
           ls
