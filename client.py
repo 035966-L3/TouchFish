@@ -1,6 +1,7 @@
 import socket
 import tkinter as tk
 import threading as thread
+from sys import exit
 
 root = tk.Tk()
 root.title("Connect to IP:")
@@ -10,6 +11,7 @@ USER_NAME = None
 USER_input = None
 IP_input = None
 PORT_input = None
+exit_flg = 0
 
 def show():
     s = socket.socket()
@@ -59,7 +61,17 @@ def show():
     but = tk.Button(rt, text="发送", command=send_msg)
     msg_input.pack()
     but.pack()
+
+    def close_window():
+        global exit_flg
+        exit_flg = 1
+
+    rt.protocol('WM_DELETE_WINDOW', close_window)
     while 1:
+        if exit_flg:
+            rt.destroy()
+            exit()
+            break
         rt.update_idletasks()
         rt.update()
         receive_msg()
