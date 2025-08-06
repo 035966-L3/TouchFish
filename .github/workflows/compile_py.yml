@@ -23,7 +23,7 @@ jobs:
           cd linux
           pyinstaller --onefile --noconsole ../../chat.py
           rm chat.spec
-          rm build/*
+          rm -r build/*
           rmdir build
           cp dist/chat .
           rm dist/*
