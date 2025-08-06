@@ -17,7 +17,17 @@ jobs:
           cache: 'pip'
       - name: Install Pyinstaller
         run: pip install -r requirements.txt 
-      - name: Run test
-        run: ls
+      - name: Compile
+        run: |
+          cd bin
+          cd linux
+          pyinstaller --onefile --noconsole chat.py
+          rm chat.spec
+          rm build/*
+          rmdir build
+          cp dist/chat .
+          rm dist/*
+          rmdir dist
+
 
         
