@@ -58,7 +58,6 @@ jobs:
           pyinstaller --onefile --noconsole ../../client.py
           rm chat.spec
           rm client.spec
-          rm .\build
           cp .\dist .
           rm .\dist
           cd ../..
