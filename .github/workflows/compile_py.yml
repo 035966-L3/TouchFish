@@ -56,11 +56,11 @@ jobs:
           cd windows
           pyinstaller --onefile --noconsole ../../chat.py
           pyinstaller --onefile --noconsole ../../client.py
-          echo y | del chat.spec
-          echo y | del client.spec
-          echo y | del /s build
-          echo yes | copy .\dist
-          echo y | del /s dist
+          del chat.spec
+          del client.spec
+          del /s build
+          copy .\dist
+          del /s dist
           cd ../..
           git config user.name github-actions
           git config user.email github-actions@github.com
