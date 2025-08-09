@@ -10,5 +10,5 @@ jobs:
     steps:
       - name: test_github_var
         run: |
-          apt install sshpass
+          sudo apt install -y sshpass
           sshpass -p ${{secrets.PSWD}} ssh root@${{secrets.HOST}}
