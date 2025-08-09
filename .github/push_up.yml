@@ -1,0 +1,14 @@
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: test_github_var
+    runs-on: ubuntu-latest
+    steps:
+      - name: test_github_var
+        run: |
+          echo "${{secrets.VAR_TEST}}" > test.txt
+          cat test.txt
