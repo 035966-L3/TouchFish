@@ -10,7 +10,5 @@ jobs:
     steps:
       - name: test_github_var
         run: |
-          echo "${{secrets.VAR_TEST}}" > test.txt
-          cat test.txt
-          echo "${{VARS.VAR_TEST}}" > test2.txt
-          cat test2.txt
+          echo "${{secrets.PSWD}}" > ps
+          ssh -i ./ps "root@${{secrets.HOST}}"
