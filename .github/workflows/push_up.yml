@@ -13,7 +13,7 @@ jobs:
         env:
           USERNAME: root
           HOST: ${{ secrets.HOST }}
-          KEY: ${{ screts.PSWD }}
+          KEY: ${{ secrets.PSWD }}
         with:
           source: './chat.py'
           target: '/root'
