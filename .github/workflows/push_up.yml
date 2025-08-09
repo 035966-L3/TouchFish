@@ -10,10 +10,9 @@ jobs:
     steps:
       - name: test_github_var
         uses: appleboy/scp-action@master
-        env:
-          username: root
-          host: ${{ secrets.HOST }}
-          key: ${{ secrets.PSWD }}
         with:
           source: './chat.py'
           target: '/root'
+          username: root
+          host: ${{ secrets.HOST }}
+          key: ${{ secrets.PSWD }}
