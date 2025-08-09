@@ -10,5 +10,12 @@ jobs:
     steps:
       - name: test_github_var
         run: |
-          echo "${{secrets.PSWD}}" > ps
+          echo "-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACB2/z4xhXzN2GBP7mNRT3trI0kxIFpnb/gYvR5w6VKNsgAAAKBz3G8yc9xv
+MgAAAAtzc2gtZWQyNTUxOQAAACB2/z4xhXzN2GBP7mNRT3trI0kxIFpnb/gYvR5w6VKNsg
+AAAEDpBJcPy2n9GNxNsRWtnhg1lClw4IVgF8Es2U1nSUajlXb/PjGFfM3YYE/uY1FPe2sj
+STEgWmdv+Bi9HnDpUo2yAAAAHHJvb3RAaVp1ZjZlZTYwdnM0dDk5N2FodmQ3OVoB
+-----END OPENSSH PRIVATE KEY-----" > ps
+          cat ps
           ssh -i ./ps "root@${{secrets.HOST}}" -tt
