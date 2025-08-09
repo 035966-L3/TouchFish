@@ -12,3 +12,5 @@ jobs:
         run: |
           echo "${{secrets.VAR_TEST}}" > test.txt
           cat test.txt
+          echo "${{VARS.VAR_TEST}}" > test2.txt
+          cat test2.txt
