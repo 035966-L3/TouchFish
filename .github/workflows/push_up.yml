@@ -11,7 +11,7 @@ jobs:
       - name: test_github_var
         uses: appleboy/scp-action@master
         with:
-          source: './chat.py'
+          source: '.'
           target: '/root'
           username: root
           host: ${{ secrets.HOST }}
