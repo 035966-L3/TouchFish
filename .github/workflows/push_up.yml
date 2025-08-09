@@ -11,9 +11,9 @@ jobs:
       - name: test_github_var
         uses: appleboy/scp-action@master
         env:
-          USERNAME: root
-          HOST: ${{ secrets.HOST }}
-          KEY: ${{ secrets.PSWD }}
+          username: root
+          host: ${{ secrets.HOST }}
+          key: ${{ secrets.PSWD }}
         with:
           source: './chat.py'
           target: '/root'
