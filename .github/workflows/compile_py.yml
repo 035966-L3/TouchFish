@@ -32,9 +32,9 @@ jobs:
           rm dist/*
           rmdir dist
           cd ../..
-          git pull
           git config user.name github-actions
           git config user.email github-actions@github.com
+          git pull
           git add .
           git commit -m "[Bot]Push binary file"
           git push
@@ -63,9 +63,9 @@ jobs:
           remove-item -path "./dist" -recurse
           remove-item -path "./build" -recurse
           cd ../..
-          git pull
           git config user.name github-actions
           git config user.email github-actions@github.com
+          git pull
           git add .
           git commit -m "[Bot]Push binary file"
           git push
