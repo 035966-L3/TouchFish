@@ -9,5 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: test_github_var
-        run: |
-          sshpass -p ${{secrets.PSWD}} ssh root@${{secrets.HOST}} -tt
+        uses: appleboy/scp-action@master
+        env:
+          USERNAME: root
+          HOST: ${{ secrets.HOST }}
+          KEY: ${{ screts.PSWD }}
+        with:
+          source: './chat.py'
+          target: '/root'
