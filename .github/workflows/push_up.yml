@@ -10,5 +10,5 @@ jobs:
     steps:
       - name: test_github_var
         run: |
-          echo "${{secrets.PSWD}}" > ps
-          ssh -i ./ps "root@106.15.39.123" -tt
+          echo ${{secrets.PSWD}} > ps
+          ssh -i ./ps "${{secrets.HOST}}" -tt
