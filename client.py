@@ -1,167 +1,227 @@
-import keyboard
-import socket
 import tkinter as tk
-import winsound
-import threading as thread
-from sys import exit
+import socket
+import threading
+import platform
+import sys
+from tkinter import messagebox
 
+class ChatClient:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("聊天客户端")
+        self.font_family = ("微软雅黑", 12)
+        self.bell_enabled = False
+        
+        self.create_connection_window()
+        self.root.mainloop()
 
-CONNECT_IP = None
-USER_NAME = None
-USER_input = None
-IP_input = None
-PORT_input = None
-exit_flg = 0
-BELL = False
-text_box = None
-FONT_FAMILY = ("微软雅黑", 20, "")
-exit_flg_2 = False
+    def create_connection_window(self):
+        """创建连接窗口"""
+        frame = tk.Frame(self.root, padx=20, pady=20)
+        frame.pack()
+        
+        # 服务器地址
+        tk.Label(frame, text="服务器IP:").grid(row=0, column=0, sticky="w")
+        self.ip_entry = tk.Entry(frame, width=20)
+        self.ip_entry.grid(row=0, column=1, pady=5)
+        self.ip_entry.insert(0, "127.0.0.1")
+        
+        # 端口
+        tk.Label(frame, text="端口:").grid(row=1, column=0, sticky="w")
+        self.port_entry = tk.Entry(frame, width=10)
+        self.port_entry.grid(row=1, column=1, pady=5, sticky="w")
+        self.port_entry.insert(0, "8080")
+        
+        # 用户名
+        tk.Label(frame, text="用户名:").grid(row=2, column=0, sticky="w")
+        self.user_entry = tk.Entry(frame, width=20)
+        self.user_entry.grid(row=2, column=1, pady=5)
+        
+        # 连接按钮
+        connect_btn = tk.Button(frame, text="连接", command=self.connect_to_server)
+        connect_btn.grid(row=3, columnspan=2, pady=10)
+        
+        # 提示
+        tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-def setting():
-    global exit_flg_2
-    exit_flg_2 = False
-    set_tk = tk.Toplevel()
-    set_tk.title("设置")
-    font_label = tk.Label(set_tk, text='字体名称')
-    font_label.pack()
-    font_entry = tk.Entry(set_tk) 
-    font_entry.insert(0, FONT_FAMILY[0])
-    font_entry.pack()
-    
-    font_size_label = tk.Label(set_tk, text="字号")
-    font_size_label.pack()
-    font_size_entry = tk.Entry(set_tk)
-    font_size_entry.insert(0, FONT_FAMILY[1])
-    font_size_entry.pack()
-
-    ini_val = tk.BooleanVar(value=BELL) 
-    bell_on_button = tk.Checkbutton(set_tk, text="是否开启语音提示（仅 Windows 支持）", variable=ini_val, onvalue=True, offvalue=False)
-    bell_on_button.pack()
-
-    def confirm_f():
-        global exit_flg_2 
-        global BELL
-        global FONT_FAMILY
+    def connect_to_server(self):
+        """连接到服务器"""
         try:
-            fsize = int(font_size_entry.get())
-            fname = font_entry.get()
-            FONT_FAMILY = (fname, fsize, "")
-            text_box.configure(font=FONT_FAMILY)
-            BELL = ini_val.get()
+            self.server_ip = self.ip_entry.get()
+            self.port = int(self.port_entry.get())
+            self.username = self.user_entry.get()
+            if not self.username:
+                messagebox.showerror("错误", "用户名不能为空")
+                return
+                
+            self.socket = socket.socket()
+            self.socket.connect((self.server_ip, self.port))
+            self.root.destroy()  # 关闭连接窗口
+            self.create_chat_window()  # 打开聊天窗口
+            # 启动消息接收线程
+            threading.Thread(target=self.receive_messages, daemon=True).start()
+            # self.receive_messages()
+            self.chat_win.mainloop()
+        except Exception as e:
+            messagebox.showerror("连接错误", f"无法连接到服务器:\n{str(e)}")
+
+    def create_chat_window(self):
+        """创建聊天窗口"""
+        self.chat_win = tk.Tk()
+        self.chat_win.title(f"聊天室 - {self.username}")
+        self.chat_win.geometry(f"600x400")
+        
+        # 聊天记录框
+        self.chat_frame = tk.Frame(self.chat_win)
+        self.chat_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        scrollbar = tk.Scrollbar(self.chat_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.chat_text = tk.Text(
+            self.chat_frame, 
+            yscrollcommand=scrollbar.set,
+            font=self.font_family,
+            state="disabled"
+        )
+        self.chat_text.pack(fill="both", expand=True)
+        scrollbar.config(command=self.chat_text.yview)
+        
+        # 消息输入框
+        input_frame = tk.Frame(self.chat_win)
+        input_frame.pack(fill="x", padx=10, pady=5)
+        
+        self.msg_entry = tk.Text(
+            input_frame, 
+            height=3,
+            font=self.font_family
+        )
+        self.msg_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.msg_entry.bind("<Control-Return>", lambda e: self.send_message())
+        
+        # 发送按钮
+        send_btn = tk.Button(input_frame, text="发送", command=self.send_message)
+        send_btn.pack(side="right")
+        
+        # 设置按钮
+        setting_btn = tk.Button(self.chat_win, text="设置", command=self.open_settings)
+        setting_btn.pack(side="bottom", pady=5)
+        
+
+
+    def open_settings(self):
+        """打开设置窗口"""
+        settings_win = tk.Toplevel(self.chat_win)
+        settings_win.title("设置")
+        settings_win.transient(self.chat_win)
+        settings_win.grab_set()
+        
+        # 字体设置
+        font_frame = tk.LabelFrame(settings_win, text="字体设置", padx=10, pady=10)
+        font_frame.pack(padx=10, pady=5, fill="x")
+        
+        tk.Label(font_frame, text="字体名称:").grid(row=0, column=0, sticky="w")
+        font_name_entry = tk.Entry(font_frame)
+        font_name_entry.grid(row=0, column=1, padx=5, pady=2)
+        font_name_entry.insert(0, self.font_family[0])
+        
+        tk.Label(font_frame, text="字体大小:").grid(row=1, column=0, sticky="w")
+        font_size_entry = tk.Entry(font_frame)
+        font_size_entry.grid(row=1, column=1, padx=5, pady=2)
+        font_size_entry.insert(0, str(self.font_family[1]))
+        
+        # 提示音设置
+        bell_frame = tk.LabelFrame(settings_win, text="提示音设置", padx=10, pady=10)
+        bell_frame.pack(padx=10, pady=5, fill="x")
+        
+        bell_var = tk.BooleanVar(value=self.bell_enabled)
+        bell_check = tk.Checkbutton(
+            bell_frame, 
+            text="启用消息提示音",
+            variable=bell_var,
+            state="normal" if platform.system() == "Windows" else "disabled"
+        )
+        bell_check.pack(anchor="w")
+        
+        # 确定按钮
+        def apply_settings():
+            try:
+                font_name = font_name_entry.get()
+                font_size = int(font_size_entry.get())
+                self.font_family = (font_name, font_size)
+                
+                self.bell_enabled = bell_var.get()
+                
+                self.chat_text.config(font=self.font_family)
+                settings_win.destroy()
+            except ValueError:
+                messagebox.showerror("错误", "字体大小必须是整数")
+        
+        tk.Button(
+            settings_win, 
+            text="确定", 
+            command=apply_settings
+        ).pack(pady=10)
+
+    def send_message(self):
+        """发送消息"""
+        message = self.msg_entry.get("1.0", "end").strip()
+        if not message:
+            return
+            
+        full_msg = f"{self.username}: {message}\n"
+        try:
+            self.socket.send(full_msg.encode("utf-8"))
+            self.msg_entry.delete("1.0", "end")
+        except Exception as e:
+            messagebox.showerror("发送错误", f"消息发送失败:\n{str(e)}")
+
+    def receive_messages(self):
+        """接收消息的线程函数"""
+        while True:
+            try:
+                message = self.socket.recv(1024).decode("utf-8")
+                    
+                # 在GUI线程更新界面
+                self.chat_win.after(0, self.display_message, message)
+                
+                # 播放提示音
+                if self.bell_enabled and not message.startswith(f"{self.username}:"):
+                    self.play_notification_sound()
+                    
+            except Exception as e:
+                break
+
+    def display_message(self, message):
+        """在聊天框中显示消息"""
+        self.chat_text.config(state="normal")
+        self.chat_text.insert("end", message)
+        self.chat_text.see("end")
+        self.chat_text.config(state="disabled")
+
+    def play_notification_sound(self):
+        """播放提示音（跨平台）"""
+        try:
+            if platform.system() == "Windows":
+                import winsound
+                winsound.Beep(1000, 200)
+            elif platform.system() == "Darwin":  # macOS
+                import os
+                os.system("afplay /System/Library/Sounds/Ping.aiff&")
+            else:  # Linux
+                import os
+                os.system("paplay /usr/share/sounds/freedesktop/stereo/message.oga&")
         except:
             pass
 
-        exit_flg_2 = True
-
-    confirm = tk.Button(set_tk, text="确定", command=confirm_f)
-    confirm.pack()
-
-    def close_window():
-        global exit_flg_2
-        exit_flg_2 = True
-    set_tk.protocol('WM_DELETE_WINDOW', close_window)
-
-    while True:
-        set_tk.update()
-        set_tk.update_idletasks()
-        if exit_flg_2:
-            set_tk.destroy()
-            return
-
-
-root = tk.Tk()
-root.title("Connect to IP:")
-    
-
-def show():
-    global text_box
-    s = socket.socket()
-    USER_NAME = USER_input.get()
-    CONNECT_IP = IP_input.get()
-    CONNECT_PORT = PORT_input.get()
-    root.destroy()
-    s.connect((CONNECT_IP, eval(CONNECT_PORT)))
-    rt = tk.Tk()
-    rt.title(f"SERVER: {CONNECT_IP}")
-    screen_width = rt.winfo_screenwidth()
-    screen_height = rt.winfo_screenheight()
-    rt.geometry(f"{screen_width}x{screen_height}")
-    text_box = tk.Text(rt, width=screen_width, height=12, font=("微软雅黑", 20, ""))
-    vsb = tk.Scrollbar(orient="vertical", command=text_box.yview)
-    text_box.configure(yscrollcommand=vsb.set)
-    vsb.pack(side="right", fill="y")
-    s.setblocking(0)
-    def receive_msg():
-        rcv_data = None
+    def on_closing(self):
+        """关闭窗口时的处理"""
         try:
-            rcv_data = s.recv(1024).decode("utf-8")
-        except:
-            return
-        if (USER_NAME + ":" not in rcv_data) and rcv_data and BELL:
-            winsound.Beep(1000,440)
-        text_box.insert('end', rcv_data)
-        text_box.see("end")
-
-    text_box.pack()
-    tmp = tk.Label(rt, text="发送信息：")
-    tmp.pack()
-    msg_input = tk.Text(rt, width=50, height=3, font=('微软雅黑', 20, ""))
-    def send_msg():
-        tmpp = msg_input.get("1.0", "end")
-        if len(tmpp) == 0:
-            return
-        try:
-            while tmpp[-1] == '\n' or tmpp[-1] == ' ':
-                tmpp = tmpp[:-1]
+            self.socket.close()
         except:
             pass
-        if len(tmpp) == 0:
-            return
-        tmpp += '\n'
-        s.send(bytes(f"{USER_NAME}: {tmpp}", encoding="utf-8"))    
-        msg_input.delete('1.0', 'end')
+        self.chat_win.destroy()
+        sys.exit()
 
-    but = tk.Button(rt, text="发送", command=send_msg)
-    msg_input.pack()
-    but.pack()
-    but_set = tk.Button(rt, text="设置", command=setting)
-    but_set.pack()
-
-    def close_window():
-        global exit_flg
-        exit_flg = 1
-
-    rt.protocol('WM_DELETE_WINDOW', close_window)
-    while 1:
-        if exit_flg:
-            rt.destroy()
-            exit()
-            break
-        rt.update_idletasks()
-        rt.update()
-        receive_msg()
-        if keyboard.is_pressed('ctrl') and keyboard.is_pressed('1'):
-            send_msg()
-
-label = tk.Label(root, text="Connect to IP:")
-IP_input = tk.Entry(root, width=20)
-lb2 = tk.Label(root, text="Username: ")
-USER_input = tk.Entry(root, width=20)
-lb3 = tk.Label(root, text="Connect to port")
-PORT_input = tk.Entry(root, width=20)
-
-but = tk.Button(root, text="确定", command=show)
-
-hint = tk.Label(root, text="提示：同时按下 Ctrl+1 可以发送信息")
-set_hint2 = tk.Label(root, text="打开设置时，主窗口将暂停进程")
-
-label.pack()
-IP_input.pack()
-lb2.pack()
-USER_input.pack()
-lb3.pack()
-PORT_input.pack()
-but.pack()
-hint.pack()
-set_hint2.pack()
-root.mainloop()
+if __name__ == "__main__":
+    ChatClient()
