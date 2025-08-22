@@ -1,5 +1,4 @@
 pyinstaller
 keyboard
-cmd 
 requests
 tabulate
