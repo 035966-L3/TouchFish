@@ -184,7 +184,7 @@ class Server(cmd.Cmd):
     prompt = f"{ip}:{portin}> "
     intro = f"""欢迎来到 TouchFish！当前版本 {VERSION}，最新版本 {NEWEST_VERSION}
 如果想知道有什么命令，请输入 help
-具体的使用指南，参见 help <你想用的命令>
+具体的使用指南，参见 help <你想用的命令>。详细地，见 wiki，https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat.exe
 注意：消息无法实时更新，需要输入 flush 命令将缓冲区输出到 ./log.txt。
 永久配置文件位于目录下的 ./config.json"""
     def __init__(self):
@@ -508,6 +508,7 @@ class Server(cmd.Cmd):
                 ip = i[0]
                 if msg_counts[ip] >= arg[1]:
                     search_lst.append(ip)
+            search_lst = list(set(search_lst))
             search_lst.sort(key = lambda x : msg_counts[x])
             search_lst.reverse()
             self.print_user(search_lst)
