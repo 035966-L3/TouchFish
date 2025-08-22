@@ -2,6 +2,8 @@
 
 > [进阶版本链接](https://github.com/2044-space-elevator/TouchFishPlus)，进阶版本有更多功能，对应地，不同发行版的 chat 和 client 可能出现极大的兼容性问题。
 
+> **交 PR 的人注意！感谢您对 TouchFish 的贡献，但为了防止您的努力打水漂，请先阅读[贡献者须知](https://github.com/2044-space-elevator/TouchFish/blob/main/CONTRIBUTING.md)再开始贡献，感谢配合！**
+
 # 机房聊天软件（断公网可用）
 
 汪氏军工制作，Luogu UID:824363
