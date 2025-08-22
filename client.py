@@ -3,6 +3,7 @@ import socket
 import threading
 import platform
 import sys
+import requests
 from tkinter import messagebox
 
 class ChatClient:
@@ -43,6 +44,13 @@ class ChatClient:
         
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
+
+        CURRENT_VERSION = "v1.1.0"
+        try:
+            NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
+        except:
+            NEWEST_VERSION = "UNKNOWN"
+        tk.Label(frame, text=f"提示2：当前版本为 {CURRENT_VERSION}，最新版本为 {NEWEST_VERSION}").grid(row=5, columnspan=2)
 
     def connect_to_server(self):
         """连接到服务器"""
