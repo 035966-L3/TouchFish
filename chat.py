@@ -96,6 +96,15 @@ ban_ip_lst = dic_config_file["ban"]["ip"]
 ban_words_lst = dic_config_file["ban"]["words"]
 ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
+
+ENTER_HINT = ""
+with open("hint.txt", "a+") as file:
+    ENTER_HINT = file.read()
+if not ENTER_HINT.split('\n'):
+    ENTER_HINT = ""
+if ENTER_HINT and '\n' not in ENTER_HINT:
+    ENTER_HINT += '\n'
+
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 EXIT_FLG = False 
 flush_txt = ""
@@ -115,6 +124,12 @@ def add_accounts():
             conntmp, addresstmp = s.accept()
         except:
             continue
+        
+        try:
+            if ENTER_HINT:
+                conntmp.send(bytes("[房主提示] " + ENTER_HINT, encoding="utf-8"))
+        except:
+            pass
 
         if addresstmp[0] in ban_ip_lst:
             continue
