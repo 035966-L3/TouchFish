@@ -64,7 +64,7 @@ s.bind((ip, portin))
 s.listen(account_numbers)
 s.setblocking(0)
 
-VERSION = "v1.1.0"
+VERSION = "v1.1.1"
 s.setblocking(0)
 NEWEST_VERSION = "UNKNOWN"
 
@@ -98,16 +98,27 @@ ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
 
 ENTER_HINT = ""
-with open("hint.txt", "a+") as file:
+with open("hint.txt", "a+", encoding="utf-8") as file:
+    file.seek(0)
     ENTER_HINT = file.read()
 if not ENTER_HINT.split('\n'):
     ENTER_HINT = ""
-if ENTER_HINT and '\n' not in ENTER_HINT:
+if ENTER_HINT and ('\n' not in ENTER_HINT):
     ENTER_HINT += '\n'
 
+print("您当前的进入提示是（注意使用的是 utf-8）：" + ENTER_HINT)
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 EXIT_FLG = False 
 flush_txt = ""
+
+def send_all(msg : str):
+    global conn
+    for j in range(len(conn)):
+        try:
+            conn[j].send(bytes(msg, encoding="utf-8"))
+            if_online[address[j][0]] = True
+        except:
+            if_online[address[j][0]] = False
 
 def add_accounts():
     global flush_txt
@@ -165,12 +176,12 @@ def receive_msg():
         if EXIT_FLG:
             return
         for i in range(len(conn)):
-            if address[i][0] in ban_ip_lst:
-                continue
             data = None
             try:
                 data = conn[i].recv(1024).decode('utf-8')
             except:
+                continue
+            if address[i][0] in ban_ip_lst:
                 continue
             if not data:
                 continue
@@ -242,6 +253,7 @@ class Server(cmd.Cmd):
                         pass
                 try:
                     ban_ip_lst.remove(ip)
+                    send_all(f"[系统提示] 房主解除封禁了 IP {ip}，用户名 {username[ip]}。\n")
                 except:
                     pass
             flush_txt += f"[{time_str()}] You unbanned ip {','.join(arg)}.\n"
@@ -294,6 +306,7 @@ class Server(cmd.Cmd):
                 if SAVE_CONFIG:
                     dic_config_file["ban"]["ip"].append(ip)
                 ban_ip_lst.append(ip)
+                send_all(f"[系统提示] 房主封禁了用户 {ip}, 用户名：{username[ip]}\n")
             flush_txt += f"[{time_str()}] You banned ip {','.join(arg)}.\n"
         
         if arg[0] == 'words':
@@ -310,6 +323,7 @@ class Server(cmd.Cmd):
             except:
                 print("[Error] 参数错误")
                 return
+            send_all(f"[系统提示] 房主设置了发送信息的长度最高为 {arg[1]}。\n")
             if SAVE_CONFIG:
                 dic_config_file["ban"]["length"] = arg[1]
             ban_length = arg[1]

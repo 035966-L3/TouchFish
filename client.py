@@ -5,6 +5,14 @@ import platform
 import sys
 import requests
 from tkinter import messagebox
+import datetime
+
+def get_hh_mm_ss() -> str:
+    """
+    return HH:MM:SS
+    like 11:45:14
+    """
+    return datetime.datetime.now().strftime("%H:%M:%S")
 
 class ChatClient:
     def __init__(self):
@@ -45,7 +53,7 @@ class ChatClient:
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-        CURRENT_VERSION = "v1.1.0"
+        CURRENT_VERSION = "v1.1.1"
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
         except:
@@ -189,6 +197,10 @@ class ChatClient:
         while True:
             try:
                 message = self.socket.recv(1024).decode("utf-8")
+                if not message:
+                    continue
+                message = f"[{get_hh_mm_ss()}] " + message
+                
                     
                 # 在GUI线程更新界面
                 self.chat_win.after(0, self.display_message, message)
