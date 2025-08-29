@@ -1,5 +1,7 @@
 > **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。**
 
+> [好看版链接。](https://github.com/pztsdy/touchfish_ui_remake)
+
 > [进阶版本链接](https://github.com/2044-space-elevator/TouchFishPlus)，进阶版本有更多功能，对应地，不同发行版的 chat 和 client 可能出现极大的兼容性问题。
 
 > **交 PR 的人注意！感谢您对 TouchFish 的贡献，但为了防止您的努力打水漂，请先阅读[贡献者须知](https://github.com/2044-space-elevator/TouchFish/blob/main/CONTRIBUTING.md)再开始贡献，感谢配合！**

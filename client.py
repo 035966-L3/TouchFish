@@ -199,11 +199,11 @@ class ChatClient:
                 message = self.socket.recv(1024).decode("utf-8")
                 if not message:
                     continue
-                message = f"[{get_hh_mm_ss()}] " + message
+                message_show = f"[{get_hh_mm_ss()}] " + message
                 
                     
                 # 在GUI线程更新界面
-                self.chat_win.after(0, self.display_message, message)
+                self.chat_win.after(0, self.display_message, message_show)
                 
                 # 播放提示音
                 if self.bell_enabled and not message.startswith(f"{self.username}:"):
