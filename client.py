@@ -53,7 +53,7 @@ class ChatClient:
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-        CURRENT_VERSION = "v1.1.1"
+        CURRENT_VERSION = "v1.1.2"
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
         except:
@@ -72,6 +72,10 @@ class ChatClient:
                 
             self.socket = socket.socket()
             self.socket.connect((self.server_ip, self.port))
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            self.socket.ioctl(socket.SIO_KEEPALIVE_VALS, (
+                1, 180 * 1000, 30 * 1000
+            )) 
             self.root.destroy()  # 关闭连接窗口
             self.create_chat_window()  # 打开聊天窗口
             # 启动消息接收线程
