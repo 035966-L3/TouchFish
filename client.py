@@ -72,10 +72,18 @@ class ChatClient:
                 
             self.socket = socket.socket()
             self.socket.connect((self.server_ip, self.port))
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            self.socket.ioctl(socket.SIO_KEEPALIVE_VALS, (
-                1, 180 * 1000, 30 * 1000
-            )) 
+
+            # 心跳包防止断连
+            if platform.system() == "Windows":
+                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+                self.socket.ioctl(socket.SIO_KEEPALIVE_VALS, (
+                    1, 180 * 1000, 30 * 1000
+                )) 
+
+            else:
+                self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+                self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+
             self.root.destroy()  # 关闭连接窗口
             self.create_chat_window()  # 打开聊天窗口
             # 启动消息接收线程

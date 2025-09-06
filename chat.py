@@ -1,4 +1,5 @@
 import socket
+import platform
 import re
 import tabulate
 import requests
@@ -165,17 +166,15 @@ def add_accounts():
         msg_counts[addresstmp[0]] = 0 
         flush_txt += f"[{time_str()}] User {addresstmp} connected to server.\n"
         
-        conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
 
-        # 对于 Linux 系统，请将下面的代码解除注释，注释下面的 3 行代码注释，直接运行。
-        """
-        conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
-        conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-        """
-        
-        conntmp.ioctl(socket.SIO_KEEPALIVE_VALS, (
-            1, 180 * 1000, 30 * 1000
-        ))
+        if platform.system() != "Windows":
+            conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+            conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+        else: 
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            conntmp.ioctl(socket.SIO_KEEPALIVE_VALS, (
+                1, 180 * 1000, 30 * 1000
+            ))
         conntmp.setblocking(0)
         conn.append(conntmp)
         address.append(addresstmp)
@@ -416,17 +415,15 @@ class Server(cmd.Cmd):
             username[requestion[rid][1][0]] = "UNKNOWN"
             requestion[rid][0].setblocking(0)
 
-            requestion[rid][0].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
 
-            # 对于 Linux 系统，请将下面的代码解除注释，注释下面的 3 行代码注释，直接运行。
-            """
-            requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
-            requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-            """
-            
-            requestion[rid][0].ioctl(socket.SIO_KEEPALIVE_VALS, (
-                1, 180 * 1000, 30 * 1000
-            ))
+            if platform.system() != "Windows":
+                requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+                requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+            else: 
+                requestion[rid][0].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+                requestion[rid][0].ioctl(socket.SIO_KEEPALIVE_VALS, (
+                    1, 180 * 1000, 30 * 1000
+                ))
 
             conn.append(requestion[rid][0])
             address.append(requestion[rid][1])
