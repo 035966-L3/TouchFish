@@ -55,7 +55,7 @@ jobs:
         run: |
           cd bin
           cd windows
-          python ../../get_site_packages.py
+          Copy-Item -Path ../hook-win10toast.py C:\\hostedtoolcache\\windows\\Python\\3.10.11\\x64\\lib\\site-packages\\PyInstaller\\hooks\\
           pyinstaller --onefile ../../chat.py
           pyinstaller --onefile --noconsole ../../client.py
           rm chat.spec
