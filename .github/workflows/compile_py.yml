@@ -16,7 +16,7 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
       - name: Install Pyinstaller
-        run: pip install -r requirements_linux.txt 
+        run: pip install -r requirements.txt 
       - name: Compile
         run: |
           cd bin
