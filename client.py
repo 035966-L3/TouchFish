@@ -6,11 +6,9 @@ import sys
 import requests
 from tkinter import messagebox
 import datetime
+from win10toast_nosound import ToastNotifier
 
-notifier = None
-if platform.system() == "Windows":
-    from win10toast_nosound import ToastNotifier
-    notifier = ToastNotifier()
+notifier = ToastNotifier()
 
 def get_hh_mm_ss() -> str:
     """
