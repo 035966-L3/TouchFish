@@ -6,9 +6,9 @@ import sys
 import requests
 from tkinter import messagebox
 import datetime
-from win10toast_nosound import ToastNotifier
+import win10toast
 
-notifier = ToastNotifier()
+notifier = win10toast.ToastNotifier()
 
 def get_hh_mm_ss() -> str:
     """
@@ -256,7 +256,7 @@ class ChatClient:
                     self.play_notification_sound()
                     
             except Exception as e:
-                break
+                pass
 
     def display_message(self, message):
         """在聊天框中显示消息"""

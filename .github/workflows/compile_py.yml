@@ -55,6 +55,7 @@ jobs:
         run: |
           cd bin
           cd windows
+          python ../../get_site_packages.py
           pyinstaller --onefile ../../chat.py
           pyinstaller --onefile --noconsole ../../client.py
           rm chat.spec
