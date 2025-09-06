@@ -58,7 +58,7 @@ class ChatClient:
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-        CURRENT_VERSION = "v1.2.0"
+        CURRENT_VERSION = "v1.2.1"
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
         except:
@@ -238,13 +238,15 @@ class ChatClient:
                 if not message:
                     continue
                 if self.notifier_enabled and not message.startswith(f"{self.username}:"):
+                    def notif_tmp():
+                        notifier.show_toast(f"消息提示（来自 {message.split(':')[0]})", message, duration=2)
                     if self.notifier_str:
                         for v in self.notifier_str:
                             if v in message:
-                                notifier.show_toast(f"消息提示（来自 {message.split(':')[0]})", message)
+                                threading.Thread(target=notif_tmp).start()
                                 break
                     else:
-                        notifier.show_toast(f"消息提示 (来自 {message.split(':')[0]})", message)
+                        threading.Thread(target=notif_tmp).start()
                 message_show = f"[{get_hh_mm_ss()}] " + message
                 
                     
