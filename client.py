@@ -7,6 +7,11 @@ import requests
 from tkinter import messagebox
 import datetime
 
+notifier = None
+if platform.system() == "Windows":
+    from win10toast_nosound import ToastNotifier
+    notifier = ToastNotifier()
+
 def get_hh_mm_ss() -> str:
     """
     return HH:MM:SS
@@ -20,6 +25,8 @@ class ChatClient:
         self.root.title("聊天客户端")
         self.font_family = ("微软雅黑", 12)
         self.bell_enabled = False
+        self.notifier_enabled = False
+        self.notifier_str = []
         
         self.create_connection_window()
         self.root.mainloop()
@@ -53,7 +60,7 @@ class ChatClient:
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-        CURRENT_VERSION = "v1.1.2"
+        CURRENT_VERSION = "v1.2.0"
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
         except:
@@ -159,7 +166,7 @@ class ChatClient:
         font_size_entry.insert(0, str(self.font_family[1]))
         
         # 提示音设置
-        bell_frame = tk.LabelFrame(settings_win, text="提示音设置", padx=10, pady=10)
+        bell_frame = tk.LabelFrame(settings_win, text="提示设置", padx=10, pady=10)
         bell_frame.pack(padx=10, pady=5, fill="x")
         
         bell_var = tk.BooleanVar(value=self.bell_enabled)
@@ -170,6 +177,25 @@ class ChatClient:
             state="normal" if platform.system() == "Windows" else "disabled"
         )
         bell_check.pack(anchor="w")
+        notifier_var = tk.BooleanVar(value=self.notifier_enabled)
+        notifier_check = tk.Checkbutton(
+            bell_frame,
+            text="启用 Windows 通知（无声音，仅限 windows 系统）",
+            variable=notifier_var,
+            state="normal" if platform.system() == "Windows" else "disabled"
+        )
+        notifier_str_label = tk.Label(
+            bell_frame,
+            text="当收到这些字段时才启用通知（英文半角逗号分割，无内容表示收到任意字段都通知）："
+        )
+        notifier_str_entry = tk.Entry(
+            bell_frame
+        )
+        notifier_check.pack(anchor="w")
+        notifier_str_label.pack(anchor="w")
+        notifier_str_entry.pack(anchor="w")
+        notifier_str_entry.insert(0, ",".join(self.notifier_str))
+
         
         # 确定按钮
         def apply_settings():
@@ -179,7 +205,9 @@ class ChatClient:
                 self.font_family = (font_name, font_size)
                 
                 self.bell_enabled = bell_var.get()
-                
+                self.notifier_enabled = notifier_var.get()
+                self.notifier_str = notifier_str_entry.get().split(',')
+
                 self.chat_text.config(font=self.font_family)
                 settings_win.destroy()
             except ValueError:
@@ -211,6 +239,14 @@ class ChatClient:
                 message = self.socket.recv(1024).decode("utf-8")
                 if not message:
                     continue
+                if self.notifier_enabled and not message.startswith(f"{self.username}:"):
+                    if self.notifier_str:
+                        for v in self.notifier_str:
+                            if v in message:
+                                notifier.show_toast(f"消息提示（来自 {message.split(':')[0]})", message)
+                                break
+                    else:
+                        notifier.show_toast(f"消息提示 (来自 {message.split(':')[0]})", message)
                 message_show = f"[{get_hh_mm_ss()}] " + message
                 
                     
