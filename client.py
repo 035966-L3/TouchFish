@@ -8,7 +8,9 @@ from tkinter import messagebox
 import datetime
 import win10toast
 
-notifier = win10toast.ToastNotifier()
+notifier = None
+if platform.system() == "Windows":
+    notifier = win10toast.ToastNotifier()
 
 def get_hh_mm_ss() -> str:
     """
@@ -58,7 +60,7 @@ class ChatClient:
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-        CURRENT_VERSION = "v1.2.1"
+        CURRENT_VERSION = "v1.2.2"
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
         except:
@@ -239,7 +241,16 @@ class ChatClient:
                     continue
                 if self.notifier_enabled and not message.startswith(f"{self.username}:"):
                     def notif_tmp():
-                        notifier.show_toast(f"消息提示（来自 {message.split(':')[0]})", message, duration=2)
+                        title = ""
+                        if message.startswith("[房主提示]"):
+                            title = "房主提示"
+                        elif message.startswith("[系统提示]"):
+                            title = "系统提示"
+                        elif message.startswith("[房主广播]"):
+                            title = "房主广播"
+                        else:
+                            title = f"消息提示（来自 {message.split(":")[0]})"
+                        notifier.show_toast(title, message, duration=2)
                     if self.notifier_str:
                         for v in self.notifier_str:
                             if v in message:

@@ -65,7 +65,7 @@ s.bind((ip, portin))
 s.listen(account_numbers)
 s.setblocking(0)
 
-VERSION = "v1.2.1"
+VERSION = "v1.2.2"
 s.setblocking(0)
 NEWEST_VERSION = "UNKNOWN"
 
@@ -316,7 +316,7 @@ class Server(cmd.Cmd):
                 if SAVE_CONFIG:
                     dic_config_file["ban"]["ip"].append(ip)
                 ban_ip_lst.append(ip)
-                send_all(f"[系统提示] 房主封禁了用户 {ip}, 用户名：{username[ip]}\n")
+                send_all(f"[系统提示] 房主封禁了用户 {ip}, 用户名 {username[ip]}\n")
             flush_txt += f"[{time_str()}] You banned ip {','.join(arg)}.\n"
         
         if arg[0] == 'words':
