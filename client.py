@@ -249,7 +249,7 @@ class ChatClient:
                         elif message.startswith("[房主广播]"):
                             title = "房主广播"
                         else:
-                            title = f"消息提示（来自 {message.split(":")[0]})"
+                            title = f"消息提示（来自 {message.split(":")[0]}）"
                         notifier.show_toast(title, message, duration=2)
                     if self.notifier_str:
                         for v in self.notifier_str:
