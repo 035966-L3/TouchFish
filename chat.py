@@ -65,7 +65,7 @@ s.bind((ip, portin))
 s.listen(account_numbers)
 s.setblocking(0)
 
-VERSION = "v1.2.2"
+VERSION = "v1.3.0"
 s.setblocking(0)
 NEWEST_VERSION = "UNKNOWN"
 
@@ -185,6 +185,14 @@ def receive_msg():
     while True:
         if EXIT_FLG:
             return
+        for j in requestion:
+            if j == None:
+                continue
+            try:
+                tmp = j[0].recv(1024).decode('utf-8')
+            except:
+                pass
+
         for i in range(len(conn)):
             data = None
             try:
