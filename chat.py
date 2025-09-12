@@ -17,7 +17,8 @@ try:
         ban_ip, ban_words, ban_length = dic_tmp['ban']['ip'], dic_tmp['ban']['words'], dic_tmp['ban']['length']
         status_enter_after_promis_tmp = dic_tmp['ENTER_AFTER_PROMISE']
         status_show_enter_message_tmp = dic_tmp['SHOW_ENTER_MESSAGE']
-        if type(ban_ip) == type(list()) and type(ban_words) == type(list()) and type(ban_length) == type(int()) and type(status_enter_after_promis_tmp) == type(bool()) and type(status_show_enter_message_tmp) == type(bool()):
+        status_auto_remove_offline = dic_tmp['AUTO_REMOVE_OFFLINE']
+        if type(ban_ip) == type(list()) and type(ban_words) == type(list()) and type(ban_length) == type(int()) and type(status_enter_after_promis_tmp) == type(bool()) and type(status_show_enter_message_tmp) == type(bool()) and type(status_auto_remove_offline) == type(bool()):
             pass
         
         else:
@@ -40,7 +41,8 @@ except:
                 "length": 2147483647
             },
             "ENTER_AFTER_PROMISE" : False,
-            "SHOW_ENTER_MESSAGE" : False
+            "SHOW_ENTER_MESSAGE" : False,
+            "AUTO_REMOVE_OFFLINE" : False
         }, f)
 
 if len(sys.argv) == 4:
@@ -97,6 +99,7 @@ ban_ip_lst = dic_config_file["ban"]["ip"]
 ban_words_lst = dic_config_file["ban"]["words"]
 ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
+AUTO_REMOVE_OFFLINE = dic_config_file["AUTO_REMOVE_OFFLINE"]
 
 ENTER_HINT = ""
 with open("hint.txt", "a+", encoding="utf-8") as file:
@@ -181,6 +184,8 @@ def add_accounts():
         username[addresstmp[0]] = "UNKNOWN"
 
 def receive_msg():
+    global conn
+    global address
     global flush_txt
     while True:
         if EXIT_FLG:
@@ -216,13 +221,24 @@ def receive_msg():
             username_tmp = data.split(':')[0]
             username[address[i][0]] = username_tmp
             flush_txt += f"[{time_str()}] User {address[i]} send a msg: {data}"
+
+            new_conn_lst = []
+            new_add_lst = []
+
             for j in range(len(conn)):
                 try:
                     conn[j].send(bytes(data, encoding="utf-8"))
                     if_online[address[j][0]] = True
+                    if AUTO_REMOVE_OFFLINE:
+                        new_conn_lst.append(conn[j])
+                        new_add_lst.append(address[j])
                 except:
                     if_online[address[j][0]] = False
                     continue
+
+            if AUTO_REMOVE_OFFLINE:
+                conn = new_conn_lst
+                address = new_add_lst
  
 class Server(cmd.Cmd):
     prompt = f"{ip}:{portin}> "
@@ -356,6 +372,7 @@ class Server(cmd.Cmd):
         使用方法（~ 表示 set)：
             ~ EAP on/off 开启/关闭准许后进入
             ~ SEM on/off 开启/关闭进入后提示
+            ~ ARO on/off 开启/关闭收发消息时删去离线接口（建议开启）
             你可以在命令后面加上 "forever"，表示将设置保存到配置文件。下一次启动本目录的 server 时能使用。
         """
         global flush_txt
@@ -363,7 +380,7 @@ class Server(cmd.Cmd):
         if len(arg) != 2 and len(arg) != 3:
             print("[Error] 参数错误")
             return
-        att1 = ["EAP", "SEM"]
+        att1 = ["EAP", "SEM", "ARO"]
         att2 = ["on", "off"]
         att3 = "forever"
         if (arg[0] not in att1) or (arg[1] not in att2):
@@ -374,6 +391,7 @@ class Server(cmd.Cmd):
             return
         global ENTER_AFTER_PROMISE
         global SHOW_ENTER_MESSAGE
+        global AUTO_REMOVE_OFFLINE
         global dic_config_file
         if arg[0] == "EAP":
             if arg[1] == "on":
@@ -386,9 +404,17 @@ class Server(cmd.Cmd):
                 SHOW_ENTER_MESSAGE = False
             else:
                 SHOW_ENTER_MESSAGE = True
+
+        if arg[0] == 'ARO':
+            if arg[1] == "off":
+                AUTO_REMOVE_OFFLINE = False
+            else:
+                AUTO_REMOVE_OFFLINE = True
+        
         flush_txt += f'You set {arg[0]} as {arg[1]}'
         if len(arg) == 3:
             flush_txt += f" and save it in config."
+            dic_config_file["AUTO_REMOVE_OFFLINE"] = AUTO_REMOVE_OFFLINE
             dic_config_file["ENTER_AFTER_PROMISE"] = ENTER_AFTER_PROMISE
             dic_config_file["SHOW_ENTER_MESSAGE"] = SHOW_ENTER_MESSAGE
             with open(CONFIG_PATH, "w+") as file:

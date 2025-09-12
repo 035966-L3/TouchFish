@@ -91,6 +91,7 @@ class ChatClient:
                 self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
                 self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 
+            self.socket.send(bytes(f"用户 {self.username} 加入聊天室。\n", encoding="utf-8"))
             self.root.destroy()  # 关闭连接窗口
             self.create_chat_window()  # 打开聊天窗口
             # 启动消息接收线程
