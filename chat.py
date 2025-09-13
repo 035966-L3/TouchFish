@@ -219,6 +219,11 @@ def receive_msg():
             if flg:
                 continue
             username_tmp = data.split(':')[0]
+            if not ':' in data and '用户 ' in data and ' 加入聊天室。' in data:
+                username_tmp = data.split('用户 ')[1]
+                username_tmp = username_tmp.split(' 加入聊天室。')[0]
+            else:
+                username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
             flush_txt += f"[{time_str()}] User {address[i]} send a msg: {data}"
 
