@@ -13,6 +13,7 @@ import win10toast
 import base64
 
 # 文件传输相关的常量
+EXIT_FLG = False
 FILE_START = "[FILE_START]"
 FILE_DATA = "[FILE_DATA]"
 FILE_END = "[FILE_END]"
@@ -243,9 +244,10 @@ class ChatClient:
     def send_message(self):
         """发送消息"""
         message = self.msg_entry.get("1.0", "end-1c") # 使用 end-1c 获取不带末尾换行符的内容
+        while message.startswith("\n"):
+            message = message[1:]
         if not message.strip():
             return
-            
         full_msg = f"{self.username}: {message}\n"
         try:
             self.socket.send(full_msg.encode("utf-8"))
@@ -257,6 +259,9 @@ class ChatClient:
         """接收消息的线程函数"""
         buffer = b""
         while True:
+            if EXIT_FLG:
+                sys.exit()
+                return
             try:
                 # 接收原始字节数据
                 chunk = self.socket.recv(1024)
@@ -267,15 +272,21 @@ class ChatClient:
 
                 # 使用 b'\n' 作为分隔符处理消息
                 while b'\n' in buffer:
-                    message_bytes, buffer = buffer.split(b'\n', 1)
-                    message = message_bytes.decode('utf-8')
+                    message_bytes_tmp, buffer_tmp = buffer.split(b'\n', 1)
+                    message_tmp = message_bytes_tmp.decode('utf-8')
 
                     # 尝试处理文件传输消息
-                    if message.startswith("{") and message.endswith("}"):
-                        if self.handle_file_message(message):
+                    if message_tmp.startswith("{") and message_tmp.endswith("}"):
+                        if self.handle_file_message(message_tmp):
+                            buffer = buffer_tmp
                             continue
                             
                     # 处理普通文本消息
+                    message_bytes = buffer
+                    while message_bytes.endswith(b'\n'):
+                        message_bytes = message_bytes[:-1]
+                    buffer = b""
+                    message = message_bytes.decode('utf-8')
                     if self.notifier_enabled and not message.startswith(f"{self.username}:"):
                         def notif_tmp():
                             title = ""
@@ -483,12 +494,14 @@ class ChatClient:
         self.display_message(f"[系统提示] 文件接收进度：{progress:.1f}%\n")
 
     def on_closing(self):
+        global EXIT_FLG
         """关闭窗口时的处理"""
         try:
             self.socket.send(f"用户 {self.username} 离开了聊天室。".encode("utf-8"))
             self.socket.close()
         except:
             pass
+        EXIT_FLG = True 
         self.chat_win.destroy()
         sys.exit()
 
