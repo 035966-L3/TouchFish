@@ -1,4 +1,4 @@
-> **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。**
+> **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。发信息功能可能出现兼容性问题，可以通过操作规避，详见 wiki。**
 
 > [好看版链接。](https://github.com/pztsdy/touchfish_ui_remake)
 
