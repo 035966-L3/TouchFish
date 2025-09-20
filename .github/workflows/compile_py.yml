@@ -1,73 +1,97 @@
+name: Build and Push Python Binaries
+
 on:
   push:
     branches:
       - main
 
 jobs:
-  jo-linux:
-    name: Compile in linux
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
-      - name: Install Pyinstaller
-        run: pip install -r requirements_linux.txt 
-      - name: Compile
+
+      - name: Compile Python scripts for Linux
         run: |
-          cd bin
-          cd linux
-          pyinstaller --onefile ../../chat.py
-          pyinstaller --onefile --noconsole ../../client.py
-          rm chat.spec
-          rm client.spec
-          rm -rf build/*
-          rmdir build
-          cp -rf dist/chat .
-          cp -rf dist/client .
-          rm dist/*
-          rmdir dist
-          cd ../..
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git pull
-          git add .
-          git commit -m "[Bot]Push binary file"
-          git push
-  jo-windows:
-    name: Compile in windows
+          pip install -r requirements_linux.txt
+          mkdir -p bin/linux
+          pyinstaller --onefile --distpath bin/linux chat.py
+          pyinstaller --onefile --noconsole --distpath bin/linux client.py
+          rm chat.spec client.spec
+          rm -rf build/
+
+      - name: Upload Linux binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: bin/linux/
+          
+  build-windows:
     runs-on: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
-      - name: Install Pyinstaller
-        run: pip install -r requirements.txt 
-      - name: Compile
+
+      - name: Compile Python scripts for Windows
         run: |
-          cd bin
-          cd windows
-          Copy-Item -Path ../../hook-win10toast.py C:\\hostedtoolcache\\windows\\Python\\3.10.11\\x64\\lib\\site-packages\\PyInstaller\\hooks\\
-          pyinstaller --onefile ../../chat.py
-          pyinstaller --onefile --noconsole ../../client.py
-          rm chat.spec
-          rm client.spec
-          Copy-Item -Path ./dist/* -destination ./
-          remove-item -path "./dist" -recurse
-          remove-item -path "./build" -recurse
-          cd ../..
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git pull
-          git add .
-          git commit -m "[Bot]Push binary file"
-          git push
-        
+          pip install -r requirements.txt
+          mkdir -Force bin/windows
+          pyinstaller --onefile --distpath bin/windows chat.py
+          pyinstaller --onefile --noconsole --distpath bin/windows client.py
+          Remove-Item -Path "chat.spec", "client.spec" -Force
+          Remove-Item -Path ".\build" -Recurse -Force
+          
+      - name: Upload Windows binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: bin/windows/
+
+  push-binaries:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Download Windows binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: bin/windows/
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-binaries
+          path: bin/linux/
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Add and commit binaries
+        run: |
+          git add bin/windows/
+          git add bin/linux/
+          git commit -m "[skip ci] [Bot] Add compiled binaries" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push
