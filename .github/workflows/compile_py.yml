@@ -1,3 +1,5 @@
+# 贡献者注意：
+# 下面的 hook-win10toast.py 迁移不要删
 name: Build and Push Python Binaries
 
 on:
@@ -47,6 +49,7 @@ jobs:
 
       - name: Compile Python scripts for Windows
         run: |
+          Copy-Item -Path hook-win10toast.py C:\\hostedtoolcache\\windows\\Python\\3.10.11\\x64\\lib\\site-packages\\PyInstaller\\hooks\\
           pip install -r requirements.txt
           mkdir -Force bin/windows
           pyinstaller --onefile --distpath bin/windows chat.py
