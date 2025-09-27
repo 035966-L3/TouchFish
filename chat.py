@@ -1,14 +1,17 @@
 import socket
 import platform
 import re
-import tabulate
-import requests
 import cmd
 import datetime
 import threading
+import time
 import sys
 import json
 import base64
+from random import randint
+
+import tabulate
+import requests
 
 CONFIG_PATH = "config.json"
 
@@ -95,6 +98,7 @@ username = dict()
 if_online = dict()
 requestion = []
 msg_counts = dict()
+admins = []
 dic_config_file = json.load(open(CONFIG_PATH, "r+"))
 ban_ip_lst = dic_config_file["ban"]["ip"]
 ban_words_lst = dic_config_file["ban"]["words"]
@@ -247,6 +251,7 @@ def receive_msg():
                 conn = new_conn_lst
                 address = new_add_lst
  
+admin_socket = None
 class Server(cmd.Cmd):
     prompt = f"{ip}:{portin}> "
     intro = f"""欢迎来到 TouchFish！当前版本 {VERSION}，最新版本 {NEWEST_VERSION}
@@ -677,8 +682,112 @@ class Server(cmd.Cmd):
         ~ add <ip1> <ip2> ... <ipk> 允许 <ip1>,<ip2>,...,<ipk> 成为管理员
         ~ remove <ip1> <ip2> ... <ipk> 将 <ip1>,<ip2>,...,<ipk> 从管理员中移除
         """
+        global admin_socket
+        global admins
+
+        arg = arg.split(' ')
+        if len(arg) == 1:
+            arg = arg[0]
+            if arg == "on":
+                try:
+                    admin_socket = socket.socket()
+                    port = 11451
+                    while True:
+                        try:
+                            admin_socket.bind((ip, port))
+                            break
+                        except:
+                            port = randint(10000, 65535)
+                    admin_socket.listen(10000)
+                    admin_socket.setblocking(0)
+                    print(f"管理员模式开启成功！指令端口 {ip}:{port}。")
+                except:
+                    print("[Error] 开启失败")
+            
+            elif arg == "off":
+                if admin_socket:
+                    admin_socket.close()
+                admin_socket = None
+            
+            else:
+                print("[Error] 参数错误")
+            return
+        if arg[0] == "add":
+            for i in range(1, len(arg)):
+                admins.append(arg[i])
+        
+        elif arg[0] == "remove":
+            new_admins = []
+            for i in range(len(admins)):
+                if admins[i] in arg:
+                    continue
+                new_admins.append(admins[i])
+            admins = list(new_admins)
+        
+        else:
+            print("[Error] 参数错误")
+
+admin_conns = []
+admin_address = []
+admin_name = dict()
+last_sent = time.time()
+def admin_accept():
+    global admin_conns
+    global admin_address
+    global flush_txt
+    global last_sent
+    while True:
+        if not admin_socket:
+            continue
+
+        newconn = []
+        newaddress = []
+        for i in range(len(admin_conns)):
+            if admin_address[i] not in admins:
+                continue
+            if time.time() - last_sent > 20:
+                try:
+                    admin_conns[i].send(bytes("{'type' : 'test', 'message' : None }", encoding="utf-8"))
+                except:
+                    continue
+            newconn.append(admin_conns[i])
+            newaddress.append(admin_address[i])
+        if time.time() - last_sent > 20:
+            last_sent = time.time()
+        admin_conns = list(newconn)
+        admin_address = list(newaddress)
+
+        if EXIT_FLG:
+            return
+        try:
+            conntmp, addresstmp = admin_socket.accept()
+        except:
+            continue
+        
+        if not addresstmp[0] in admins:
+            continue
+        
+        flush_txt += f"[{time_str()}] Administrator {addresstmp} entered.\n"
+        print(f"\n管理员 {addresstmp} 进入管理平台。\n{ip}:{portin}> ", end="")
+        conntmp.setblocking(0)
+        if platform.system() != "Windows":
+            conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+            conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+        else: 
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            conntmp.ioctl(socket.SIO_KEEPALIVE_VALS, (
+                1, 180 * 1000, 30 * 1000
+            ))
+        admin_address.append(addresstmp[0])
+        admin_conns.append(conntmp)
+        admin_name[addresstmp[0]] = None
+
+def admin_deal():
+    pass
+
 server = Server()
 
 threading.Thread(target=server.cmdloop).start()
 threading.Thread(target=receive_msg).start()
 threading.Thread(target=add_accounts).start()
+threading.Thread(target=admin_accept).start()
