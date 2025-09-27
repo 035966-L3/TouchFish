@@ -102,6 +102,7 @@ ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
 AUTO_REMOVE_OFFLINE = dic_config_file["AUTO_REMOVE_OFFLINE"]
 
+
 ENTER_HINT = ""
 with open("hint.txt", "a+", encoding="utf-8") as file:
     file.seek(0)
@@ -668,6 +669,14 @@ class Server(cmd.Cmd):
         EXIT_FLG = 1
         exit()
     
+    def do_admin(self, arg):
+        """
+        多管理员模式
+        ~ on 开启多管理员模式
+        ~ off 关闭多管理员模式
+        ~ add <ip1> <ip2> ... <ipk> 允许 <ip1>,<ip2>,...,<ipk> 成为管理员
+        ~ remove <ip1> <ip2> ... <ipk> 将 <ip1>,<ip2>,...,<ipk> 从管理员中移除
+        """
 server = Server()
 
 threading.Thread(target=server.cmdloop).start()
