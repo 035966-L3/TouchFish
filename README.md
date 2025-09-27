@@ -1,6 +1,6 @@
 > **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。发信息功能可能出现兼容性问题，可以通过操作规避，详见 wiki。**
 
-> [好看版链接。](https://github.com/pztsdy/touchfish_ui_remake)
+> [好看版链接。](https://github.com/pztsdy/touchfish_ui_remake)，此版本基于 Node.JS 构建，拥有现代的 UI，部分支持 Markdown 和 $\KaTeX$
 
 > [进阶版本链接](https://github.com/2044-space-elevator/TouchFishPlus)，进阶版本有更多功能，对应地，不同发行版的 chat 和 client 可能出现极大的兼容性问题。
 
@@ -14,7 +14,7 @@
 
 该软件没什么优点（小声），只能发文字，只能在同一局域网下使用，显然很辣鸡，但是可以离线使用。所以是机房聊天的不二之选（doge）。
 
-（小声）如果挂到服务器上，上可以z线在用。
+（小声）如果挂到服务器上，理论上可以在公网上使用。
 
 该体系有两个软件：
 - server。服务器端，聊天前，必须有一人的电脑作为 server，server 有且只有一台。

@@ -11,6 +11,7 @@ from tkinter import messagebox, filedialog
 import datetime
 import win10toast
 import base64
+import webbrowser
 
 # 文件传输相关的常量
 EXIT_FLG = False
@@ -39,7 +40,7 @@ class ChatClient:
         self.notifier_enabled = False
         self.notifier_str = []
         self.sending_file = None  # 添加标志来跟踪正在发送的文件
-        
+
         self.create_connection_window()
         self.root.mainloop()
 
@@ -47,28 +48,28 @@ class ChatClient:
         """创建连接窗口"""
         frame = tk.Frame(self.root, padx=20, pady=20)
         frame.pack()
-        
+
         # 服务器地址
         tk.Label(frame, text="服务器IP:").grid(row=0, column=0, sticky="w")
         self.ip_entry = tk.Entry(frame, width=20)
         self.ip_entry.grid(row=0, column=1, pady=5)
         self.ip_entry.insert(0, "127.0.0.1")
-        
+
         # 端口
         tk.Label(frame, text="端口:").grid(row=1, column=0, sticky="w")
         self.port_entry = tk.Entry(frame, width=10)
         self.port_entry.grid(row=1, column=1, pady=5, sticky="w")
         self.port_entry.insert(0, "8080")
-        
+
         # 用户名
         tk.Label(frame, text="用户名:").grid(row=2, column=0, sticky="w")
         self.user_entry = tk.Entry(frame, width=20)
         self.user_entry.grid(row=2, column=1, pady=5)
-        
+
         # 连接按钮
         connect_btn = tk.Button(frame, text="连接", command=self.connect_to_server)
         connect_btn.grid(row=3, columnspan=2, pady=10)
-        
+
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
@@ -88,7 +89,7 @@ class ChatClient:
             if not self.username:
                 messagebox.showerror("错误", "用户名不能为空")
                 return
-                
+
             self.socket = socket.socket()
             self.socket.connect((self.server_ip, self.port))
 
@@ -118,14 +119,14 @@ class ChatClient:
         self.chat_win = tk.Tk()
         self.chat_win.title(f"聊天室 - {self.username}")
         self.chat_win.geometry(f"600x400")
-        
+
         # 聊天记录框
         self.chat_frame = tk.Frame(self.chat_win)
         self.chat_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
+
         scrollbar = tk.Scrollbar(self.chat_frame)
         scrollbar.pack(side="right", fill="y")
-        
+
         self.chat_text = tk.Text(
             self.chat_frame, 
             yscrollcommand=scrollbar.set,
@@ -134,11 +135,11 @@ class ChatClient:
         )
         self.chat_text.pack(fill="both", expand=True)
         scrollbar.config(command=self.chat_text.yview)
-        
+
         # 消息输入框
         input_frame = tk.Frame(self.chat_win)
         input_frame.pack(fill="x", padx=10, pady=5)
-        
+
         self.msg_entry = tk.Text(
             input_frame, 
             height=3,
@@ -146,25 +147,25 @@ class ChatClient:
         )
         self.msg_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.msg_entry.bind("<Control-Return>", lambda e: self.send_message())
-        
+
         # 发送按钮和文件按钮
         btn_frame = tk.Frame(input_frame)
         btn_frame.pack(side="right")
-        
+
         send_btn = tk.Button(btn_frame, text="发送", command=self.send_message)
         send_btn.pack(side="right", padx=2)
-        
+
         file_btn = tk.Button(btn_frame, text="发送文件", command=self.send_file)
         file_btn.pack(side="right", padx=2)
-        
+
         # 设置按钮
         setting_btn = tk.Button(self.chat_win, text="设置", command=self.open_settings)
         setting_btn.pack(side="bottom", pady=5)
-        
+
         # 初始化文件传输相关的变量
         self.receiving_file = False
         self.current_file = {"name": "", "data": [], "size": 0}
-        
+
 
     def open_settings(self):
         """打开设置窗口"""
@@ -172,25 +173,25 @@ class ChatClient:
         settings_win.title("设置")
         settings_win.transient(self.chat_win)
         settings_win.grab_set()
-        
+
         # 字体设置
         font_frame = tk.LabelFrame(settings_win, text="字体设置", padx=10, pady=10)
         font_frame.pack(padx=10, pady=5, fill="x")
-        
+
         tk.Label(font_frame, text="字体名称:").grid(row=0, column=0, sticky="w")
         font_name_entry = tk.Entry(font_frame)
         font_name_entry.grid(row=0, column=1, padx=5, pady=2)
         font_name_entry.insert(0, self.font_family[0])
-        
+
         tk.Label(font_frame, text="字体大小:").grid(row=1, column=0, sticky="w")
         font_size_entry = tk.Entry(font_frame)
         font_size_entry.grid(row=1, column=1, padx=5, pady=2)
         font_size_entry.insert(0, str(self.font_family[1]))
-        
+
         # 提示音设置
         bell_frame = tk.LabelFrame(settings_win, text="提示设置", padx=10, pady=10)
         bell_frame.pack(padx=10, pady=5, fill="x")
-        
+
         bell_var = tk.BooleanVar(value=self.bell_enabled)
         bell_check = tk.Checkbutton(
             bell_frame, 
@@ -218,14 +219,17 @@ class ChatClient:
         notifier_str_entry.pack(anchor="w")
         notifier_str_entry.insert(0, ",".join(self.notifier_str))
 
-        
-        # 确定按钮
+
+        # 确定按钮和帮助按钮
+        button_frame = tk.Frame(settings_win)
+        button_frame.pack(pady=10)
+
         def apply_settings():
             try:
                 font_name = font_name_entry.get()
                 font_size = int(font_size_entry.get())
                 self.font_family = (font_name, font_size)
-                
+
                 self.bell_enabled = bell_var.get()
                 self.notifier_enabled = notifier_var.get()
                 self.notifier_str = notifier_str_entry.get().split(',')
@@ -234,12 +238,22 @@ class ChatClient:
                 settings_win.destroy()
             except ValueError:
                 messagebox.showerror("错误", "字体大小必须是整数")
-        
+
+        def open_help():
+            webbrowser.open("https://puzzled-memory-88c.notion.site/TouchFish-101-26781a521173808ebccfcb116d0f9075?pvs=4")
+
         tk.Button(
-            settings_win, 
+            button_frame, 
             text="确定", 
             command=apply_settings
-        ).pack(pady=10)
+        ).pack(side="left", padx=5)
+        
+        # 添加帮助按钮
+        tk.Button(
+            button_frame,
+            text="帮助",
+            command=open_help
+        ).pack(side="left", padx=5)
 
     def send_message(self):
         """发送消息"""
@@ -267,7 +281,7 @@ class ChatClient:
                 chunk = self.socket.recv(1024)
                 if not chunk:
                     continue
-                    
+
                 buffer += chunk
 
                 # 使用 b'\n' 作为分隔符处理消息
@@ -280,7 +294,7 @@ class ChatClient:
                         if self.handle_file_message(message_tmp):
                             buffer = buffer_tmp
                             continue
-                            
+
                     # 处理普通文本消息
                     message_bytes = buffer
                     while message_bytes.endswith(b'\n'):
@@ -308,16 +322,16 @@ class ChatClient:
                                     break
                         else:
                             threading.Thread(target=notif_tmp).start()
-                    
+
                     message_show = f"[{get_hh_mm_ss()}] " + message
-                    
+
                     # 在GUI线程更新界面
                     self.chat_win.after(0, self.display_message, message_show + "\n")
-                    
+
                     # 播放提示音
                     if self.bell_enabled and not message.startswith(f"{self.username}:"):
                         self.play_notification_sound()
-                    
+
             except Exception as e:
                 # 打印异常信息以便调试
                 print(f"Error in receive_messages: {e}")
@@ -354,16 +368,16 @@ class ChatClient:
 
         file_name = os.path.basename(file_path)
         self.sending_file = file_name
-            
+
         # 创建进度条窗口
         progress_win = tk.Toplevel(self.chat_win)
         progress_win.title("文件发送进度")
         progress_win.geometry("300x150")
         progress_win.transient(self.chat_win)
-        
+
         progress_label = tk.Label(progress_win, text="准备发送文件...")
         progress_label.pack(pady=10)
-        
+
         progress_var = tk.DoubleVar()
         progress_bar = ttk.Progressbar(
             progress_win,
@@ -371,12 +385,12 @@ class ChatClient:
             maximum=100
         )
         progress_bar.pack(fill="x", padx=20, pady=10)
-        
+
         def send_file_thread():
             try:
                 file_name = os.path.basename(file_path)
                 file_size = os.path.getsize(file_path)
-                
+
                 # 发送文件开始标记
                 start_info = {
                     "type": FILE_START,
@@ -384,7 +398,7 @@ class ChatClient:
                     "size": file_size
                 }
                 self.socket.send(f"{json.dumps(start_info)}\n".encode("utf-8"))
-                
+
                 # 读取并发送文件内容
                 sent_size = 0
                 with open(file_path, "rb") as f:
@@ -392,17 +406,17 @@ class ChatClient:
                         chunk = f.read(CHUNK_SIZE)
                         if not chunk:
                             break
-                            
+
                         # base64编码
                         chunk_b64 = base64.b64encode(chunk).decode("utf-8")
-                        
+
                         # 发送数据块
                         data_info = {
                             "type": FILE_DATA,
                             "data": chunk_b64
                         }
                         self.socket.send(f"{json.dumps(data_info)}\n".encode("utf-8"))
-                        
+
                         # 更新进度
                         sent_size += len(chunk)
                         progress = (sent_size / file_size) * 100
@@ -410,20 +424,20 @@ class ChatClient:
                         progress_win.after(0, lambda: progress_label.config(
                             text=f"发送进度：{progress:.1f}%"
                         ))
-                        
+
                 # 发送文件结束标记
                 end_info = {
                     "type": FILE_END
                 }
                 self.socket.send(f"{json.dumps(end_info)}\n".encode("utf-8"))
-                
+
                 progress_win.after(0, lambda: progress_label.config(text="文件发送完成！"))
                 progress_win.after(1000, progress_win.destroy)
-                
+
             except Exception as e:
                 messagebox.showerror("发送错误", f"文件发送失败：\n{str(e)}")
                 progress_win.destroy()
-        
+
         # 在新线程中发送文件
         threading.Thread(target=send_file_thread).start()
 
@@ -431,12 +445,12 @@ class ChatClient:
         """处理文件传输相关的消息"""
         try:
             msg_data = json.loads(message)
-            
+
             if msg_data["type"] == FILE_START:
                 # 检查是否是自己正在发送的文件
                 if self.sending_file == msg_data["name"]:
                     return True
-                    
+
                 self.receiving_file = True
                 self.current_file = {
                     "name": msg_data["name"],
@@ -450,14 +464,14 @@ class ChatClient:
                 else:
                     self.receiving_file = False
                     self.current_file = {"name": "", "data": [], "size": 0}
-                    
+
             elif msg_data["type"] == FILE_DATA and self.receiving_file:
                 self.current_file["data"].append(base64.b64decode(msg_data["data"]))
                 received_size = sum(len(d) for d in self.current_file["data"])
                 progress = (received_size / self.current_file["size"]) * 100
                 # 在GUI线程更新进度
                 self.chat_win.after(0, self.update_file_progress, progress)
-                
+
             elif msg_data["type"] == FILE_END and self.receiving_file:
                 if self.sending_file == self.current_file["name"]:
                     self.sending_file = None
@@ -473,10 +487,10 @@ class ChatClient:
                         for data in self.current_file["data"]:
                             f.write(data)
                     self.display_message(f"[系统提示] 文件已保存到：{save_path}\n")
-                    
+
                 self.receiving_file = False
                 self.current_file = {"name": "", "data": [], "size": 0}
-                
+
         except json.JSONDecodeError:
             return False
         except Exception as e:
