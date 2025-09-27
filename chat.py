@@ -255,14 +255,66 @@ class Server(cmd.Cmd):
 永久配置文件位于目录下的 ./config.json"""
     def __init__(self):
         cmd.Cmd.__init__(self)
+    
+    def ban(self, arg : list, operator) -> str:
+        OP_MSG = ""
+        global ban_ip_lst
+        global flush_txt
+        global ban_words_lst
+        global ban_length
+        global dic_config_file
 
-    def do_enable(self, arg : list):
-        """
-        使用方法（~ 表示 enable)：
-            ~ ip <*ip1> <*ip2> ... <*ipk>   解禁这 k 个 ip
-            ~ words <*w1> <*w2> ... <*wk>   删除这 k 个屏蔽词
-            在 enable 命令的后面直接加 forever，可以使得本设置保存到配置文件。下一次启动本目录的 server 时能使用。
-        """
+
+        arg = arg.split(' ')
+        if len(arg) < 2:
+            return "[Error] 参数错误\n"
+        SAVE_CONFIG = False
+        if arg[0] == 'forever':
+            SAVE_CONFIG = True
+            arg = arg[1:]
+        
+        att1 = ["ip", "words", "length"]
+        if arg[0] not in att1:
+            return "[Error] 参数错误\n"
+        
+        if arg[0] == 'ip':
+            arg = arg[1:]
+            for ip in arg:
+                if SAVE_CONFIG:
+                    dic_config_file["ban"]["ip"].append(ip)
+                ban_ip_lst.append(ip)
+                try:
+                    send_all(f"[系统提示] {operator}封禁了用户 {ip}, 用户名 {username[ip]}\n")
+                except:
+                    pass
+            flush_txt += f"[{time_str()}] {operator} banned ip {','.join(arg)}.\n"
+        
+        if arg[0] == 'words':
+            arg = arg[1:]
+            for word in arg:
+                if SAVE_CONFIG:
+                    dic_config_file["ban"]["words"].append(word)
+                ban_words_lst.append(word)
+            flush_txt += f"[{time_str()}] {operator} banned words {','.join(arg)}.\n"
+        
+        if arg[0] == "length":
+            try:
+                arg[1] = int(arg[1])
+            except:
+                return "[Error] 参数错误\n"
+            send_all(f"[系统提示] {operator}设置了发送信息的长度最高为 {arg[1]}。\n")
+            if SAVE_CONFIG:
+                dic_config_file["ban"]["length"] = arg[1]
+            ban_length = arg[1]
+            flush_txt += f"[{time_str()}] {operator} limited message length: {ban_length}\n"
+
+        if SAVE_CONFIG:
+            with open(CONFIG_PATH, "w+") as f:
+                json.dump(dic_config_file, f)
+
+        return ""
+    
+    def enable(self, arg : list, operator) -> str:
         global ban_ip_lst
         global flush_txt
         global ban_words_lst
@@ -270,19 +322,19 @@ class Server(cmd.Cmd):
         global dic_config_file
 
         arg = arg.split(' ')
+        OP_MSG = ""
         if len(arg) < 2:
-            print("[Error] 参数错误")
-            return
+            return "[Error] 参数错误\n"
+
         SAVE_CONFIG = False
-        if arg[0] == 'forever':
+        if arg[0] == "forever":
             SAVE_CONFIG = True
             arg = arg[1:]
         
         att1 = ["ip", "words"]
         if arg[0] not in att1:
-            print("[Error] 参数错误")
-            return
-        
+            return "[Error] 参数错误\n"
+
         if arg[0] == 'ip':
             arg = arg[1:]
             for ip in arg:
@@ -293,10 +345,10 @@ class Server(cmd.Cmd):
                         pass
                 try:
                     ban_ip_lst.remove(ip)
-                    send_all(f"[系统提示] 房主解除封禁了 IP {ip}，用户名 {username[ip]}。\n")
+                    send_all(f"[系统提示] {operator}解除封禁了 IP {ip}，用户名 {username[ip]}。\n")
                 except:
                     pass
-            flush_txt += f"[{time_str()}] You unbanned ip {','.join(arg)}.\n"
+            flush_txt += f"[{time_str()}] {operator} unbanned ip {','.join(arg)}.\n"
         
         if arg[0] == 'words':
             arg = arg[1:]
@@ -310,91 +362,24 @@ class Server(cmd.Cmd):
                     ban_words_lst.remove(word)
                 except:
                     pass
-            flush_txt += f"[{time_str()}]You unbanned words {','.join(arg)}.\n"
-        
-    def do_ban(self, arg : list):
-        """
-        使用方法（~ 表示 ban)：
-            ~ ip <*ip1> <*ip2> ... <*ipk>   封禁这 k 个 ip
-            ~ words <*w1> <*w2> ... <*wk>   添加这 k 个屏蔽词
-            ~ length <*len>                 拒绝分发所有长度大于 len 的信息
-            在 ban 命令的后面直接加 forever，可以使得本设置保存到配置文件。下一次启动本目录的 server 时能使用。
-        """
-        global ban_ip_lst
-        global flush_txt
-        global ban_words_lst
-        global ban_length
-        global dic_config_file
+            flush_txt += f"[{time_str()}] {operator} unbanned words {','.join(arg)}.\n"
+        return ""
 
-        arg = arg.split(' ')
-        if len(arg) < 2:
-            print("[Error] 参数错误")
-            return
-        SAVE_CONFIG = False
-        if arg[0] == 'forever':
-            SAVE_CONFIG = True
-            arg = arg[1:]
-        
-        att1 = ["ip", "words", "length"]
-        if arg[0] not in att1:
-            print("[Error] 参数错误")
-            return
-        
-        if arg[0] == 'ip':
-            arg = arg[1:]
-            for ip in arg:
-                if SAVE_CONFIG:
-                    dic_config_file["ban"]["ip"].append(ip)
-                ban_ip_lst.append(ip)
-                send_all(f"[系统提示] 房主封禁了用户 {ip}, 用户名 {username[ip]}\n")
-            flush_txt += f"[{time_str()}] You banned ip {','.join(arg)}.\n"
-        
-        if arg[0] == 'words':
-            arg = arg[1:]
-            for word in arg:
-                if SAVE_CONFIG:
-                    dic_config_file["ban"]["words"].append(word)
-                ban_words_lst.append(word)
-            flush_txt += f"[{time_str()}] You banned words {','.join(arg)}.\n"
-        
-        if arg[0] == "length":
-            try:
-                arg[1] = int(arg[1])
-            except:
-                print("[Error] 参数错误")
-                return
-            send_all(f"[系统提示] 房主设置了发送信息的长度最高为 {arg[1]}。\n")
-            if SAVE_CONFIG:
-                dic_config_file["ban"]["length"] = arg[1]
-            ban_length = arg[1]
-            flush_txt += f"[{time_str()}] You limited message length: {ban_length}\n"
-
-        if SAVE_CONFIG:
-            with open(CONFIG_PATH, "w+") as f:
-                json.dump(dic_config_file, f)
-
-    def do_set(self, arg):
-        """
-        使用方法（~ 表示 set)：
-            ~ EAP on/off 开启/关闭准许后进入
-            ~ SEM on/off 开启/关闭进入后提示
-            ~ ARO on/off 开启/关闭收发消息时删去离线接口（建议开启）
-            你可以在命令后面加上 "forever"，表示将设置保存到配置文件。下一次启动本目录的 server 时能使用。
-        """
+    def set(self, arg : list, operator) -> str:
         global flush_txt
         arg = arg.split(' ')
         if len(arg) != 2 and len(arg) != 3:
-            print("[Error] 参数错误")
-            return
+            return "[Error] 参数错误\n"
+
         att1 = ["EAP", "SEM", "ARO"]
         att2 = ["on", "off"]
         att3 = "forever"
         if (arg[0] not in att1) or (arg[1] not in att2):
-            print("[Error] 参数错误")
-            return
+            return "[Error] 参数错误\n"
+
         if len(arg) == 3 and arg[2] != att3:
-            print("[Error] 参数错误")
-            return
+            return "[Error] 参数错误\n"
+
         global ENTER_AFTER_PROMISE
         global SHOW_ENTER_MESSAGE
         global AUTO_REMOVE_OFFLINE
@@ -417,7 +402,7 @@ class Server(cmd.Cmd):
             else:
                 AUTO_REMOVE_OFFLINE = True
         
-        flush_txt += f'You set {arg[0]} as {arg[1]}'
+        flush_txt += f'[{time_str()}] {operator} set {arg[0]} as {arg[1]}'
         if len(arg) == 3:
             flush_txt += f" and save it in config."
             dic_config_file["AUTO_REMOVE_OFFLINE"] = AUTO_REMOVE_OFFLINE
@@ -426,29 +411,65 @@ class Server(cmd.Cmd):
             with open(CONFIG_PATH, "w+") as file:
                 json.dump(dic_config_file, file)
         flush_txt += '\n'
+        return ""
 
-    def print_user(self, userlist : "list[str]"):
+    def do_enable(self, arg):
+        """
+        使用方法（~ 表示 enable)：
+            ~ ip <*ip1> <*ip2> ... <*ipk>   解禁这 k 个 ip
+            ~ words <*w1> <*w2> ... <*wk>   删除这 k 个屏蔽词
+            在 enable 命令的后面直接加 forever，可以使得本设置保存到配置文件。下一次启动本目录的 server 时能使用。
+        """
+        OP_MSG = self.enable(arg, "房主")
+        print(OP_MSG, end="")
+        
+    def do_ban(self, arg):
+        """
+        使用方法（~ 表示 ban)：
+            ~ ip <*ip1> <*ip2> ... <*ipk>   封禁这 k 个 ip
+            ~ words <*w1> <*w2> ... <*wk>   添加这 k 个屏蔽词
+            ~ length <*len>                 拒绝分发所有长度大于 len 的信息
+            在 ban 命令的后面直接加 forever，可以使得本设置保存到配置文件。下一次启动本目录的 server 时能使用。
+        """
+        OP_MSG = self.ban(arg, "房主")
+        print(OP_MSG, end="")
+
+    def do_set(self, arg):
+        """
+        使用方法（~ 表示 set)：
+            ~ EAP on/off 开启/关闭准许后进入
+            ~ SEM on/off 开启/关闭进入后提示
+            ~ ARO on/off 开启/关闭收发消息时删去离线接口（建议开启）
+            你可以在命令后面加上 "forever"，表示将设置保存到配置文件。下一次启动本目录的 server 时能使用。
+        """
+        OP_MSG = self.set(arg, "房主")
+        print(OP_MSG, end="")
+
+    def print_user(self, userlist : "list[str]") -> str:
         header = ["IP", "USERNAME", "IS_ONLINE", "IS_BANNED", "SEND_TIMES"]
         data_body = []
         for ip in userlist:
             data_body.append([ip, username[ip], if_online[ip], ip in ban_ip_lst, msg_counts[ip]])
-        print(tabulate.tabulate(data_body, headers=header))
+        return str(tabulate.tabulate(data_body, headers=header)) + '\n'
 
-    def reject(self, rid : int):
+    def reject(self, rid : int, operator) -> str:
+        OP_MSG = ""
         global flush_txt
         try:
             flush_txt += f"[{time_str()}] <{rid}> User {requestion[rid][1]} was rejected to enter in the chatting room.\n"
-            print(f"您拒绝第 {rid} 号请求（用户 {requestion[rid][1]}）。")
-            requestion[rid][0].send(bytes("[系统提示] 您被拒绝加入聊天室\n", encoding="utf-8"))
+            OP_MSG += f"{operator}拒绝第 {rid} 号请求（用户 {requestion[rid][1]}。\n"
+            requestion[rid][0].send(bytes(f"[系统提示] {operator}被拒绝加入聊天室\n", encoding="utf-8"))
             requestion[rid] = None
         except:
-            print(f"[Error] 第 {rid} 次提示信息发送失败")
+            OP_MSG += f"[Error] 第 {rid} 次提示信息发送失败\n"
+        return OP_MSG
     
-    def accept(self, rid : int):
+    def accept(self, rid : int, operator) -> str:
+        OP_MSG = ""
         global flush_txt
         if not requestion[rid]:
-            print(f"[Error] 第 {rid} 号进入请求已处理")
-            return
+            OP_MSG += f"[Error] 第 {rid} 号进入请求已处理\n"
+            return OP_MSG
         try:
             if_online[requestion[rid][1][0]] = True
             msg_counts[requestion[rid][1][0]] = 0
@@ -467,19 +488,17 @@ class Server(cmd.Cmd):
 
             conn.append(requestion[rid][0])
             address.append(requestion[rid][1])
-            requestion[rid][0].send(bytes("[系统提示] 房主已准许您加入聊天室\n", encoding="utf-8"))
+            requestion[rid][0].send(bytes(f"[系统提示] {operator}已准许您加入聊天室\n", encoding="utf-8"))
             flush_txt += f"[{time_str()}] <{rid}> User {requestion[rid][1]} was accepted to enter in the chatting room.\n"
-            print(f"您准许了第 {rid} 号请求，用户 {requestion[rid][1]} 进入聊天室。")
+            OP_MSG += f"{operator}准许了第 {rid} 号请求，用户 {requestion[rid][1]} 进入聊天室。\n"
             requestion[rid] = None
         except:
-            print(f"[Error] 第 {rid} 次准许操作失败")
+            OP_MSG += f"[Error] 第 {rid} 次准许操作失败\n"
+        return OP_MSG
     
-    def do_accept(self, arg):
-        """
-        使用方法（~ 表示 accept）：
-            ~ <rid1> <rid2> <rid3> ... <ridk> 准许第 rid1,rid2,rid3,...,ridk 号进入请求
-        """
+    def accept_multi(self, arg, operator) -> str:
         arg = arg.split(' ')
+        OP_MSG = ""
         for v in arg:
             try:
                 i = int(v)
@@ -488,17 +507,25 @@ class Server(cmd.Cmd):
                 if not requestion[i]:
                     raise
             except:
-                print("[Error] 参数错误或请求已被处理")
-                return
-        
+                OP_MSG += "[Error] 参数错误或请求已被处理\n"
+                return OP_MSG
+            
         for v in arg:
-            self.accept(int(v))
+            OP_MSG += self.accept(int(v), operator)
+
+        OP_MSG += ""
+        return OP_MSG
+
+    def do_accept(self, arg):
+        """
+        使用方法（~ 表示 accept）：
+            ~ <rid1> <rid2> <rid3> ... <ridk> 准许第 rid1,rid2,rid3,...,ridk 号进入请求
+        """
+        OP_MSG = self.accept_multi(arg, "房主")
+        print(OP_MSG, end="")
     
-    def do_reject(self, arg):
-        """
-        使用方法（~ 表示 reject）：
-            ~ <rid1> <rid2> <rid3> ... <ridk> 拒绝第 rid1,rid2,rid3,...,ridk 号进入请求
-        """
+    def reject_multi(self, arg, operator) -> str:
+        OP_MSG = ""
         arg = arg.split(' ')
         for i in arg:
             try:
@@ -508,55 +535,59 @@ class Server(cmd.Cmd):
                 if not requestion[i]:
                     raise
             except:
-                print("[Error] 参数错误或请求已被处理")
-                return
+                return "[Error] 参数错误或请求已被处理\n"
         for i in arg:
-            self.reject(int(i))
+            OP_MSG += self.reject(int(i), operator)
+        OP_MSG += ""
+        return OP_MSG
+
+    def do_reject(self, arg):
+        """
+        使用方法（~ 表示 reject）：
+            ~ <rid1> <rid2> <rid3> ... <ridk> 拒绝第 rid1,rid2,rid3,...,ridk 号进入请求
+        """
+        OP_MSG = self.reject_multi(arg, "房主")
+        print(OP_MSG, end="")
     
+    def broadcast(self, arg, operator):
+        OP_MSG = ""
+        global flush_txt
+        flush_txt += f"[{time_str()}] {operator} broadcasted msg '{arg}'\n"
+        for j in range(len(conn)):
+            try:
+                conn[j].send(bytes(f"[{operator}广播] " + arg + '\n', encoding="utf-8"))
+                if_online[address[j][0]] = True
+            except:
+                OP_MSG += f"向用户 {address[j]} (用户名 {username[address[j][0]]}) 广播失败。\n"
+                if_online[address[j][0]] = False
+                continue
+        OP_MSG += "广播成功。\n"
+        return OP_MSG
+
     def do_broadcast(self, arg):
         """
         使用方法（~ 表示 broadcast)：
             ~ <msg> 向全体成员广播信息 msg
         """    
-        global flush_txt
-        flush_txt += f"[{time_str()}] You broadcasted msg '{arg}'\n"
-        for j in range(len(conn)):
-            try:
-                conn[j].send(bytes("[房主广播] " + arg + '\n', encoding="utf-8"))
-                if_online[address[j][0]] = True
-            except:
-                print(f"向用户 {address[j]} (用户名 {username[address[j][0]]}) 广播失败。")
-                if_online[address[j][0]] = False
-                continue
-        print("广播成功")
+        OP_MSG = self.broadcast(arg, "房主")
+        print(OP_MSG, end="")
 
-    def do_search(self, arg):
-        """
-        使用方法（~ 表示 search）：
-            ~ ip <*ip>              搜索所有 ip 为 *ip 的用户信息，支持正则。
-            ~ user <*user>          搜索所有 username 为 *user 的用户信息（支持正则）
-            ~ online                搜索所有在线的用户的信息
-            ~ offline               搜索所有离线的用户的信息
-            ~ banned                查询所有被 ban 的用户的信息   
-            ~ send_times <*times>   搜索所有发送信息次数大于等于 times 的用户的信息（按发送次数从大到小输出）
-        """ 
+    def search(self, arg):
+        OP_MSG = ""
         attributes = ["ip", "user", "online", "offline", "send_times", "banned"]
         arg = arg.split(' ')
         if (arg[0] not in attributes):
-            print("[Error] 参数错误")
-            return
+            return "[Error] 参数错误\n"
 
         search_lst = []
         if (arg[0] == 'ip'):
             if len(arg) != 2:
-                print("[Error] 参数错误")
-                return
+                return "[Error] 参数错误\n"
             search_lst.append(arg[1])
         
         if arg[0] == "user":
             if len(arg) != 2:
-                print("[Error] 参数错误")
-                return
+                return "[Error] 参数错误\n"
             for i in address:
                 ip = i[0]
                 if re.search(arg[1], username[ip]):
@@ -581,19 +612,18 @@ class Server(cmd.Cmd):
                 ip = i[0]
                 if ip in ban_ip_lst:
                     search_lst.append(ip)
-            self.print_user(search_lst)
-            return
+            OP_MSG += self.print_user(search_lst) + '\n'
+            return OP_MSG
         
         if arg[0] == "send_times":
             if len(arg) != 2:
-                print("[Error] 参数错误")
-                return
+                return "[Error] 参数错误\n"
             try:
                 arg[1] = int(arg[1])
                 if arg[1] < 0:
                     raise
             except:
-                print("[Error] <*times> 必须是非负整数")
+                return "[Error] <*times> 必须是非负整数\n"
             for i in address:
                 ip = i[0]
                 if msg_counts[ip] >= arg[1]:
@@ -601,11 +631,24 @@ class Server(cmd.Cmd):
             search_lst = list(set(search_lst))
             search_lst.sort(key = lambda x : msg_counts[x])
             search_lst.reverse()
-            self.print_user(search_lst)
-            return
+            OP_MSG += self.print_user(search_lst) + '\n'
+            return OP_MSG
         
         search_lst = list(set(search_lst))
-        self.print_user(search_lst)
+        return self.print_user(search_lst) + '\n'
+        
+    def do_search(self, arg):
+        """
+        使用方法（~ 表示 search）：
+            ~ ip <*ip>              搜索所有 ip 为 *ip 的用户信息，支持正则。
+            ~ user <*user>          搜索所有 username 为 *user 的用户信息（支持正则）
+            ~ online                搜索所有在线的用户的信息
+            ~ offline               搜索所有离线的用户的信息
+            ~ banned                查询所有被 ban 的用户的信息   
+            ~ send_times <*times>   搜索所有发送信息次数大于等于 times 的用户的信息（按发送次数从大到小输出）
+        """ 
+        OP_MSG = self.search(arg)
+        print(OP_MSG, end="")
 
     def do_flush(self, arg):
         """
@@ -626,6 +669,7 @@ class Server(cmd.Cmd):
         exit()
     
 server = Server()
+
 threading.Thread(target=server.cmdloop).start()
 threading.Thread(target=receive_msg).start()
 threading.Thread(target=add_accounts).start()
