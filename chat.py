@@ -314,6 +314,12 @@ class Server(cmd.Cmd):
             ban_length = arg[1]
             flush_txt += f"[{time_str()}] {operator} limited message length: {ban_length}\n"
 
+        dic_config_file["ban"]["ip"] = list(set(dic_config_file["ban"]["ip"]))
+        dic_config_file["ban"]["words"] = list(set(dic_config_file["ban"]["words"]))
+
+        ban_ip_lst = list(set(ban_ip_lst))
+        ban_words_lst = list(set(ban_words_lst))
+
         if SAVE_CONFIG:
             with open(CONFIG_PATH, "w+") as f:
                 json.dump(dic_config_file, f)
@@ -369,6 +375,11 @@ class Server(cmd.Cmd):
                 except:
                     pass
             flush_txt += f"[{time_str()}] {operator} unbanned words {','.join(arg)}.\n"
+
+        if SAVE_CONFIG:
+            with open(CONFIG_PATH, "w+") as f:
+                json.dump(dic_config_file, f)
+        
         return ""
 
     def set(self, arg : list, operator) -> str:
@@ -395,25 +406,28 @@ class Server(cmd.Cmd):
                 ENTER_AFTER_PROMISE = True
             else:
                 ENTER_AFTER_PROMISE = False
+            if len(arg) == 3:
+                dic_config_file["ENTER_AFTER_PROMISE"] = ENTER_AFTER_PROMISE
         
         if arg[0] == "SEM":
             if arg[1] == "off":
                 SHOW_ENTER_MESSAGE = False
             else:
                 SHOW_ENTER_MESSAGE = True
+            if len(arg) == 3:
+                dic_config_file["SHOW_ENTER_MESSAGE"] = SHOW_ENTER_MESSAGE
 
         if arg[0] == 'ARO':
             if arg[1] == "off":
                 AUTO_REMOVE_OFFLINE = False
             else:
                 AUTO_REMOVE_OFFLINE = True
+            if len(arg) == 3:
+                dic_config_file["AUTO_REMOVE_OFFLINE"] = AUTO_REMOVE_OFFLINE
         
         flush_txt += f'[{time_str()}] {operator} set {arg[0]} as {arg[1]}'
         if len(arg) == 3:
             flush_txt += f" and save it in config."
-            dic_config_file["AUTO_REMOVE_OFFLINE"] = AUTO_REMOVE_OFFLINE
-            dic_config_file["ENTER_AFTER_PROMISE"] = ENTER_AFTER_PROMISE
-            dic_config_file["SHOW_ENTER_MESSAGE"] = SHOW_ENTER_MESSAGE
             with open(CONFIG_PATH, "w+") as file:
                 json.dump(dic_config_file, file)
         flush_txt += '\n'
@@ -737,6 +751,9 @@ def admin_accept():
     global flush_txt
     global last_sent
     while True:
+        if EXIT_FLG:
+            return
+
         if not admin_socket:
             continue
 
@@ -757,8 +774,6 @@ def admin_accept():
         admin_conns = list(newconn)
         admin_address = list(newaddress)
 
-        if EXIT_FLG:
-            return
         try:
             conntmp, addresstmp = admin_socket.accept()
         except:
