@@ -105,6 +105,7 @@ ban_words_lst = dic_config_file["ban"]["words"]
 ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
 AUTO_REMOVE_OFFLINE = dic_config_file["AUTO_REMOVE_OFFLINE"]
+THREAD_RECEIVE_MESSAGE, THREAD_ADD_ACCOUNTS, THREAD_ADD_CMDLOOP, THREAD_ADMIN_ACCEPT, THREAD_ADMIN_DEAL = None
 
 
 ENTER_HINT = ""
@@ -116,8 +117,6 @@ if not ENTER_HINT.split('\n'):
 if ENTER_HINT and ('\n' not in ENTER_HINT):
     ENTER_HINT += '\n'
 
-if ENTER_HINT == "":
-    ENTER_HINT = "（没有提示）"
 print("您当前的进入提示是（注意使用的是 utf-8）：" + ENTER_HINT)
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 EXIT_FLG = False 
@@ -260,6 +259,7 @@ class Server(cmd.Cmd):
 如果想知道有什么命令，请输入 help
 具体的使用指南，参见 help <你想用的命令>。详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat.exe
 注意：消息无法实时更新，需要输入 flush 命令将缓冲区输出到 ./log.txt。
+如果你不用 admin 且没有 admin 进入管理平台，不要开启 admin 模式，否则无法正常退出。
 永久配置文件位于目录下的 ./config.json"""
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -799,12 +799,18 @@ def admin_accept():
         admin_conns.append(conntmp)
         admin_name[addresstmp[0]] = None
 
+server = Server()
+
 def admin_deal():
     pass
 
-server = Server()
 
-threading.Thread(target=server.cmdloop).start()
-threading.Thread(target=receive_msg).start()
-threading.Thread(target=add_accounts).start()
-threading.Thread(target=admin_accept).start()
+THREAD_ADD_CMDLOOP = threading.Thread(target=server.cmdloop)
+THREAD_RECEIVE_MESSAGE = threading.Thread(target=receive_msg).start()
+THREAD_ADD_ACCOUNTS = threading.Thread(target=add_accounts).start()
+THREAD_ADMIN_ACCEPT = threading.Thread(target=admin_accept).start()
+
+THREAD_ADD_CMDLOOP.start()
+THREAD_RECEIVE_MESSAGE.start()
+THREAD_ADD_ACCOUNTS.start()
+THREAD_ADMIN_ACCEPT.start()
