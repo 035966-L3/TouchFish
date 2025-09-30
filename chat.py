@@ -71,7 +71,7 @@ s.bind((ip, portin))
 s.listen(account_numbers)
 s.setblocking(False)
 
-VERSION = "v2.0.0"
+VERSION = "v3.0.0"
 s.setblocking(False)
 NEWEST_VERSION = "UNKNOWN"
 
@@ -105,7 +105,11 @@ ban_words_lst = dic_config_file["ban"]["words"]
 ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
 AUTO_REMOVE_OFFLINE = dic_config_file["AUTO_REMOVE_OFFLINE"]
-THREAD_RECEIVE_MESSAGE, THREAD_ADD_ACCOUNTS, THREAD_ADD_CMDLOOP, THREAD_ADMIN_ACCEPT, THREAD_ADMIN_DEAL = None
+THREAD_RECEIVE_MESSAGE = None
+THREAD_ADD_ACCOUNTS = None
+THREAD_ADD_CMDLOOP = None
+THREAD_ADMIN_ACCEPT = None
+THREAD_ADMIN_DEAL = None
 
 
 ENTER_HINT = ""
@@ -229,7 +233,7 @@ def receive_msg():
             if not ':' in data and '用户 ' in data and ' 加入聊天室。' in data:
                 username_tmp = data.split('用户 ')[1]
                 username_tmp = username_tmp.split(' 加入聊天室。')[0]
-            else:
+            elif not ':' in data:
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
             flush_txt += f"[{time_str()}] User {address[i]} sent a massage: {data}"
@@ -742,6 +746,19 @@ class Server(cmd.Cmd):
         
         else:
             print("[Error] 参数错误")
+    
+    def req(self, arg):
+        OP_MSG = ""
+        for i in range(len(requestion)):
+            if requestion[i]:
+                OP_MSG += f"<{i}> {requestion[i][1]}\n"
+        return OP_MSG
+
+    def do_req(self, arg):
+        """
+        查询当前所有请求进入聊天室的用户
+        """
+        print(self.req(...), end="")
 
 admin_conns = []
 admin_address = []
@@ -766,7 +783,7 @@ def admin_accept():
                 continue
             if time.time() - last_sent > 20:
                 try:
-                    admin_conns[i].send(bytes("{'type' : 'test', 'message' : None }", encoding="utf-8"))
+                    admin_conns[i].send(bytes('{"type" : "test", "message" : "" }', encoding="utf-8"))
                 except:
                     continue
             newconn.append(admin_conns[i])
@@ -802,15 +819,66 @@ def admin_accept():
 server = Server()
 
 def admin_deal():
-    pass
+    while True:
+        if EXIT_FLG:
+            exit()
+            break
+    
+        for i in range(len(admin_conns)):
+            try:
+                msg_str = admin_conns[i].recv(1024).decode("utf-8")
+            except:
+                continue
+
+            if not msg_str:
+                continue
+
+            msg_str = msg_str.split('}')
+            for j in range(len(msg_str)):
+                msg_str[j] += '}'
+
+            for msg_str_sin in msg_str:
+                try:
+                    msg = json.loads(msg_str_sin)
+                except:
+                    continue
+
+                if msg["type"] == "username":
+                    admin_name[admin_address[i]] = msg["message"]
+
+                if not admin_name[admin_address[i]]:
+                    continue
+
+                ALLOW_COMMAND = ["ban", "accept", "broadcast", "enable", "flush", "reject", "search", "set", "req"]
+                if msg["type"] in ALLOW_COMMAND:
+                    if msg["type"] != "flush":
+                        func = getattr(server, msg["type"])
+                    if msg["type"] == "search" or msg["type"] == "req":
+                        OP_MSG = func(msg["message"])
+                    elif msg["type"] == "accept" or msg["type"] == "reject":
+                        func = getattr(server, msg["type"] + "_multi")
+                        OP_MSG = func(msg["message"], admin_name[admin_address[i]])
+                    elif msg["type"] == "flush":
+                        server.do_flush(...)
+                    else:
+                        OP_MSG = func(msg["message"], admin_name[admin_address[i]])
+                    try:
+                        admin_conns[i].send(bytes(json.dumps({"type" : "result", "message" : OP_MSG}), encoding="utf-8"))
+                    except:
+                        pass
+
+
+
 
 
 THREAD_ADD_CMDLOOP = threading.Thread(target=server.cmdloop)
-THREAD_RECEIVE_MESSAGE = threading.Thread(target=receive_msg).start()
-THREAD_ADD_ACCOUNTS = threading.Thread(target=add_accounts).start()
-THREAD_ADMIN_ACCEPT = threading.Thread(target=admin_accept).start()
+THREAD_RECEIVE_MESSAGE = threading.Thread(target=receive_msg)
+THREAD_ADD_ACCOUNTS = threading.Thread(target=add_accounts)
+THREAD_ADMIN_ACCEPT = threading.Thread(target=admin_accept)
+THREAD_ADMIN_DEAL = threading.Thread(target=admin_deal)
 
 THREAD_ADD_CMDLOOP.start()
 THREAD_RECEIVE_MESSAGE.start()
 THREAD_ADD_ACCOUNTS.start()
 THREAD_ADMIN_ACCEPT.start()
+THREAD_ADMIN_DEAL.start()

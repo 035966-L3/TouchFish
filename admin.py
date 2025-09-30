@@ -1,7 +1,113 @@
 # now just test
 
 import socket
+import time
+from sys import exit
+import threading
+import json
+import cmd
+
+IP = input("Connect to IP:")
+PORT = input("Connect to PORT:")
+ADMIN_NAME = input("Username:")
+
+try:
+    PORT = int(PORT)
+except:
+    print("输入错误。")
+    exit()
+
 s = socket.socket()
-s.connect(('127.0.0.1', 11451))
+s.connect((IP, PORT))
+s.setblocking(False)
+
+CONNECT_TIME = time.time()
 while True:
-    print(s.recv(1024).decode('utf-8'))
+    if time.time() - CONNECT_TIME > 40:
+        print("服务器连接失败")
+        exit()
+    
+    try:
+        msg_str = s.recv(1024).decode("utf-8")
+    except:
+        continue
+    msg = json.loads(msg_str)
+    if msg["type"] == "test":
+        print("连接成功！")
+        break
+
+s.send(bytes(json.dumps({"type" : "username", "message" : ADMIN_NAME}), encoding="utf-8"))
+
+propt = f"{IP}:{PORT} (admin)> "
+EXIT_FLG = False
+
+def send_msg(typ : str, arg : str):
+    try:
+        s.send(bytes(json.dumps({"type" : typ, "message" : arg}), encoding="utf-8"))
+    except:
+        print("发送失败！\n" + propt, end="")
+
+def receive_ret():
+    while True:
+        if EXIT_FLG:
+            exit()
+            break
+        try:
+            msg_str = s.recv(1024).decode("utf-8")
+        except:
+            continue
+        msg_str = msg_str.split('}')
+        for msg_str_sin in msg_str:
+            msg_str_sin += '}'
+            try:
+                msg = json.loads(msg_str_sin)
+            except:
+                continue
+            if msg["type"] == "result":
+                if msg["message"]:
+                    print('\n' + msg["message"] + propt, end="")
+
+class Admin(cmd.Cmd):
+    prompt = propt
+    intro = "懒得写了，去看 server"
+
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+
+    def do_broadcast(self, arg):
+        send_msg("broadcast", arg)
+    
+    def do_ban(self, arg):
+        send_msg("ban", arg)
+    
+    def do_enable(self, arg):
+        send_msg("enable", arg)
+    
+    def do_set(self, arg):
+        send_msg("set", arg)
+    
+    def do_exit(self, arg):
+        global EXIT_FLG
+        EXIT_FLG = 1
+        exit()
+    
+    def do_accept(self, arg):
+        send_msg("accept", arg)
+    
+    def do_reject(self, arg):
+        send_msg("reject", arg)
+    
+    def do_search(self, arg):
+        send_msg("search", arg)
+    
+    def do_req(self, arg):
+        send_msg("req", arg)
+    
+    def do_flush(self, arg):
+        send_msg("flush", "")
+
+tr = threading.Thread(target=receive_ret)
+tr.start()
+admin = Admin()
+tr2 = threading.Thread(target=admin.cmdloop)
+tr2.start()
