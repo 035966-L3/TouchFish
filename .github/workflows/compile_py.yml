@@ -25,6 +25,7 @@ jobs:
           pip install -r requirements_linux.txt
           mkdir -p bin/linux
           pyinstaller --onefile --distpath bin/linux chat.py
+          pyinstaller --onefile --distpath bin/linux admin.py
           pyinstaller --onefile --noconsole --distpath bin/linux client.py
           rm chat.spec client.spec
           rm -rf build/
@@ -52,6 +53,7 @@ jobs:
           pip install -r requirements.txt
           Copy-Item -Path hook-win10toast.py C:\\hostedtoolcache\\windows\\Python\\3.10.11\\x64\\lib\\site-packages\\PyInstaller\\hooks\\
           mkdir -Force bin/windows
+          pyinstaller --onefile --distpath bin/windows admin.py
           pyinstaller --onefile --distpath bin/windows chat.py
           pyinstaller --onefile --noconsole --distpath bin/windows client.py
           Remove-Item -Path "chat.spec", "client.spec" -Force
