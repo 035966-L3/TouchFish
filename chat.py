@@ -76,7 +76,7 @@ except Exception as err:
 s.listen(account_numbers)
 s.setblocking(False)
 
-VERSION = "v3.0.0"
+VERSION = "v3.1.0"
 s.setblocking(False)
 NEWEST_VERSION = "UNKNOWN"
 

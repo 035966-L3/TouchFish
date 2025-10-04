@@ -15,6 +15,8 @@ IP = input("Connect to IP:")
 PORT = input("Connect to PORT:")
 ADMIN_NAME = input("Username:")
 
+CURRENT_VERSION = "beta-20251004"
+
 try:
     PORT = int(PORT)
 except:
@@ -89,8 +91,9 @@ def receive_ret():
 
 class Admin(cmd.Cmd):
     prompt = f"{IP}:{PORT} (admin)> "
-    intro = """详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat (基本命令相同，但是没有admin命令)
+    intro = f"""详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-admin (基本命令相同，但是没有admin命令和flush命令)
 可以使用 cmd type admin_err.log 查看错误日志 (Windows) 或 cmd cat admin_err.log (Linux)。
+当前版本：{CURRENT_VERSION}，为测试版，可能会有一些问题。
 其余懒得写了，看server里的吧"""
 
     def __init__(self):
