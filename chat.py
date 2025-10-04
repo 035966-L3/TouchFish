@@ -9,6 +9,7 @@ import sys
 import json
 import base64
 from random import randint
+import os
 
 import tabulate
 import requests
@@ -67,7 +68,11 @@ else:
     portin = eval(input("The connecting port (must be spare): "))
 
 s = socket.socket()
-s.bind((ip, portin))
+try:
+    s.bind((ip, portin))
+except Exception as err:
+    print("[Error] 绑定端口失败，可能的原因有：\n1. 端口已被占用\n2. 没有权限绑定该端口\n错误信息：" + str(err))
+    exit()
 s.listen(account_numbers)
 s.setblocking(False)
 
@@ -470,6 +475,21 @@ class Server(cmd.Cmd):
         """
         OP_MSG = self.set(arg, "房主")
         print(OP_MSG, end="")
+
+    def do_cmd(self, arg):
+        """
+        使用方法 (~ 表示 cmd):
+            ~ <cmd> 执行这个系统命令，并输出结果
+        """
+        if not arg.strip():
+            print("[Error] 参数错误")
+            return
+        try:
+            result = os.system(arg)
+            if result != 0:
+                print("[Error] 命令执行失败！返回值: " + str(result))
+        except Exception as err:
+            print("命令执行失败！错误信息:", err)
 
     def print_user(self, userlist : "list[str]") -> str:
         header = ["IP", "USERNAME", "IS_ONLINE", "IS_BANNED", "SEND_TIMES"]

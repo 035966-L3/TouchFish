@@ -6,6 +6,7 @@ from sys import exit
 import threading
 import json
 import cmd
+import os
 
 IP = input("Connect to IP:")
 PORT = input("Connect to PORT:")
@@ -105,6 +106,21 @@ class Admin(cmd.Cmd):
     
     def do_flush(self, arg):
         send_msg("flush", "")
+
+    def do_cmd(self, arg):
+        """
+        使用方法 (~ 表示 cmd):
+            ~ <cmd> 执行这个系统命令，并输出结果
+        """
+        if not arg.strip():
+            print("[ERROR] 参数错误")
+            return
+        try:
+            result = os.system(arg)
+            if result != 0:
+                print("[ERROR] Command failed! Return code: " + str(result))
+        except Exception as err:
+            print("命令执行失败！错误信息:", err)
 
 tr = threading.Thread(target=receive_ret)
 tr.start()
