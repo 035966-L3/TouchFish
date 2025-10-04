@@ -8,6 +8,9 @@ import json
 import cmd
 import os
 
+result_event = threading.Event()
+result_msg = None
+
 IP = input("Connect to IP:")
 PORT = input("Connect to PORT:")
 ADMIN_NAME = input("Username:")
@@ -39,38 +42,56 @@ while True:
 
 s.send(bytes(json.dumps({"type" : "username", "message" : ADMIN_NAME}), encoding="utf-8"))
 
-propt = f"{IP}:{PORT} (admin)> "
 EXIT_FLG = False
 
 def send_msg(typ : str, arg : str):
+    global result_msg
+    result_event.clear()
     try:
-        s.send(bytes(json.dumps({"type" : typ, "message" : arg}), encoding="utf-8"))
+        s.send(bytes(json.dumps({"type": typ, "message": arg}), encoding="utf-8"))
     except:
-        print("发送失败！\n" + propt, end="")
+        print("发送失败！\n", end="")
+        return
+    
+    result_event.wait(timeout=10)
+    if result_msg:
+        print('\n' + result_msg, end="")
+    result_msg = None
 
 def receive_ret():
+    global EXIT_FLG, result_msg
     while True:
         if EXIT_FLG:
             exit()
             break
+        msg_str = None
         try:
             msg_str = s.recv(1024).decode("utf-8")
-        except:
+        except Exception as err:
+            if not "[WinError 10035]" in str(err) and "[Errno 11]" not in str(err):
+                with open("admin_err.log", "a+") as file:
+                    file.write(str(err) + "\n")
             continue
-        msg_str = msg_str.split('}')
-        for msg_str_sin in msg_str:
-            msg_str_sin += '}'
-            try:
-                msg = json.loads(msg_str_sin)
-            except:
-                continue
-            if msg["type"] == "result":
-                if msg["message"]:
-                    print('\n' + msg["message"] + propt, end="")
+        if not msg_str:
+            continue
+        try:
+            msg = json.loads(msg_str)
+        except Exception as err:
+            with open("admin_err.log", "a+") as file:
+                file.write("JSON解析错误：" + str(err) + "\n")
+            continue
+        if msg["type"] == "removed":
+            print("\n\n你已被服务器移除出管理员列表！")
+            os._exit(1)
+        if msg["type"] == "result":
+            result_msg = msg["message"]
+            result_event.set()
 
 class Admin(cmd.Cmd):
-    prompt = propt
-    intro = "懒得写了，去看 server"
+    prompt = f"{IP}:{PORT} (admin)> "
+    intro = """详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat (基本命令相同，但是没有admin命令)
+可以使用 cmd type admin_err.log 查看错误日志 (Windows) 或 cmd cat admin_err.log (Linux)。
+其余懒得写了，看server里的吧"""
 
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -127,3 +148,4 @@ tr.start()
 admin = Admin()
 tr2 = threading.Thread(target=admin.cmdloop)
 tr2.start()
+admin = Admin()
