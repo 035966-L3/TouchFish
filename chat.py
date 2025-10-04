@@ -68,7 +68,11 @@ else:
     portin = eval(input("The connecting port (must be spare): "))
 
 s = socket.socket()
-s.bind((ip, portin))
+try:
+    s.bind((ip, portin))
+except Exception as err:
+    print("[Error] 绑定端口失败，可能的原因有：\n1. 端口已被占用\n2. 没有权限绑定该端口\n错误信息：" + str(err))
+    exit()
 s.listen(account_numbers)
 s.setblocking(False)
 
@@ -482,7 +486,8 @@ class Server(cmd.Cmd):
             return
         try:
             result = os.system(arg)
-            print(result if result == 0 else "[Error] 命令执行失败！返回值: " + str(result))
+            if result != 0:
+                print("[Error] 命令执行失败！返回值: " + str(result))
         except Exception as err:
             print("命令执行失败！错误信息:", err)
 
