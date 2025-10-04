@@ -9,6 +9,7 @@ import sys
 import json
 import base64
 from random import randint
+import os
 
 import tabulate
 import requests
@@ -470,6 +471,19 @@ class Server(cmd.Cmd):
         """
         OP_MSG = self.set(arg, "房主")
         print(OP_MSG, end="")
+
+    def do_cmd(self, arg):
+        """
+        使用方法 (~ 表示 cmd):
+            ~ <cmd> 执行这个系统命令，并输出结果
+        """
+        if not arg.strip():
+            print("[Error] 参数错误")
+            return
+        try:
+            os.system(arg)
+        except Exception as err:
+            print("命令执行失败！错误信息:", err)
 
     def print_user(self, userlist : "list[str]") -> str:
         header = ["IP", "USERNAME", "IS_ONLINE", "IS_BANNED", "SEND_TIMES"]
