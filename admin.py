@@ -117,7 +117,7 @@ class Admin(cmd.Cmd):
             return
         try:
             result = os.system(arg)
-            print(result)
+            print(result if result == 0 else "[ERROR] Command failed! Return code: " + str(result))
         except Exception as err:
             print("命令执行失败！错误信息:", err)
 

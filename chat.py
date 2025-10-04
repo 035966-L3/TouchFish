@@ -481,7 +481,8 @@ class Server(cmd.Cmd):
             print("[Error] 参数错误")
             return
         try:
-            os.system(arg)
+            result = os.system(arg)
+            print(result if result == 0 else "[Error] 命令执行失败！返回值: " + str(result))
         except Exception as err:
             print("命令执行失败！错误信息:", err)
 
