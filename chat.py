@@ -752,6 +752,7 @@ class Server(cmd.Cmd):
             else:
                 print("[Error] 参数错误")
             return
+        
         if arg[0] == "add":
             for i in range(1, len(arg)):
                 admins.append(arg[i])
@@ -759,9 +760,10 @@ class Server(cmd.Cmd):
         elif arg[0] == "remove":
             new_admins = []
             try:
-                for i in range(len(admins)):
+                for i in range(0, len(admins)):
                     if admins[i] in arg:
                         admin_conns[i].send(bytes('{"type" : "removed"}', encoding="utf-8"))
+                        admin_conns[i].close()
                         continue
                     new_admins.append(admins[i])
             except Exception as err:
