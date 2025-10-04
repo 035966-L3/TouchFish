@@ -89,7 +89,7 @@ class Admin(cmd.Cmd):
     
     def do_exit(self, arg):
         global EXIT_FLG
-        EXIT_FLG = 1
+        EXIT_FLG = True
         exit()
     
     def do_accept(self, arg):
