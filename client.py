@@ -24,7 +24,6 @@ NOTIFIER_INIT_ERR = False
 notifier = None
 if platform.system() == "Windows":
     try:
-        raise
         notifier = win10toast.ToastNotifier()
     except Exception as e:
         NOTIFIER_INIT_ERR = True
@@ -84,7 +83,7 @@ class ChatClient:
         except:
             NEWEST_VERSION = "UNKNOWN"
         tk.Label(frame, text=f"提示 2：当前版本为 {CURRENT_VERSION}，最新版本为 {NEWEST_VERSION}").grid(row=5, columnspan=2)
-        
+
         if NOTIFIER_INIT_ERR:
             messagebox.showwarning("警告", "Windows 通知功能初始化失败，无法显示通知。你是否在使用Win10以下的系统?")
 
