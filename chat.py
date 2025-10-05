@@ -16,6 +16,9 @@ import requests
 
 CONFIG_PATH = "config.json"
 
+# 版本
+VERSION = "v3.2.0"
+
 try:
     with open(CONFIG_PATH, "r+") as f:
         dic_tmp = json.load(f)
@@ -76,7 +79,6 @@ except Exception as err:
 s.listen(account_numbers)
 s.setblocking(False)
 
-VERSION = "v3.1.0"
 s.setblocking(False)
 NEWEST_VERSION = "UNKNOWN"
 

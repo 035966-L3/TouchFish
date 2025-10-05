@@ -2,7 +2,7 @@
 
 import socket
 import time
-from sys import exit
+from sys import exit, argv
 import threading
 import json
 import cmd
@@ -10,6 +10,21 @@ import os
 
 result_event = threading.Event()
 result_msg = None
+
+CURRENT_VERSION = "beta-20251005"
+
+"""
+# 该功能以后实现
+if __name__ == "__main__":
+    try:
+        if len(argv) - 1 > 0 and (argv[1] == "-h" or argv[1] == "--help" or argv[2] == "-h" or argv[2] == "--help"): # argv[2] 照顾python admin.py
+            admin = Admin()
+            admin.do_help("")
+            os._exit(0)
+    except:
+        print("参数错误，不要多余参数")
+        os._exit(1)
+"""
 
 IP = input("Connect to IP:")
 PORT = input("Connect to PORT:")
@@ -126,9 +141,15 @@ class Admin(cmd.Cmd):
         send_msg("search", arg)
     
     def do_req(self, arg):
+        """
+        查询加入请求（其余命令详见 wiki）
+        """
         send_msg("req", arg)
     
     def do_flush(self, arg):
+        """
+        注意：在 admin 中不起作用
+        """
         send_msg("flush", "")
 
     def do_cmd(self, arg):

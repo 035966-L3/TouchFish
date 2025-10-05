@@ -12,6 +12,7 @@ import datetime
 import win10toast
 import base64
 import webbrowser
+from ctypes import windll
 
 # 文件传输相关的常量
 EXIT_FLG = False
@@ -20,6 +21,9 @@ FILE_DATA = "[FILE_DATA]"
 FILE_END = "[FILE_END]"
 CHUNK_SIZE = 8192
 NOTIFIER_INIT_ERR = False
+
+# 当前版本
+CURRENT_VERSION = "v3.2.0"
 
 notifier = None
 if platform.system() == "Windows":
@@ -37,6 +41,12 @@ def get_hh_mm_ss() -> str:
 
 class ChatClient:
     def __init__(self):
+        try:
+            windll.shcore.SetProcessDpiAwareness(1)  # 或者使用 2 为 PerMonitorV2
+        except:
+            print("DPI 设置失败。")
+            pass
+
         self.root = tk.Tk()
         self.root.title("聊天客户端")
         self.font_family = ("微软雅黑", 12)
@@ -77,7 +87,6 @@ class ChatClient:
         # 提示
         tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
-        CURRENT_VERSION = "v3.1.0"
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
         except:
@@ -125,7 +134,7 @@ class ChatClient:
         """创建聊天窗口"""
         self.chat_win = tk.Tk()
         self.chat_win.title(f"聊天室 - {self.username}")
-        self.chat_win.geometry(f"600x400")
+        self.chat_win.geometry(f"1495x1130")
 
         # 聊天记录框
         self.chat_frame = tk.Frame(self.chat_win)
@@ -247,7 +256,7 @@ class ChatClient:
                 messagebox.showerror("错误", "字体大小必须是整数")
 
         def open_help():
-            webbrowser.open("https://puzzled-memory-88c.notion.site/TouchFish-101-26781a521173808ebccfcb116d0f9075?pvs=4")
+            webbrowser.open("https://touchfish-dev.notion.site/TouchFish-101-26781a521173808ebccfcb116d0f9075")
 
         tk.Button(
             button_frame, 
@@ -255,7 +264,6 @@ class ChatClient:
             command=apply_settings
         ).pack(side="left", padx=5)
         
-        # 添加帮助按钮
         tk.Button(
             button_frame,
             text="帮助",
