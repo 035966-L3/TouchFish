@@ -163,9 +163,10 @@ class Admin(cmd.Cmd):
         except Exception as err:
             print("命令执行失败！错误信息:", err)
 
-tr = threading.Thread(target=receive_ret)
-tr.start()
-admin = Admin()
-tr2 = threading.Thread(target=admin.cmdloop)
-tr2.start()
-admin = Admin()
+if __name__ == "__main__":
+    tr = threading.Thread(target=receive_ret)
+    tr.start()
+    admin = Admin()
+    tr2 = threading.Thread(target=admin.cmdloop)
+    tr2.start()
+    admin = Admin()
