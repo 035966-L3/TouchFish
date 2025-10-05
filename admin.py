@@ -2,15 +2,35 @@
 
 import socket
 import time
-from sys import exit
+from sys import exit, argv
 import threading
 import json
 import cmd
 import os
 
+result_event = threading.Event()
+result_msg = None
+
+CURRENT_VERSION = "beta-20251005-2"
+
+"""
+# 该功能以后实现
+if __name__ == "__main__":
+    try:
+        if len(argv) - 1 > 0 and (argv[1] == "-h" or argv[1] == "--help" or argv[2] == "-h" or argv[2] == "--help"): # argv[2] 照顾python admin.py
+            admin = Admin()
+            admin.do_help("")
+            os._exit(0)
+    except:
+        print("参数错误，不要多余参数")
+        os._exit(1)
+"""
+
 IP = input("Connect to IP:")
 PORT = input("Connect to PORT:")
 ADMIN_NAME = input("Username:")
+
+CURRENT_VERSION = "beta-20251004"
 
 try:
     PORT = int(PORT)
@@ -39,38 +59,53 @@ while True:
 
 s.send(bytes(json.dumps({"type" : "username", "message" : ADMIN_NAME}), encoding="utf-8"))
 
-propt = f"{IP}:{PORT} (admin)> "
 EXIT_FLG = False
 
 def send_msg(typ : str, arg : str):
+    global result_msg
+    result_event.clear()
     try:
-        s.send(bytes(json.dumps({"type" : typ, "message" : arg}), encoding="utf-8"))
+        s.send(bytes(json.dumps({"type": typ, "message": arg}), encoding="utf-8"))
     except:
-        print("发送失败！\n" + propt, end="")
+        print("发送失败！\n", end="")
+        return
+    
+    result_event.wait(timeout=10)
+    if result_msg:
+        print('\n' + result_msg, end="")
+    result_msg = None
 
 def receive_ret():
+    global EXIT_FLG, result_msg
     while True:
         if EXIT_FLG:
             exit()
             break
-        try:
-            msg_str = s.recv(1024).decode("utf-8")
-        except:
+        msg_str = None
+        if not msg_str:
             continue
-        msg_str = msg_str.split('}')
-        for msg_str_sin in msg_str:
-            msg_str_sin += '}'
-            try:
-                msg = json.loads(msg_str_sin)
-            except:
-                continue
-            if msg["type"] == "result":
-                if msg["message"]:
-                    print('\n' + msg["message"] + propt, end="")
+        try:
+            msg = json.loads(msg_str)
+        except Exception as err:
+            with open("admin_err.log", "a+") as file:
+                file.write("JSON解析错误：" + str(err) + "\n")
+            continue
+        if msg["type"] == "removed":
+            print("\n\n你已被服务器移除出管理员列表！")
+            os._exit(1)
+        if msg["type"] == "server_closed":
+            print("\n\n服务器已关闭！")
+            os._exit(0)
+        if msg["type"] == "result":
+            result_msg = msg["message"]
+            result_event.set()
 
 class Admin(cmd.Cmd):
-    prompt = propt
-    intro = "懒得写了，去看 server"
+    prompt = f"{IP}:{PORT} (admin)> "
+    intro = f"""详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-admin (基本命令相同，但是没有admin命令和flush命令)
+可以使用 cmd type admin_err.log 查看错误日志 (Windows) 或 cmd cat admin_err.log (Linux)。（当然一般不会有错误）
+当前版本：{CURRENT_VERSION}，为测试版，可能会有一些问题。
+其余懒得写了，看server里的吧"""
 
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -102,9 +137,15 @@ class Admin(cmd.Cmd):
         send_msg("search", arg)
     
     def do_req(self, arg):
+        """
+        查询加入请求（其余命令详见 wiki）
+        """
         send_msg("req", arg)
     
     def do_flush(self, arg):
+        """
+        注意：在 admin 中不起作用
+        """
         send_msg("flush", "")
 
     def do_cmd(self, arg):
@@ -127,3 +168,4 @@ tr.start()
 admin = Admin()
 tr2 = threading.Thread(target=admin.cmdloop)
 tr2.start()
+admin = Admin()

@@ -14,7 +14,12 @@ import os
 import tabulate
 import requests
 
+import admin
+
 CONFIG_PATH = "config.json"
+
+# 版本
+VERSION = "v3.2.0"
 
 try:
     with open(CONFIG_PATH, "r+") as f:
@@ -76,7 +81,6 @@ except Exception as err:
 s.listen(account_numbers)
 s.setblocking(False)
 
-VERSION = "v3.0.0"
 s.setblocking(False)
 NEWEST_VERSION = "UNKNOWN"
 
@@ -266,7 +270,7 @@ class Server(cmd.Cmd):
     prompt = f"{ip}:{portin}> "
     intro = f"""欢迎来到 TouchFish！当前版本：{VERSION}，最新版本：{NEWEST_VERSION}
 如果想知道有什么命令，请输入 help
-具体的使用指南，参见 help <你想用的命令>。详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat.exe
+具体的使用指南，参见 help <你想用的命令>。详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
 注意：消息无法实时更新，需要输入 flush 命令将缓冲区输出到 ./log.txt。
 如果你不用 admin 且没有 admin 进入管理平台，不要开启 admin 模式，否则无法正常退出。
 永久配置文件位于目录下的 ./config.json"""
@@ -710,6 +714,16 @@ class Server(cmd.Cmd):
         退出当前程序
         """
         self.do_flush(...)
+        for i in range(0, len(conn)):
+            try:
+                conn[i].send(bytes("[系统提示] 房主已关闭聊天室。\n", encoding="utf-8"))
+            except:
+                continue
+        for i in range(0, len(admin_conns)):
+            try:
+                admin_conns[i].send(bytes('{"type" : "server_closed"}', encoding="utf-8"))
+            except:
+                continue
         global EXIT_FLG
         EXIT_FLG = 1
         exit()
@@ -739,7 +753,7 @@ class Server(cmd.Cmd):
                         except:
                             port = randint(10000, 65535)
                     admin_socket.listen(10000)
-                    admin_socket.setblocking(0)
+                    admin_socket.setblocking(False)
                     print(f"管理员模式开启成功！指令端口 {ip}:{port}。")
                 except:
                     print("[Error] 开启失败")
@@ -752,16 +766,23 @@ class Server(cmd.Cmd):
             else:
                 print("[Error] 参数错误")
             return
+        
         if arg[0] == "add":
             for i in range(1, len(arg)):
                 admins.append(arg[i])
         
         elif arg[0] == "remove":
             new_admins = []
-            for i in range(len(admins)):
-                if admins[i] in arg:
-                    continue
-                new_admins.append(admins[i])
+            try:
+                for i in range(0, len(admins)):
+                    if admins[i] in arg:
+                        admin_conns[i].send(bytes('{"type" : "removed"}', encoding="utf-8"))
+                        admin_conns[i].close()
+                        continue
+                    new_admins.append(admins[i])
+            except Exception as err:
+                print("[ERROR] 管理员移除失败，错误信息：" + str(err) + "\n经测试，这是致命错误，请重启服务器!")
+                os._exit(1)
             admins = list(new_admins)
         
         else:
