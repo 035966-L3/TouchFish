@@ -14,6 +14,8 @@ import os
 import tabulate
 import requests
 
+import admin
+
 CONFIG_PATH = "config.json"
 
 # 版本
@@ -712,6 +714,16 @@ class Server(cmd.Cmd):
         退出当前程序
         """
         self.do_flush(...)
+        for i in range(0, len(conn)):
+            try:
+                conn[i].send(bytes("[系统提示] 房主已关闭聊天室。\n", encoding="utf-8"))
+            except:
+                continue
+        for i in range(0, len(admin_conns)):
+            try:
+                admin_conns[i].send(bytes('{"type" : "server_closed"}', encoding="utf-8"))
+            except:
+                continue
         global EXIT_FLG
         EXIT_FLG = 1
         exit()

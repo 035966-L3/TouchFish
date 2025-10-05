@@ -11,7 +11,7 @@ import os
 result_event = threading.Event()
 result_msg = None
 
-CURRENT_VERSION = "beta-20251005"
+CURRENT_VERSION = "beta-20251005-2"
 
 """
 # 该功能以后实现
@@ -82,13 +82,6 @@ def receive_ret():
             exit()
             break
         msg_str = None
-        try:
-            msg_str = s.recv(1024).decode("utf-8")
-        except Exception as err:
-            if not "[WinError 10035]" in str(err) and "[Errno 11]" not in str(err):
-                with open("admin_err.log", "a+") as file:
-                    file.write(str(err) + "\n")
-            continue
         if not msg_str:
             continue
         try:
@@ -100,6 +93,9 @@ def receive_ret():
         if msg["type"] == "removed":
             print("\n\n你已被服务器移除出管理员列表！")
             os._exit(1)
+        if msg["type"] == "server_closed":
+            print("\n\n服务器已关闭！")
+            os._exit(0)
         if msg["type"] == "result":
             result_msg = msg["message"]
             result_event.set()
@@ -107,7 +103,7 @@ def receive_ret():
 class Admin(cmd.Cmd):
     prompt = f"{IP}:{PORT} (admin)> "
     intro = f"""详细的使用指南，见 wiki：https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-admin (基本命令相同，但是没有admin命令和flush命令)
-可以使用 cmd type admin_err.log 查看错误日志 (Windows) 或 cmd cat admin_err.log (Linux)。
+可以使用 cmd type admin_err.log 查看错误日志 (Windows) 或 cmd cat admin_err.log (Linux)。（当然一般不会有错误）
 当前版本：{CURRENT_VERSION}，为测试版，可能会有一些问题。
 其余懒得写了，看server里的吧"""
 
