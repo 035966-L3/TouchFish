@@ -14,8 +14,6 @@ import os
 import tabulate
 import requests
 
-import admin
-
 CONFIG_PATH = "config.json"
 
 # 版本
