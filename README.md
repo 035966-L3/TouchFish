@@ -13,7 +13,6 @@
 |Pro|Pro|@PigeonTechGroup|[link](https://github.com/PigeonTechGroup/TouchFishPro)|是|Python|支持 Markdown，有能凑合着看的 LaTeX，用户高亮|
 |Mobile|Mobile|@pztsdy|还在施工|是|Java|TouchFish 移动端|
 |More(Lite)|More|@xx2860|[link](https://gitee.com/xx2870/touchfish_more)|是|Python|有更好的性能，更快的下载速度（算是镜像站）|
-s
 
 > [好看版链接](https://github.com/pztsdy/touchfish_ui_remake)，此版本基于 NodeJS 构建，拥有现代的 UI，支持 Markdown、代码高亮和洛谷 Markdown 编辑器，部分支持 $\LaTeX$。
 
