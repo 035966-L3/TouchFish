@@ -1,4 +1,19 @@
-> **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。发信息功能可能出现兼容性问题，可以通过操作规避，详见 wiki。**
+> **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。发文件功能可能出现兼容性问题，可以通过操作规避，详见 wiki。**
+
+由于 pztsdy 对本项目贡献巨大，~~甚至超过了 2se~~。所以这里帮忙宣传一下他的 [Cloud Stduio Chat](https://github.com/pztsdy/Cloud-Studio-Chat)。~~我也想帮忙的，可惜我不会 C++~~。没错，这个软件使用 C++ 编写，所以它有优秀的性能和优秀的运行速度和优秀的兼容性，经过实验，能在 XP 上跑。而且有 TouchFish 的大部功能，也欢迎大家使用 CSC。
+
+> （设想）如果 CSC 与 TouchFish 兼容。那么大家将有更多选择，追求功能的可以用 TouchFish，追求性能和兼容性的可以用 CSC，当然，是后话了。
+
+本版本是 TouchFish 的根版本，由 TouchFish 创始人创立，称为长期支持版，简称 LTS。目前 TouchFish 的所有衍生版本（衍生版本指的是它们的生态圈自 TouchFish 起源，或者和 TouchFish 兼容）：
+
+|   版本名称   |  通用简称  | 主要作者 |  链接    |   与 LTS 是否兼容   |   使用语言 |  备注 |
+|:---:|:---:|:---:|:---:|:-----:|:----:|:---:|
+|UI Remake|UR|@pztsdy|[link](https://github.com/pztsdy/touchfish_ui_remake)|是|Node.JS|拥有现代化 UI，支持 Markdown，代码高亮，部分 LaTeX|
+|Plus|Plus|@ayf2192538031|[link](https://github.com/2044-space-elevator/TouchFishPlus)|否|Python|拥有更多功能，但不同 Plus 版本不兼容。|
+|Pro|Pro|@PigeonTechGroup|[link](https://github.com/PigeonTechGroup/TouchFishPro)|是|Python|支持 Markdown，有能凑合着看的 LaTeX，用户高亮|
+|Mobile|Mobile|@pztsdy|还在施工|是|Java|TouchFish 移动端|
+|More(Lite)|More|@xx2860|[link](https://gitee.com/xx2870/touchfish_more)|是|Python|有更好的性能，更快的下载速度（算是镜像站）|
+s
 
 > [好看版链接](https://github.com/pztsdy/touchfish_ui_remake)，此版本基于 NodeJS 构建，拥有现代的 UI，支持 Markdown、代码高亮和洛谷 Markdown 编辑器，部分支持 $\LaTeX$。
 
