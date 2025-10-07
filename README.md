@@ -1,3 +1,21 @@
+
+> **交 PR 的人注意！感谢您对 TouchFish 的贡献，但为了防止您的努力打水漂，请先阅读[贡献者须知](https://github.com/2044-space-elevator/TouchFish/blob/main/CONTRIBUTING.md)再开始贡献，感谢配合！**
+
+# 机房聊天软件（断公网可用）
+
+汪氏军工制作，Luogu UID:824363
+
+孙大佬的网站，[bopid.cn](https://www.bopid.cn/chat)
+
+该软件没什么优点，只能发文字和图片，只能在同一局域网下使用（或者挂在公网服务器上），显然很辣鸡，但是可以离线使用。所以是机房聊天的不二之选（doge）。
+
+该体系有两个软件：
+- server。服务器端，聊天前，必须有一人的电脑作为 server，server 有且只有一台。
+- client。客户端，聊天者都使用 client 程序。
+- admin。管理员端，可以给信任的人作为管理员使用。
+
+## 发行版
+
 > **本版本为兼容版本，指所有不同版本的 chat 和 client 不会出现连接问题。发文件功能可能出现兼容性问题，可以通过操作规避，详见 wiki。**
 
 由于 pztsdy 对本项目贡献巨大，~~甚至超过了 2se~~。所以这里帮忙宣传一下他的 [Cloud Stduio Chat](https://github.com/pztsdy/Cloud-Studio-Chat)。~~我也想帮忙的，可惜我不会 C++~~。没错，这个软件使用 C++ 编写，所以它有优秀的性能和优秀的运行速度和优秀的兼容性，经过实验，能在 XP 上跑。而且有 TouchFish 的大部功能，也欢迎大家使用 CSC。
@@ -14,24 +32,10 @@
 |Mobile|Mobile|@pztsdy|还在施工|是|Java|TouchFish 移动端|
 |More(Lite)|More|@xx2860|[link](https://gitee.com/xx2870/touchfish_more)|是|Python|有更好的性能，更快的下载速度（算是镜像站）|
 
-> [好看版链接](https://github.com/pztsdy/touchfish_ui_remake)，此版本基于 NodeJS 构建，拥有现代的 UI，支持 Markdown、代码高亮和洛谷 Markdown 编辑器，部分支持 $\LaTeX$。
+> [好看版链接](https://github.com/pztsdy/touchfish_ui_remake)，此版本基于 NodeJS 构建，拥有现代的 UI，支持 Markdown、代码高亮和洛谷 Markdown 编辑器，部分支持 LaTeX。
 
 > [进阶版本链接](https://github.com/2044-space-elevator/TouchFishPlus)，进阶版本有更多功能，对应地，不同发行版的 chat 和 client 可能出现极大的兼容性问题。
 
-> **交 PR 的人注意！感谢您对 TouchFish 的贡献，但为了防止您的努力打水漂，请先阅读[贡献者须知](https://github.com/2044-space-elevator/TouchFish/blob/main/CONTRIBUTING.md)再开始贡献，感谢配合！**
-
-# 机房聊天软件（断公网可用）
-
-汪氏军工制作，Luogu UID:824363
-
-孙大佬的网站，[bopid.cn](https://www.bopid.cn/chat)
-
-该软件没什么优点，只能发文字和图片，只能在同一局域网下使用（或者挂在公网服务器上），显然很辣鸡，但是可以离线使用。所以是机房聊天的不二之选（doge）。
-
-该体系有两个软件：
-- server。服务器端，聊天前，必须有一人的电脑作为 server，server 有且只有一台。
-- client。客户端，聊天者都使用 client 程序。
-- admin。管理员端，可以给信任的人作为管理员使用。
 
 ## macos 用户注意
 
