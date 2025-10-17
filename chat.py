@@ -8,6 +8,7 @@ import time
 import sys
 import json
 import base64
+import queue
 from random import randint
 import os
 
@@ -26,19 +27,17 @@ try:
         status_enter_after_promise_tmp = dic_tmp['ENTER_AFTER_PROMISE']
         status_show_enter_message_tmp = dic_tmp['SHOW_ENTER_MESSAGE']
         status_auto_remove_offline_tmp = dic_tmp['AUTO_REMOVE_OFFLINE']
-        flush_interval_tmp = dic_tmp['FLUSH_INTERVAL']
         if type(ban_ip) == type(list()) and \
            type(ban_words) == type(list()) and \
            type(ban_length) == type(int()) and \
            type(status_enter_after_promise_tmp) == type(bool()) and \
            type(status_show_enter_message_tmp) == type(bool()) and \
-           type(status_auto_remove_offline_tmp) == type(bool()) and \
-           type(flush_interval_tmp) == type(int()):
+           type(status_auto_remove_offline_tmp) == type(bool()):
             pass
         
         else:
             raise
-
+        
         for v in ban_ip:
             if (type(v) != type(str())):
                 raise
@@ -58,7 +57,6 @@ except:
             "ENTER_AFTER_PROMISE" : False,
             "SHOW_ENTER_MESSAGE" : False,
             "AUTO_REMOVE_OFFLINE" : False,
-            "FLUSH_INTERVAL" : 30
         }, f)
 
 if len(sys.argv) == 4:
@@ -71,7 +69,6 @@ if len(sys.argv) == 4:
     except:
         print("[Error] 参数输入不正确")
         exit()
-
 else:
     print("You can use the command `chat <IP> <MAXNUMBER> <PORT>` (with the prefix './' if needed) to start it.")
     ip = input("Connect to IP: ")
@@ -121,16 +118,11 @@ ban_length = dic_config_file["ban"]["length"]
 ENTER_AFTER_PROMISE = dic_config_file["ENTER_AFTER_PROMISE"]
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 AUTO_REMOVE_OFFLINE = dic_config_file["AUTO_REMOVE_OFFLINE"]
-FLUSH_INTERVAL = dic_config_file["FLUSH_INTERVAL"]
 THREAD_RECEIVE_MESSAGE = None
 THREAD_ADD_ACCOUNTS = None
 THREAD_ADD_CMDLOOP = None
 THREAD_ADMIN_ACCEPT = None
 THREAD_ADMIN_DEAL = None
-
-to_be_flushed = False
-flush_interval = FLUSH_INTERVAL
-new_flush_interval = FLUSH_INTERVAL
 
 ENTER_HINT = ""
 with open("hint.txt", "a+", encoding="utf-8") as file:
@@ -144,7 +136,7 @@ if ENTER_HINT and ('\n' not in ENTER_HINT):
 print("您当前的进入提示是（注意使用的是 utf-8）：" + ENTER_HINT)
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 EXIT_FLG = False 
-flush_txt = ""
+flush_txt = queue.Queue()
 
 def send_all(msg : str):
     global conn
@@ -177,7 +169,7 @@ def add_accounts():
                 conntmp.send(bytes("[房主提示] " + ENTER_HINT, encoding="utf-8"))
         except:
             pass
-
+        
         if addresstmp[0] in ban_ip_lst:
             continue
         
@@ -186,9 +178,7 @@ def add_accounts():
                 conntmp.send(bytes("[系统提示] 本聊天室需要房主确认后加入，请等待房主同意。\n", encoding="utf-8"))
             except:
                 pass
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] <{len(requestion)}> User {addresstmp} requested an entry to the chatting room.\n"
+            flush_txt.put(f"[{time_str()}] <{len(requestion)}> User {addresstmp} requested an entry to the chatting room.\n")
             print(f"\n<{len(requestion)}> 用户 {addresstmp} 申请加入聊天室，请处理。\n{ip}:{portin}> ", end="")
             sys.stdout.flush()
             requestion.append((conntmp, addresstmp))
@@ -197,15 +187,11 @@ def add_accounts():
         if SHOW_ENTER_MESSAGE:
             print(f"\n用户 {addresstmp} 加入聊天室！\n{ip}:{portin}> ", end="")
             sys.stdout.flush()
-
-
+        
         if_online[addresstmp[0]] = True
         msg_counts[addresstmp[0]] = 0 
-        if to_be_flushed == True:
-            time.sleep(0.2)
-        flush_txt += f"[{time_str()}] User {addresstmp} has connected to server.\n"
+        flush_txt.put(f"[{time_str()}] User {addresstmp} has connected to server.\n")
         
-
         if platform.system() != "Windows":
             conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
             conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
@@ -234,7 +220,7 @@ def receive_msg():
                 tmp = j[0].recv(1024).decode('utf-8')
             except:
                 pass
-
+        
         for i in range(len(conn)):
             data = None
             try:
@@ -262,13 +248,21 @@ def receive_msg():
             elif not ':' in data:
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] User {address[i]} sent a massage: {data}"
-
+            output = f"[{time_str()}] User {address[i]} sent a message:\n    {data.split(':')[0]}"
+            if ':' in data:
+                output +=":\n"
+                rest = data.split(':', 1)[1]
+                if len(rest) > 0 and rest[0] == ' ':
+                    rest = rest[1:]
+                lines = rest.splitlines()
+                for line in lines:
+                    output += f"        {line}\n"
+                output = output[:-1]
+            flush_txt.put(output)
+            
             new_conn_lst = []
             new_add_lst = []
-
+            
             for j in range(len(conn)):
                 try:
                     conn[j].send(bytes(data, encoding="utf-8"))
@@ -279,7 +273,7 @@ def receive_msg():
                 except:
                     if_online[address[j][0]] = False
                     continue
-
+            
             if AUTO_REMOVE_OFFLINE:
                 conn = new_conn_lst
                 address = new_add_lst
@@ -302,8 +296,7 @@ class Server(cmd.Cmd):
         global ban_words_lst
         global ban_length
         global dic_config_file
-
-
+        
         arg = arg.split(' ')
         if len(arg) < 2:
             return "[Error] 参数错误\n"
@@ -326,9 +319,7 @@ class Server(cmd.Cmd):
                     send_all(f"[系统提示] {operator} 封禁了用户 {ip}, 用户名 {username[ip]}\n")
                 except:
                     pass
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] {operator} banned the user(s) from IP(s) {', '.join(arg)}.\n"
+            flush_txt.put(f"[{time_str()}] {operator} banned the user(s) from IP(s) {', '.join(arg)}.\n")
         
         if arg[0] == 'words':
             arg = arg[1:]
@@ -336,9 +327,7 @@ class Server(cmd.Cmd):
                 if SAVE_CONFIG:
                     dic_config_file["ban"]["words"].append(word)
                 ban_words_lst.append(word)
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] {operator} banned the word(s) {', '.join(arg)}.\n"
+            flush_txt.put(f"[{time_str()}] {operator} banned the word(s) {', '.join(arg)}.\n")
         
         if arg[0] == "length":
             try:
@@ -349,20 +338,18 @@ class Server(cmd.Cmd):
             if SAVE_CONFIG:
                 dic_config_file["ban"]["length"] = arg[1]
             ban_length = arg[1]
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] {operator} limited message length to: {ban_length}\n"
-
+            flush_txt.put(f"[{time_str()}] {operator} limited message length to: {ban_length}\n")
+        
         dic_config_file["ban"]["ip"] = list(set(dic_config_file["ban"]["ip"]))
         dic_config_file["ban"]["words"] = list(set(dic_config_file["ban"]["words"]))
-
+        
         ban_ip_lst = list(set(ban_ip_lst))
         ban_words_lst = list(set(ban_words_lst))
-
+        
         if SAVE_CONFIG:
             with open(CONFIG_PATH, "w+") as f:
                 json.dump(dic_config_file, f)
-
+        
         return ""
     
     def enable(self, arg : list, operator) -> str:
@@ -371,12 +358,12 @@ class Server(cmd.Cmd):
         global ban_words_lst
         global ban_length
         global dic_config_file
-
+        
         arg = arg.split(' ')
         OP_MSG = ""
         if len(arg) < 2:
             return "[Error] 参数错误\n"
-
+        
         SAVE_CONFIG = False
         if arg[0] == "forever":
             SAVE_CONFIG = True
@@ -385,7 +372,7 @@ class Server(cmd.Cmd):
         att1 = ["ip", "words"]
         if arg[0] not in att1:
             return "[Error] 参数错误\n"
-
+        
         if arg[0] == 'ip':
             arg = arg[1:]
             for ip in arg:
@@ -399,9 +386,7 @@ class Server(cmd.Cmd):
                     send_all(f"[系统提示] {operator} 解除封禁了 IP {ip}，用户名 {username[ip]}。\n")
                 except:
                     pass
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] {operator} unbanned the user(s) from IP(s) {', '.join(arg)}.\n"
+            flush_txt.put(f"[{time_str()}] {operator} unbanned the user(s) from IP(s) {', '.join(arg)}.\n")
         
         if arg[0] == 'words':
             arg = arg[1:]
@@ -415,31 +400,29 @@ class Server(cmd.Cmd):
                     ban_words_lst.remove(word)
                 except:
                     pass
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] {operator} unbanned the word(s) {', '.join(arg)}.\n"
-
+            flush_txt.put(f"[{time_str()}] {operator} unbanned the word(s) {', '.join(arg)}.\n")
+        
         if SAVE_CONFIG:
             with open(CONFIG_PATH, "w+") as f:
                 json.dump(dic_config_file, f)
         
         return ""
-
+    
     def set(self, arg : list, operator) -> str:
         global flush_txt
         arg = arg.split(' ')
         if len(arg) != 2 and len(arg) != 3:
             return "[Error] 参数错误\n"
-
+        
         att1 = ["EAP", "SEM", "ARO"]
         att2 = ["on", "off"]
         att3 = "forever"
         if (arg[0] not in att1) or (arg[1] not in att2):
             return "[Error] 参数错误\n"
-
+        
         if len(arg) == 3 and arg[2] != att3:
             return "[Error] 参数错误\n"
-
+        
         global ENTER_AFTER_PROMISE
         global SHOW_ENTER_MESSAGE
         global AUTO_REMOVE_OFFLINE
@@ -459,7 +442,7 @@ class Server(cmd.Cmd):
                 SHOW_ENTER_MESSAGE = True
             if len(arg) == 3:
                 dic_config_file["SHOW_ENTER_MESSAGE"] = SHOW_ENTER_MESSAGE
-
+        
         if arg[0] == 'ARO':
             if arg[1] == "off":
                 AUTO_REMOVE_OFFLINE = False
@@ -468,20 +451,14 @@ class Server(cmd.Cmd):
             if len(arg) == 3:
                 dic_config_file["AUTO_REMOVE_OFFLINE"] = AUTO_REMOVE_OFFLINE
         
-        if to_be_flushed == True:
-            time.sleep(0.2)
-        flush_txt += f'[{time_str()}] {operator} set {arg[0]} as {arg[1]}'
+        tmp_txt = f"[{time_str()}] {operator} set {arg[0]} as {arg[1]}"
         if len(arg) == 3:
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f" and saved it in the configuration."
+            tmp_txt += f" and saved it in the configuration."
             with open(CONFIG_PATH, "w+") as file:
                 json.dump(dic_config_file, file)
-        if to_be_flushed == True:
-            time.sleep(0.2)
-        flush_txt += '\n'
+        flush_txt.put(tmp_txt)
         return ""
-
+    
     def do_enable(self, arg):
         """
         使用方法（~ 表示 enable)：
@@ -502,7 +479,7 @@ class Server(cmd.Cmd):
         """
         OP_MSG = self.ban(arg, "房主")
         print(OP_MSG, end="")
-
+    
     def do_set(self, arg):
         """
         使用方法（~ 表示 set)：
@@ -513,7 +490,7 @@ class Server(cmd.Cmd):
         """
         OP_MSG = self.set(arg, "房主")
         print(OP_MSG, end="")
-
+    
     def do_cmd(self, arg):
         """
         使用方法 (~ 表示 cmd):
@@ -528,22 +505,20 @@ class Server(cmd.Cmd):
                 print("[Error] 命令执行失败！返回值: " + str(result))
         except Exception as err:
             print("命令执行失败！错误信息:", err)
-
+    
     def print_user(self, userlist : "list[str]") -> str:
         header = ["IP", "USERNAME", "IS_ONLINE", "IS_BANNED", "SEND_TIMES"]
         data_body = []
         for ip in userlist:
             data_body.append([ip, username[ip], if_online[ip], ip in ban_ip_lst, msg_counts[ip]])
         return str(tabulate.tabulate(data_body, headers=header)) + '\n'
-
+    
     def reject(self, rid : int, operator) -> str:
         OP_MSG = ""
         global flush_txt
         try:
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] <{rid}> User {requestion[rid][1]} was rejected to enter in the chatting room.\n"
-            OP_MSG += f"{operator}拒绝第 {rid} 号请求（用户 {requestion[rid][1]}。\n"
+            flush_txt.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was rejected to enter in the chatting room.\n")
+            OP_MSG += f"{operator} 拒绝第 {rid} 号请求（用户 {requestion[rid][1]}。\n"
             requestion[rid][0].send(bytes(f"[系统提示] {operator} 被拒绝加入聊天室\n", encoding="utf-8"))
             requestion[rid] = None
         except:
@@ -561,8 +536,8 @@ class Server(cmd.Cmd):
             msg_counts[requestion[rid][1][0]] = 0
             username[requestion[rid][1][0]] = "UNKNOWN"
             requestion[rid][0].setblocking(0)
-
-
+            
+            
             if platform.system() != "Windows":
                 requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
                 requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
@@ -571,13 +546,11 @@ class Server(cmd.Cmd):
                 requestion[rid][0].ioctl(socket.SIO_KEEPALIVE_VALS, (
                     1, 180 * 1000, 30 * 1000
                 ))
-
+            
             conn.append(requestion[rid][0])
             address.append(requestion[rid][1])
             requestion[rid][0].send(bytes(f"[系统提示] {operator} 已准许您加入聊天室\n", encoding="utf-8"))
-            if to_be_flushed == True:
-                time.sleep(0.2)
-            flush_txt += f"[{time_str()}] <{rid}> User {requestion[rid][1]} was accepted to enter the chatting room.\n"
+            flush_txt.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was accepted to enter the chatting room.\n")
             OP_MSG += f"{operator}准许了第 {rid} 号请求，用户 {requestion[rid][1]} 进入聊天室。\n"
             requestion[rid] = None
         except:
@@ -600,10 +573,10 @@ class Server(cmd.Cmd):
             
         for v in arg:
             OP_MSG += self.accept(int(v), operator)
-
+        
         OP_MSG += ""
         return OP_MSG
-
+    
     def do_accept(self, arg):
         """
         使用方法（~ 表示 accept）：
@@ -628,7 +601,7 @@ class Server(cmd.Cmd):
             OP_MSG += self.reject(int(i), operator)
         OP_MSG += ""
         return OP_MSG
-
+    
     def do_reject(self, arg):
         """
         使用方法（~ 表示 reject）：
@@ -640,9 +613,7 @@ class Server(cmd.Cmd):
     def broadcast(self, arg, operator):
         OP_MSG = ""
         global flush_txt
-        if to_be_flushed == True:
-            time.sleep(0.2)
-        flush_txt += f"[{time_str()}] {operator} broadcasted msg '{arg}'\n"
+        flush_txt.put(f"[{time_str()}] {operator} broadcasted msg: '{arg}'\n")
         for j in range(len(conn)):
             try:
                 conn[j].send(bytes(f"[{operator}广播] " + arg + '\n', encoding="utf-8"))
@@ -653,7 +624,7 @@ class Server(cmd.Cmd):
                 continue
         OP_MSG += "广播成功。\n"
         return OP_MSG
-
+    
     def do_broadcast(self, arg):
         """
         使用方法（~ 表示 broadcast)：
@@ -661,14 +632,14 @@ class Server(cmd.Cmd):
         """    
         OP_MSG = self.broadcast(arg, "房主")
         print(OP_MSG, end="")
-
+    
     def search(self, arg):
         OP_MSG = ""
         attributes = ["ip", "user", "online", "offline", "send_times", "banned"]
         arg = arg.split(' ')
         if (arg[0] not in attributes):
             return "[Error] 参数错误\n"
-
+        
         search_lst = []
         if (arg[0] == 'ip'):
             if len(arg) != 2:
@@ -726,7 +697,7 @@ class Server(cmd.Cmd):
         
         search_lst = list(set(search_lst))
         return self.print_user(search_lst) + '\n'
-        
+    
     def do_search(self, arg):
         """
         使用方法（~ 表示 search）：
@@ -738,83 +709,6 @@ class Server(cmd.Cmd):
             ~ send_times <*times>   搜索所有发送信息次数大于等于 times 的用户的信息（按发送次数从大到小输出）
         """ 
         OP_MSG = self.search(arg)
-        print(OP_MSG, end="")
-
-    def flush(self, arg):
-        global flush_interval
-        global new_flush_interval
-        global flush_txt
-        attributes = ["now", "auto", "manual"]
-        arg = arg.split(' ')
-        if (arg[0] not in attributes):
-            return "[Error] 参数错误\n"
-
-        SAVE_CONFIG = False
-        if arg[0] == 'forever':
-            SAVE_CONFIG = True
-            arg = arg[1:]
-
-            for ip in arg:
-                if SAVE_CONFIG:
-                    dic_config_file["ban"]["ip"].append(ip)
-
-        if arg[0] == "now":
-            if len(arg) != 1:
-                return "[Error] 参数错误\n"
-            if flush_interval != 0:
-                return "[Error] 目前处于自动刷新模式，不能手动刷新\n"
-            to_be_flushed = True
-            time.sleep(0.1)
-            with open("./log.txt", "a+", encoding="utf-8") as file:
-                file.write(flush_txt)
-            flush_txt = ""
-            to_be_flushed = False
-            return ""
-        if arg[0] == "manual":
-            new_flush_interval = 0
-            if len(arg) == 2 and arg[1] == "forever":
-                SAVE_CONFIG = True
-                dic_config_file["FLUSH_INTERVAL"] = 0
-            print("正在切换到手动刷新模式...")
-            if SAVE_CONFIG:
-                with open(CONFIG_PATH, "w+") as f:
-                    json.dump(dic_config_file, f)
-                print("此改动已经保存到配置文件，下一次启动本目录的 server 时能使用。")
-            print("调整自动刷新配置需要命令行重新启动，请等待...")
-            return "[Restart Required]"
-        if arg[0] == "auto":
-            if len(arg) != 2 and len(arg) != 3:
-                return "[Error] 参数错误\n"
-            try:
-                arg[1] = int(arg[1])
-                if arg[1] <= 0:
-                    raise
-            except:
-                return "[Error] <*interval> 必须是正整数\n"
-            new_flush_interval = int(arg[1])
-            if len(arg) == 3 and arg[2] == "forever":
-                SAVE_CONFIG = True
-                dic_config_file["FLUSH_INTERVAL"] = int(arg[1])
-            print(f"正在切换到自动刷新模式，每 {int(arg[1])} 秒刷新一次...")
-            if SAVE_CONFIG:
-                with open(CONFIG_PATH, "w+") as f:
-                    json.dump(dic_config_file, f)
-                print("此改动已经保存到配置文件，下一次启动本目录的 server 时能使用。")
-            print("调整自动刷新配置需要命令行重新启动，请等待...")
-            return "[Restart Required]"
-    
-    def do_flush(self, arg):
-        """
-        使用方法（~ 表示 flush）：
-            ~ now                   立刻刷新缓冲区，将消息保存到 ./log.txt（仅限手动模式）
-            ~ auto <*interval>      切换到自动刷新模式，每 interval 秒刷新一次
-            ~ manual                切换到手动刷新模式
-        你可以在命令后面加上 "forever"，表示将设置保存到配置文件。下一次启动本目录的 server 时能使用。
-        （小声：但你显然不能在 ~ now 后面加上 "forever"）
-        """
-        OP_MSG = self.flush(arg)
-        if OP_MSG == "[Restart Required]":
-            exit()
         print(OP_MSG, end="")
     
     def do_exit(self, arg):
@@ -845,7 +739,7 @@ class Server(cmd.Cmd):
         """
         global admin_socket
         global admins
-
+        
         arg = arg.split(' ')
         if len(arg) == 1:
             arg = arg[0]
@@ -901,7 +795,7 @@ class Server(cmd.Cmd):
             if requestion[i]:
                 OP_MSG += f"<{i}> {requestion[i][1]}\n"
         return OP_MSG
-
+    
     def do_req(self, arg):
         """
         查询当前所有请求进入聊天室的用户
@@ -921,10 +815,10 @@ def admin_accept():
         time.sleep(0.1)
         if EXIT_FLG:
             return
-
+        
         if not admin_socket:
             continue
-
+        
         newconn = []
         newaddress = []
         for i in range(len(admin_conns)):
@@ -941,7 +835,7 @@ def admin_accept():
             last_sent = time.time()
         admin_conns = list(newconn)
         admin_address = list(newaddress)
-
+        
         try:
             conntmp, addresstmp = admin_socket.accept()
         except:
@@ -950,9 +844,7 @@ def admin_accept():
         if not addresstmp[0] in admins:
             continue
         
-        if to_be_flushed == True:
-            time.sleep(0.2)
-        flush_txt += f"[{time_str()}] Administrator {addresstmp} entered.\n"
+        flush_txt.put(f"[{time_str()}] Administrator {addresstmp} entered.\n")
         print(f"\n管理员 {addresstmp} 进入管理平台。\n{ip}:{portin}> ", end="")
         conntmp.setblocking(0)
         if platform.system() != "Windows":
@@ -975,32 +867,32 @@ def admin_deal():
         if EXIT_FLG:
             exit()
             break
-    
+        
         for i in range(len(admin_conns)):
             try:
                 msg_str = admin_conns[i].recv(1024).decode("utf-8")
             except:
                 continue
-
+            
             if not msg_str:
                 continue
-
+            
             msg_str = msg_str.split('}')
             for j in range(len(msg_str)):
                 msg_str[j] += '}'
-
+            
             for msg_str_sin in msg_str:
                 try:
                     msg = json.loads(msg_str_sin)
                 except:
                     continue
-
+                
                 if msg["type"] == "username":
                     admin_name[admin_address[i]] = msg["message"]
-
+                
                 if not admin_name[admin_address[i]]:
                     continue
-
+                
                 ALLOW_COMMAND = ["ban", "accept", "broadcast", "enable", "flush", "reject", "search", "set", "req"]
                 if msg["type"] in ALLOW_COMMAND:
                     func = getattr(server, msg["type"])
@@ -1017,53 +909,31 @@ def admin_deal():
                         pass
 
 
-def complete_loop():
-    global flush_interval
-    global new_flush_interval
-
-    THREAD_RECEIVE_MESSAGE = threading.Thread(target=receive_msg)
-    THREAD_ADD_ACCOUNTS = threading.Thread(target=add_accounts)
-    THREAD_ADMIN_ACCEPT = threading.Thread(target=admin_accept)
-    THREAD_ADMIN_DEAL = threading.Thread(target=admin_deal)
-    
-    THREAD_RECEIVE_MESSAGE.start()
-    THREAD_ADD_ACCOUNTS.start()
-    THREAD_ADMIN_ACCEPT.start()
-    THREAD_ADMIN_DEAL.start()
-
+def flush_loop():
+    global EXIT_FLG
+    global flush_txt
     while True:
-        THREAD_ADD_CMDLOOP = threading.Thread(target=server.cmdloop)
-        THREAD_ADD_CMDLOOP.start()
-        time.sleep(1)
-        while THREAD_ADD_CMDLOOP.is_alive() == True:
-            if flush_interval == 0:
-                time.sleep(1)
-            else:
-                global flush_txt
-                to_be_flushed = True
-                time.sleep(0.1)
-                with open("./log.txt", "a+", encoding="utf-8") as file:
-                    file.write(flush_txt)
-                flush_txt = ""
-                to_be_flushed = False
-                for i in range(flush_interval):
-                    if THREAD_ADD_CMDLOOP.is_alive() == False:
-                        break
-                    else:
-                        time.sleep(1)
-        
-        flush_interval = new_flush_interval
-        to_be_flushed = True
         time.sleep(0.1)
-        with open("./log.txt", "a+", encoding="utf-8") as file:
-            file.write(flush_txt)
-        flush_txt = ""
-        to_be_flushed = False
         if EXIT_FLG:
-            return
-        sys.stdin = open(0, 'r', encoding='utf-8', buffering=1)
-        sys.stdout = open(1, 'w', encoding='utf-8', buffering=1)
-        sys.stderr = open(2, 'w', encoding='utf-8', buffering=1)
+            exit()
+            break
+        if not flush_txt.empty():
+            with open("./log.txt", "a+", encoding="utf-8") as file:
+                text = flush_txt.get()
+                if text[-1] != '\n':
+                    text += '\n'
+                file.write(text)
 
-THREAD_COMPLETE_LOOP = threading.Thread(target=complete_loop)
-THREAD_COMPLETE_LOOP.start()
+THREAD_ADD_CMDLOOP = threading.Thread(target=server.cmdloop)
+THREAD_RECEIVE_MESSAGE = threading.Thread(target=receive_msg)
+THREAD_ADD_ACCOUNTS = threading.Thread(target=add_accounts)
+THREAD_ADMIN_ACCEPT = threading.Thread(target=admin_accept)
+THREAD_ADMIN_DEAL = threading.Thread(target=admin_deal)
+THREAD_FLUSH_LOOP = threading.Thread(target=flush_loop)
+
+THREAD_ADD_CMDLOOP.start()  
+THREAD_RECEIVE_MESSAGE.start()
+THREAD_ADD_ACCOUNTS.start()
+THREAD_ADMIN_ACCEPT.start()
+THREAD_ADMIN_DEAL.start()
+THREAD_FLUSH_LOOP.start()  
