@@ -56,7 +56,7 @@ except:
             },
             "ENTER_AFTER_PROMISE" : False,
             "SHOW_ENTER_MESSAGE" : False,
-            "AUTO_REMOVE_OFFLINE" : False,
+            "AUTO_REMOVE_OFFLINE" : False
         }, f)
 
 if len(sys.argv) == 4:
