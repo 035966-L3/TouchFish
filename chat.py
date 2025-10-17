@@ -915,6 +915,12 @@ def flush_loop():
     while True:
         time.sleep(0.1)
         if EXIT_FLG:
+            while not flush_txt.empty():
+                with open("./log.txt", "a+", encoding="utf-8") as file:
+                    text = flush_txt.get()
+                    if text[-1] != '\n':
+                        text += '\n'
+                    file.write(text)
             exit()
             break
         if not flush_txt.empty():
@@ -931,7 +937,7 @@ THREAD_ADMIN_ACCEPT = threading.Thread(target=admin_accept)
 THREAD_ADMIN_DEAL = threading.Thread(target=admin_deal)
 THREAD_FLUSH_LOOP = threading.Thread(target=flush_loop)
 
-THREAD_ADD_CMDLOOP.start()  
+THREAD_ADD_CMDLOOP.start()
 THREAD_RECEIVE_MESSAGE.start()
 THREAD_ADD_ACCOUNTS.start()
 THREAD_ADMIN_ACCEPT.start()
