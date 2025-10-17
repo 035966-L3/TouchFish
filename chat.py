@@ -248,16 +248,22 @@ def receive_msg():
             elif not ':' in data:
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
-            output = f"[{time_str()}] User {address[i]} sent a message:\n    {data.split(':')[0]}"
-            if ':' in data:
-                output +=":\n"
-                rest = data.split(':', 1)[1]
-                if len(rest) > 0 and rest[0] == ' ':
-                    rest = rest[1:]
-                lines = rest.splitlines()
-                for line in lines:
-                    output += f"        {line}\n"
+            if "[FILE_START]" in data:
+                output = f"[{time_str()}] User {address[i]} sent a message:"
+                for line in data.splitlines():
+                    output += f"\n    {line}"
                 output = output[:-1]
+            else:
+                output = f"[{time_str()}] User {address[i]} sent a message:\n    {data.split(':')[0]}"
+                if ':' in data:
+                    output +=":\n"
+                    rest = data.split(':', 1)[1]
+                    if len(rest) > 0 and rest[0] == ' ':
+                        rest = rest[1:]
+                    lines = rest.splitlines()
+                    for line in lines:
+                        output += f"        {line}\n"
+                    output = output[:-1]
             flush_txt.put(output)
             
             new_conn_lst = []
