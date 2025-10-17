@@ -9,10 +9,11 @@ import sys
 import json
 import base64
 import queue
+from random import randint
 import os
+
 import tabulate
 import requests
-from random import randint
 
 CONFIG_PATH = "config.json"
 
@@ -912,10 +913,10 @@ def flush_loop():
     global EXIT_FLG
     global flush_txt
     while True:
-        time.sleep(0.1)
+        time.sleep(1)
         if EXIT_FLG:
-            while not flush_txt.empty():
-                with open("./log.txt", "a+", encoding="utf-8") as file:
+            with open("./log.txt", "a+", encoding="utf-8") as file:
+                while not flush_txt.empty():
                     text = flush_txt.get()
                     if text[-1] != '\n':
                         text += '\n'
@@ -924,10 +925,11 @@ def flush_loop():
             break
         if not flush_txt.empty():
             with open("./log.txt", "a+", encoding="utf-8") as file:
-                text = flush_txt.get()
-                if text[-1] != '\n':
-                    text += '\n'
-                file.write(text)
+                while not flush_txt.empty():
+                    text = flush_txt.get()
+                    if text[-1] != '\n':
+                        text += '\n'
+                    file.write(text)
 
 THREAD_ADD_CMDLOOP = threading.Thread(target=server.cmdloop)
 THREAD_RECEIVE_MESSAGE = threading.Thread(target=receive_msg)
