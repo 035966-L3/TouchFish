@@ -270,7 +270,7 @@ def receive_msg():
             
             for j in range(len(conn)):
                 try:
-                    conn[j].send(bytes(data, encoding="utf-8"))
+                    conn[j].send(bytes(output.split(':', 1)[1] + "\n", encoding="utf-8"))
                     if_online[address[j][0]] = True
                     if AUTO_REMOVE_OFFLINE:
                         new_conn_lst.append(conn[j])
