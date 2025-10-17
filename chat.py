@@ -252,7 +252,6 @@ def receive_msg():
                 output = f"[{time_str()}] User {address[i]} sent a message:"
                 for line in data.splitlines():
                     output += f"\n    {line}"
-                output = output[:-1]
             else:
                 output = f"[{time_str()}] User {address[i]} sent a message:\n    {data.split(':')[0]}"
                 if ':' in data:
