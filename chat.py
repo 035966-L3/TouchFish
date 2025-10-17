@@ -9,11 +9,10 @@ import sys
 import json
 import base64
 import queue
-from random import randint
 import os
-
 import tabulate
 import requests
+from random import randint
 
 CONFIG_PATH = "config.json"
 
