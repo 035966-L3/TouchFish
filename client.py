@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import time
 import socket
 import threading
 import platform
