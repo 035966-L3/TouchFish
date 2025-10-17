@@ -58,7 +58,7 @@ except:
             "ENTER_AFTER_PROMISE" : False,
             "SHOW_ENTER_MESSAGE" : False,
             "AUTO_REMOVE_OFFLINE" : False,
-            "FLUSH_INTERVAL" : 60
+            "FLUSH_INTERVAL" : 30
         }, f)
 
 if len(sys.argv) == 4:
