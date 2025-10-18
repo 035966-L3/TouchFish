@@ -137,6 +137,7 @@ print("您当前的进入提示是（注意使用的是 utf-8）：" + ENTER_HIN
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 EXIT_FLG = False 
 flush_txt = queue.Queue()
+file_processing = False
 
 def send_all(msg : str):
     global conn
@@ -209,8 +210,10 @@ def receive_msg():
     global conn
     global address
     global flush_txt
+    global file_processing
     while True:
-        time.sleep(0.1)
+        if file_processing == False:
+            time.sleep(0.1)
         if EXIT_FLG:
             return
         for j in requestion:
@@ -248,10 +251,13 @@ def receive_msg():
             elif not ':' in data:
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
-            if "[FILE_START]" in data:
-                output = f""
-                for line in data.splitlines():
-                    output += f"\n    {line}"
+            if file_processing == True or "[FILE_START]" in data:
+                if file_processing == False:
+                    flush_txt.put(f"[{time_str()}] User {address[i]} started transferring a file:")
+                    flush_txt.put("-" * 100)
+                file_processing = True
+                output = data
+                flush_txt.put(output)
             else:
                 output = f"\n    {data.split(':')[0]}"
                 if ':' in data:
@@ -263,17 +269,21 @@ def receive_msg():
                     for line in lines:
                         output += f"        {line}\n"
                     output = output[:-1]
-            flush_txt.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
-            if "[FILE_START]" in data:
-                output = output.replace("\n    ", "\n")
-                output = output[1:]
+                flush_txt.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
+            if "[FILE_END]" in data:
+                flush_txt.put("-" * 100)
+                flush_txt.put(f"[{time_str()}] Transfer finished.")
+                file_processing = False
             
             new_conn_lst = []
             new_add_lst = []
             
             for j in range(len(conn)):
                 try:
-                    conn[j].send(bytes(output + "\n", encoding="utf-8"))
+                    if file_processing == True:
+                        conn[j].send(bytes(output, encoding="utf-8"))
+                    else:
+                        conn[j].send(bytes(output + "\n", encoding="utf-8"))
                     if_online[address[j][0]] = True
                     if AUTO_REMOVE_OFFLINE:
                         new_conn_lst.append(conn[j])
