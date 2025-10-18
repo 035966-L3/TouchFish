@@ -279,18 +279,24 @@ def receive_msg():
             new_add_lst = []
             
             for j in range(len(conn)):
-                try:
-                    if file_processing == True:
-                        conn[j].send(bytes(output, encoding="utf-8"))
-                    else:
-                        conn[j].send(bytes(output + "\n", encoding="utf-8"))
-                    if_online[address[j][0]] = True
-                    if AUTO_REMOVE_OFFLINE:
-                        new_conn_lst.append(conn[j])
-                        new_add_lst.append(address[j])
-                except:
-                    if_online[address[j][0]] = False
-                    continue
+                while True:
+                    sent = True
+                    try:
+                        if file_processing == True:
+                            conn[j].send(bytes(output, encoding="utf-8"))
+                        else:
+                            conn[j].send(bytes(output + "\n", encoding="utf-8"))
+                        if_online[address[j][0]] = True
+                        if AUTO_REMOVE_OFFLINE:
+                            new_conn_lst.append(conn[j])
+                            new_add_lst.append(address[j])
+                    except BlockingIOError:
+                        sent = False
+                        continue
+                    except:
+                        pass
+                    if sent:
+                        break
             
             if AUTO_REMOVE_OFFLINE:
                 conn = new_conn_lst
