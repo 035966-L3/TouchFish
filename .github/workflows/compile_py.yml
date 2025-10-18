@@ -3,11 +3,9 @@
 name: Build and Push Python Binaries
 
 on:
-  watch:
-    types: [started]
-  #push:
-    #branches:
-      #- main
+  push:
+    branches:
+      - main
 
 jobs:
   build-linux:
