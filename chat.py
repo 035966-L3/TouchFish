@@ -249,11 +249,11 @@ def receive_msg():
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
             if "[FILE_START]" in data:
-                output = f"[{time_str()}] User {address[i]} sent a message:"
+                output = f""
                 for line in data.splitlines():
                     output += f"\n    {line}"
             else:
-                output = f"[{time_str()}] User {address[i]} sent a message:\n    {data.split(':')[0]}"
+                output = f"\n    {data.split(':')[0]}"
                 if ':' in data:
                     output +=":\n"
                     rest = data.split(':', 1)[1]
@@ -263,14 +263,17 @@ def receive_msg():
                     for line in lines:
                         output += f"        {line}\n"
                     output = output[:-1]
-            flush_txt.put(output)
+            flush_txt.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
+            if "[FILE_START]" in data:
+                output = output.replace("\n    ", "\n")
+                output = output[1:]
             
             new_conn_lst = []
             new_add_lst = []
             
             for j in range(len(conn)):
                 try:
-                    conn[j].send(bytes(output.split(':', 1)[1] + "\n", encoding="utf-8"))
+                    conn[j].send(bytes(output + "\n", encoding="utf-8"))
                     if_online[address[j][0]] = True
                     if AUTO_REMOVE_OFFLINE:
                         new_conn_lst.append(conn[j])
