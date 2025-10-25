@@ -18,7 +18,7 @@ FILE_END = "[FILE_END]"
 CHUNK_SIZE = 8192
 
 # 当前版本
-CURRENT_VERSION = "v3.2.2a"
+CURRENT_VERSION = "v3.2.0"
 
 def get_hh_mm_ss() -> str:
     """
