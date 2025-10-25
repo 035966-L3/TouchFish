@@ -18,7 +18,7 @@ import requests
 CONFIG_PATH = "config.json"
 
 # 版本
-VERSION = "v3.2.0"
+VERSION = "v3.2.2a"
 
 try:
     with open(CONFIG_PATH, "r+") as f:
