@@ -13,7 +13,7 @@ from random import randint
 import os
 
 import tabulate
-import the_requestss
+import requests
 
 CONFIG_PATH = "config.json"
 
