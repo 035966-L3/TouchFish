@@ -136,7 +136,7 @@ if ENTER_HINT and ('\n' not in ENTER_HINT):
 print("您当前的进入提示是（注意使用的是 utf-8）：" + ENTER_HINT)
 SHOW_ENTER_MESSAGE = dic_config_file["SHOW_ENTER_MESSAGE"]
 EXIT_FLG = False 
-flush_txt = queue.Queue()
+flush_queue = queue.Queue()
 file_processing = False
 
 def send_all(msg : str):
@@ -149,7 +149,7 @@ def send_all(msg : str):
             if_online[address[j][0]] = False
 
 def add_accounts():
-    global flush_txt
+    global flush_queue
     while True:
         time.sleep(0.1)
         if EXIT_FLG:
@@ -179,7 +179,7 @@ def add_accounts():
                 conntmp.send(bytes("[系统提示] 本聊天室需要房主确认后加入，请等待房主同意。\n", encoding="utf-8"))
             except:
                 pass
-            flush_txt.put(f"[{time_str()}] <{len(requestion)}> User {addresstmp} requested an entry to the chatting room.\n")
+            flush_queue.put(f"[{time_str()}] <{len(requestion)}> User {addresstmp} requested an entry to the chatting room.\n")
             print(f"\n<{len(requestion)}> 用户 {addresstmp} 申请加入聊天室，请处理。\n{ip}:{portin}> ", end="")
             sys.stdout.flush()
             requestion.append((conntmp, addresstmp))
@@ -191,7 +191,7 @@ def add_accounts():
         
         if_online[addresstmp[0]] = True
         msg_counts[addresstmp[0]] = 0 
-        flush_txt.put(f"[{time_str()}] User {addresstmp} has connected to server.\n")
+        flush_queue.put(f"[{time_str()}] User {addresstmp} has connected to server.\n")
         
         if platform.system() != "Windows":
             conntmp.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
@@ -209,7 +209,7 @@ def add_accounts():
 def receive_msg():
     global conn
     global address
-    global flush_txt
+    global flush_queue
     global file_processing
     while True:
         if file_processing == False:
@@ -253,11 +253,11 @@ def receive_msg():
             username[address[i][0]] = username_tmp
             if file_processing == True or "[FILE_START]" in data:
                 if file_processing == False:
-                    flush_txt.put(f"[{time_str()}] User {address[i]} started transferring a file:")
-                    flush_txt.put("-" * 100)
+                    flush_queue.put(f"[{time_str()}] User {address[i]} started transferring a file:")
+                    flush_queue.put("-" * 100)
                 file_processing = True
                 output = data
-                flush_txt.put(output)
+                flush_queue.put(output)
             else:
                 output = f"\n    {data.split(':')[0]}"
                 if ':' in data:
@@ -269,10 +269,10 @@ def receive_msg():
                     for line in lines:
                         output += f"        {line}\n"
                     output = output[:-1]
-                flush_txt.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
+                flush_queue.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
             if "[FILE_END]" in data:
-                flush_txt.put("-" * 100)
-                flush_txt.put(f"[{time_str()}] Transfer finished.")
+                flush_queue.put("-" * 100)
+                flush_queue.put(f"[{time_str()}] Transfer finished.")
                 file_processing = False
             
             new_conn_lst = []
@@ -316,7 +316,7 @@ class Server(cmd.Cmd):
     def ban(self, arg : list, operator) -> str:
         OP_MSG = ""
         global ban_ip_lst
-        global flush_txt
+        global flush_queue
         global ban_words_lst
         global ban_length
         global dic_config_file
@@ -343,7 +343,7 @@ class Server(cmd.Cmd):
                     send_all(f"[系统提示] {operator} 封禁了用户 {ip}, 用户名 {username[ip]}\n")
                 except:
                     pass
-            flush_txt.put(f"[{time_str()}] {operator} banned the user(s) from IP(s) {', '.join(arg)}.\n")
+            flush_queue.put(f"[{time_str()}] {operator} banned the user(s) from IP(s) {', '.join(arg)}.\n")
         
         if arg[0] == 'words':
             arg = arg[1:]
@@ -351,7 +351,7 @@ class Server(cmd.Cmd):
                 if SAVE_CONFIG:
                     dic_config_file["ban"]["words"].append(word)
                 ban_words_lst.append(word)
-            flush_txt.put(f"[{time_str()}] {operator} banned the word(s) {', '.join(arg)}.\n")
+            flush_queue.put(f"[{time_str()}] {operator} banned the word(s) {', '.join(arg)}.\n")
         
         if arg[0] == "length":
             try:
@@ -362,7 +362,7 @@ class Server(cmd.Cmd):
             if SAVE_CONFIG:
                 dic_config_file["ban"]["length"] = arg[1]
             ban_length = arg[1]
-            flush_txt.put(f"[{time_str()}] {operator} limited message length to: {ban_length}\n")
+            flush_queue.put(f"[{time_str()}] {operator} limited message length to: {ban_length}\n")
         
         dic_config_file["ban"]["ip"] = list(set(dic_config_file["ban"]["ip"]))
         dic_config_file["ban"]["words"] = list(set(dic_config_file["ban"]["words"]))
@@ -378,7 +378,7 @@ class Server(cmd.Cmd):
     
     def enable(self, arg : list, operator) -> str:
         global ban_ip_lst
-        global flush_txt
+        global flush_queue
         global ban_words_lst
         global ban_length
         global dic_config_file
@@ -410,7 +410,7 @@ class Server(cmd.Cmd):
                     send_all(f"[系统提示] {operator} 解除封禁了 IP {ip}，用户名 {username[ip]}。\n")
                 except:
                     pass
-            flush_txt.put(f"[{time_str()}] {operator} unbanned the user(s) from IP(s) {', '.join(arg)}.\n")
+            flush_queue.put(f"[{time_str()}] {operator} unbanned the user(s) from IP(s) {', '.join(arg)}.\n")
         
         if arg[0] == 'words':
             arg = arg[1:]
@@ -424,7 +424,7 @@ class Server(cmd.Cmd):
                     ban_words_lst.remove(word)
                 except:
                     pass
-            flush_txt.put(f"[{time_str()}] {operator} unbanned the word(s) {', '.join(arg)}.\n")
+            flush_queue.put(f"[{time_str()}] {operator} unbanned the word(s) {', '.join(arg)}.\n")
         
         if SAVE_CONFIG:
             with open(CONFIG_PATH, "w+") as f:
@@ -433,7 +433,7 @@ class Server(cmd.Cmd):
         return ""
     
     def set(self, arg : list, operator) -> str:
-        global flush_txt
+        global flush_queue
         arg = arg.split(' ')
         if len(arg) != 2 and len(arg) != 3:
             return "[Error] 参数错误\n"
@@ -480,7 +480,7 @@ class Server(cmd.Cmd):
             tmp_txt += f" and saved it in the configuration."
             with open(CONFIG_PATH, "w+") as file:
                 json.dump(dic_config_file, file)
-        flush_txt.put(tmp_txt)
+        flush_queue.put(tmp_txt)
         return ""
     
     def do_enable(self, arg):
@@ -539,9 +539,9 @@ class Server(cmd.Cmd):
     
     def reject(self, rid : int, operator) -> str:
         OP_MSG = ""
-        global flush_txt
+        global flush_queue
         try:
-            flush_txt.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was rejected to enter in the chatting room.\n")
+            flush_queue.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was rejected to enter in the chatting room.\n")
             OP_MSG += f"{operator} 拒绝第 {rid} 号请求（用户 {requestion[rid][1]}。\n"
             requestion[rid][0].send(bytes(f"[系统提示] {operator} 被拒绝加入聊天室\n", encoding="utf-8"))
             requestion[rid] = None
@@ -551,7 +551,7 @@ class Server(cmd.Cmd):
     
     def accept(self, rid : int, operator) -> str:
         OP_MSG = ""
-        global flush_txt
+        global flush_queue
         if not requestion[rid]:
             OP_MSG += f"[Error] 第 {rid} 号进入请求已处理\n"
             return OP_MSG
@@ -574,7 +574,7 @@ class Server(cmd.Cmd):
             conn.append(requestion[rid][0])
             address.append(requestion[rid][1])
             requestion[rid][0].send(bytes(f"[系统提示] {operator} 已准许您加入聊天室\n", encoding="utf-8"))
-            flush_txt.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was accepted to enter the chatting room.\n")
+            flush_queue.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was accepted to enter the chatting room.\n")
             OP_MSG += f"{operator}准许了第 {rid} 号请求，用户 {requestion[rid][1]} 进入聊天室。\n"
             requestion[rid] = None
         except:
@@ -636,8 +636,8 @@ class Server(cmd.Cmd):
     
     def broadcast(self, arg, operator):
         OP_MSG = ""
-        global flush_txt
-        flush_txt.put(f"[{time_str()}] {operator} broadcasted msg: '{arg}'\n")
+        global flush_queue
+        flush_queue.put(f"[{time_str()}] {operator} broadcasted msg: '{arg}'\n")
         for j in range(len(conn)):
             try:
                 conn[j].send(bytes(f"[{operator}广播] " + arg + '\n', encoding="utf-8"))
@@ -833,7 +833,7 @@ last_sent = time.time()
 def admin_accept():
     global admin_conns
     global admin_address
-    global flush_txt
+    global flush_queue
     global last_sent
     while True:
         time.sleep(0.1)
@@ -868,7 +868,7 @@ def admin_accept():
         if not addresstmp[0] in admins:
             continue
         
-        flush_txt.put(f"[{time_str()}] Administrator {addresstmp} entered.\n")
+        flush_queue.put(f"[{time_str()}] Administrator {addresstmp} entered.\n")
         print(f"\n管理员 {addresstmp} 进入管理平台。\n{ip}:{portin}> ", end="")
         conntmp.setblocking(0)
         if platform.system() != "Windows":
@@ -935,22 +935,22 @@ def admin_deal():
 
 def flush_loop():
     global EXIT_FLG
-    global flush_txt
+    global flush_queue
     while True:
         time.sleep(1)
         if EXIT_FLG:
             with open("./log.txt", "a+", encoding="utf-8") as file:
-                while not flush_txt.empty():
-                    text = flush_txt.get()
+                while not flush_queue.empty():
+                    text = flush_queue.get()
                     if text[-1] != '\n':
                         text += '\n'
                     file.write(text)
             exit()
             break
-        if not flush_txt.empty():
+        if not flush_queue.empty():
             with open("./log.txt", "a+", encoding="utf-8") as file:
-                while not flush_txt.empty():
-                    text = flush_txt.get()
+                while not flush_queue.empty():
+                    text = flush_queue.get()
                     if text[-1] != '\n':
                         text += '\n'
                     file.write(text)
