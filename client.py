@@ -25,7 +25,7 @@ CHUNK_SIZE = 8192
 NOTIFIER_INIT_ERR = False
 
 # 当前版本
-CURRENT_VERSION = "v3.2.3a"
+CURRENT_VERSION = "v3.2.2b"
 
 notifier = None
 if platform.system() == "Windows":
