@@ -7,6 +7,7 @@ import requests
 import os
 import json
 import datetime
+import time
 import base64
 import readline  # 用于改善命令行输入体验
 
@@ -18,7 +19,7 @@ FILE_END = "[FILE_END]"
 CHUNK_SIZE = 8192
 
 # 当前版本
-CURRENT_VERSION = "v3.2.2a"
+CURRENT_VERSION = "v3.2.0"
 
 def get_hh_mm_ss() -> str:
     """
