@@ -13,7 +13,7 @@ from random import randint
 import os
 
 import tabulate
-import the_requestss
+import requests
 
 CONFIG_PATH = "config.json"
 
@@ -208,7 +208,7 @@ def add_accounts():
 
 def format_msg(data, username_tmp) -> str:
     output = ""
-    if username_tmp == "UNKNOWN":
+    if username_tmp == "UNKNOWN" or not ':' in data:
         output = "\n"
         rest = data.splitlines()
         while len(rest) > 0 and rest[0] == "":
