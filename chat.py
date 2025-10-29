@@ -212,7 +212,7 @@ def receive_msg():
     global flush_queue
     global file_processing
     while True:
-        if file_processing == False:
+        if not file_processing:
             time.sleep(0.1)
         if EXIT_FLG:
             return
@@ -251,8 +251,8 @@ def receive_msg():
             elif not ':' in data:
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
-            if file_processing == True or "[FILE_START]" in data:
-                if file_processing == False:
+            if file_processing or "[FILE_START]" in data:
+                if not file_processing:
                     flush_queue.put(f"[{time_str()}] User {address[i]} started transferring a file:")
                     flush_queue.put("-" * 100)
                 file_processing = True
@@ -282,7 +282,7 @@ def receive_msg():
                 while True:
                     sent = True
                     try:
-                        if file_processing == True:
+                        if file_processing:
                             conn[j].send(bytes(output, encoding="utf-8"))
                         else:
                             conn[j].send(bytes(output + "\n", encoding="utf-8"))
