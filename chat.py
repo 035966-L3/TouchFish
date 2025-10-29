@@ -206,6 +206,25 @@ def add_accounts():
         address.append(addresstmp)
         username[addresstmp[0]] = "UNKNOWN"
 
+def format_msg(data, username_tmp) -> str:
+    output = ""
+    if username_tmp == "UNKNOWN":
+        output = "\n"
+        rest = data.splitlines()
+        while len(rest) > 0 and rest[0] == "":
+            rest = rest[1:]
+        for line in rest:
+            output += f"    {line}\n"
+    else:
+        output = f"\n    {data.split(':')[0]}:\n"
+        rest = data.split(':', 1)[1]
+        while len(rest) > 0 and rest[0] == ' ':
+            rest = rest[1:]
+        lines = rest.splitlines()
+        for line in lines:
+            output += f"        {line}\n"
+    return output[:-1]
+
 def receive_msg():
     global conn
     global address
@@ -259,24 +278,8 @@ def receive_msg():
                 file_processing = True
                 output = data
             else:
-                output = f"\n    {data.split(':')[0]}"
-                if username_tmp == "UNKNOWN":
-                    output = "\n"
-                    rest = data.splitlines()
-                    while len(rest) > 0 and rest[0] == "":
-                        rest = rest[1:]
-                    for line in rest:
-                        output += f"    {line}\n"
-                else:
-                    output +=":\n"
-                    rest = data.split(':', 1)[1]
-                    while len(rest) > 0 and rest[0] == ' ':
-                        rest = rest[1:]
-                    lines = rest.splitlines()
-                    for line in lines:
-                        output += f"        {line}\n"
-                output = output[:-1]
-            flush_queue.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
+                output = format_msg(data, username_tmp)
+                flush_queue.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
             if "[FILE_END]" in data:
                 flush_queue.put("-" * 100)
                 flush_queue.put(f"[{time_str()}] Transfer finished.")
