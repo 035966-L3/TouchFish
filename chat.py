@@ -27,12 +27,12 @@ try:
         status_enter_after_promise_tmp = dic_tmp['ENTER_AFTER_PROMISE']
         status_show_enter_message_tmp = dic_tmp['SHOW_ENTER_MESSAGE']
         status_auto_remove_offline_tmp = dic_tmp['AUTO_REMOVE_OFFLINE']
-        if type(ban_ip) == type(list()) and \
-           type(ban_words) == type(list()) and \
-           type(ban_length) == type(int()) and \
-           type(status_enter_after_promise_tmp) == type(bool()) and \
-           type(status_show_enter_message_tmp) == type(bool()) and \
-           type(status_auto_remove_offline_tmp) == type(bool()):
+        if isinstance(ban_ip, list) and \
+           isinstance(ban_words, list) and \
+           isinstance(ban_length, int) and \
+           isinstance(status_enter_after_promise_tmp, bool) and \
+           isinstance(status_show_enter_message_tmp, bool) and \
+           isinstance(status_auto_remove_offline_tmp, bool):
             pass
         
         else:
