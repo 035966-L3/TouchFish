@@ -248,28 +248,35 @@ def receive_msg():
             if not ':' in data and '用户 ' in data and ' 加入聊天室。' in data:
                 username_tmp = data.split('用户 ')[1]
                 username_tmp = username_tmp.split(' 加入聊天室。')[0]
-            elif not ':' in data:
+            elif not ':' in data or '\n' in username_tmp:
                 username_tmp = "UNKNOWN"
             username[address[i][0]] = username_tmp
+            output = ""
             if file_processing or "[FILE_START]" in data:
                 if not file_processing:
                     flush_queue.put(f"[{time_str()}] User {address[i]} started transferring a file:")
                     flush_queue.put("-" * 100)
                 file_processing = True
                 output = data
-                flush_queue.put(output)
             else:
                 output = f"\n    {data.split(':')[0]}"
-                if ':' in data:
+                if username_tmp == "UNKNOWN":
+                    output = "\n"
+                    rest = data.splitlines()
+                    while len(rest) > 0 and rest[0] == "":
+                        rest = rest[1:]
+                    for line in rest:
+                        output += f"    {line}\n"
+                else:
                     output +=":\n"
                     rest = data.split(':', 1)[1]
-                    if len(rest) > 0 and rest[0] == ' ':
+                    while len(rest) > 0 and rest[0] == ' ':
                         rest = rest[1:]
                     lines = rest.splitlines()
                     for line in lines:
                         output += f"        {line}\n"
-                    output = output[:-1]
-                flush_queue.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
+                output = output[:-1]
+            flush_queue.put(f"[{time_str()}] User {address[i]} sent a message:" + output)
             if "[FILE_END]" in data:
                 flush_queue.put("-" * 100)
                 flush_queue.put(f"[{time_str()}] Transfer finished.")
