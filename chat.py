@@ -17,7 +17,6 @@ import requests
 
 CONFIG_PATH = "config.json"
 
-
 # 版本
 VERSION = "v3.2.2b"
 
