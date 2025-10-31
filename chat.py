@@ -88,7 +88,7 @@ s.setblocking(False)
 NEWEST_VERSION = "UNKNOWN"
 
 try:
-    NEWEST_VERSION = the_requestss.get("https://bopid.cn/chat/newest_version_chat.html").content.decode()
+    NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html").content.decode()
 except:
     NEWEST_VERSION = "UNKNOWN"
 
