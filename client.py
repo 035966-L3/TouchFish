@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import time
 import socket
 import threading
 import platform
@@ -86,7 +87,7 @@ class ChatClient:
         connect_btn.grid(row=3, columnspan=2, pady=10)
 
         # 提示
-        tk.Label(frame, text="提示: Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
+        tk.Label(frame, text="提示 1：你可以使用快捷键 Ctrl+Enter 发送消息").grid(row=4, columnspan=2)
 
         try:
             NEWEST_VERSION = requests.get("https://www.bopid.cn/chat/newest_version_client.html").content.decode()
@@ -121,6 +122,7 @@ class ChatClient:
                 self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
                 self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 
+            time.sleep(2) # 等待服务器花费 1 秒确认这不是 Web 连接，否则下面的加入提示会被服务器忽略
             self.socket.send(bytes(f"用户 {self.username} 加入聊天室。\n", encoding="utf-8"))
             self.root.destroy()  # 关闭连接窗口
             self.create_chat_window()  # 打开聊天窗口
@@ -289,7 +291,8 @@ class ChatClient:
         """接收消息的线程函数"""
         buffer = b""
         while True:
-            time.sleep(0.1)
+            if self.receiving_file == False:
+                time.sleep(0.1)
             if EXIT_FLG:
                 sys.exit()
                 return

@@ -1,3 +1,4 @@
+import time
 import socket
 import threading
 import platform
@@ -112,6 +113,7 @@ class ChatClientCLI:
                 self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
                 self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 
+            time.sleep(2) # 等待服务器花费 1 秒确认这不是 Web 连接，否则下面的加入提示会被服务器忽略
             self.socket.send(bytes(f"用户 {self.username} 加入聊天室。\n", encoding="utf-8"))
             print_colored("连接成功!", "1;32")
             
@@ -202,7 +204,8 @@ class ChatClientCLI:
         """接收消息的线程函数"""
         buffer = b""
         while True:
-            time.sleep(0.1)
+            if not self.receiving_file:
+                time.sleep(0.1)
             if EXIT_FLG:
                 return
             try:
