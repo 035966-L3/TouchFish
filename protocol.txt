@@ -1,0 +1,154 @@
+1 Join
+  1.1 Request
+    { type: "JOIN.REQUEST", username: string, password: "TrI1nI<t2RoT3o=Lu4EnE5>" }
+  1.2 Response
+    1.2.1 Fetched
+      { type: "JOIN.RESPONSE.FETCHED" }
+    1.2.2 Accepted
+      { type: "JOIN.RESPONSE.ACCEPTED", server_version: string, uid: number, operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "Automatically accepted", uid: -1 }, }
+    1.2.3 Rejected
+      { type: "JOIN.RESPONSE.REJECTED", operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "IP is banned", uid: -1 } | { username: "Room is full", uid: -2 } | { username: "Duplicate usernames", uid: -3 } | { username: "Username consists of banned words", uid: -4 } }
+  1.3 Enter Confirmation Request
+    { type: "JOIN.ENTER_CONFIRMATION_REQUEST", ip: ip, username: string, uid: number }
+  1.4 Enter Confirmation Response
+    { type: "JOIN.ENTER_CONFIRMATION_RESPONSE", uid: number, accepted: boolean }
+  1.5 Log
+    1.5.1 Incorrect Protocol
+      { type: "JOIN.LOG.INCORRECT_PROTOCOL", time: time, ip: ip }
+    1.5.2 Client Request
+      { type: "JOIN.LOG.CLIENT_REQUEST", time: time, ip: ip, username: string, uid: number }
+    1.5.3 Response Detail
+      1.5.3.1 Accepted
+        { type: "JOIN.LOG.RESPONSE_DETAIL.ACCEPTED", time: time, uid: number, operator: number | 0 | -1 }
+      1.5.3.2 Rejected
+        { type: "JOIN.LOG.RESPONSE_DETAIL.REJECTED", time: time, uid: number, operator: number | 0 | -1 | -2 | -3 | -4 }
+
+
+2 Chat
+  2.1 Send
+    { type: "CHAT.SEND", content: string, to: number | 0 } // to = 0 for public messages, to = UID for private messages for specific users
+  2.2 Receive
+    { type: "CHAT.RECEIVE", sender: number, content: string, private: boolean }
+  2.3 Sending Result
+    { type: "CHAT.SENDING_RESULT", sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages are not allowed" }
+  2.4 Log
+    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0, sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages are not allowed" }
+
+
+3 File Transfer
+  3.1 Request
+    { type: "FILE_TRANSFER.REQUEST", filename: string, size: number, to: number | 0 }
+  3.2 Response
+    { type: "FILE_TRANSFER.RESPONSE", response: "Approved" | "Too large" | "Filename consists of banned words" | "Duplicate filenames" | "Receiver is offline" | "File transfer is not allowed" | "Private file transfer is not allowed" }
+  3.3 Announce
+    { type: "FILE_TRANSFER.ANNOUNCE", uid: number, filename: string, size: number, private: boolean }
+  3.4 New Sockets
+    3.4.1 Request
+      { type: "FILE_TRANSFER.NEW_SOCKETS.REQUEST", uid: number, filename: string, password: "TrI5nI<t4RoT3o=Lu2EnE1>" }
+    3.4.2 Response
+      { type: "FILE_TRANSFER.NEW_SOCKETS.RESPONSE", response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
+  3.5 Transferring
+    3.5.1 Start
+      { type: "FILE_TRANSFER.TRANSFERRING.START" }
+    3.5.2 Processing
+      { type: "FILE_TRANSFER.TRANSFERRING.PROCESSING", data: string }
+    3.5.3 Finish
+      { type: "FILE_TRANSFER.TRANSFERRING.FINISH", expected_data_length: number | -1 } // -1: failed
+    3.5.4 Confirm Received
+      { type: "FILE_TRANSFER.TRANSFERRING.CONFIRM_RECEIVED" }
+  3.6 Log
+    3.6.1 Request
+      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, filename: string, size: number, to: number | 0, accepted: boolean }
+    3.6.2 New Sockets
+      { type: "FILE_TRANSFER.LOG.NEW_SOCKETS", time: time, ip: ip, uid: number, filename: string, size: number, to: number | 0, response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
+    3.6.3 Transferring
+      3.6.3.1 Start
+        { type: "FILE_TRANSFER.LOG.TRANSFERRING.START", time: time, new_sockets: { stringify(number): ip, ... } } // stringify(UID): new socket
+      3.6.3.2 Processing
+        { type: "FILE_TRANSFER.LOG.TRANSFERRING.PROCESSING", time: time, data: string }
+      3.6.3.3 Finish
+        { type: "FILE_TRANSFER.LOG.TRANSFERRING.FINISH", time: time, expected_data_length: number | -1, received: [number, ...], not_received: [number, ...] } // expected_data_length = -1 for sender issues (all failed); UID in lists
+
+
+4 Misc
+  4.1 Server Start
+    { type: "MISC.SERVER_START", time: time, ip: ip, max_connections: number, config: JSON, banned_ip_list: [ip, ...], banned_words_list: [string, ...], enter_hint: string }
+  4.2 Server Stop
+    { type: "MISC.SERVER_STOP", time: time }
+  4.3 Users
+    { type: "MISC.USERS", online_users: { stringify(number): string, ... }, offline_users: { stringify(number): string, ... }, admins: [number, ...] } // stringify(UID): username
+  4.4 Chat History
+    { type: "MISC.CHAT_HISTORY", history: [JSON, ...] } // JSON format: Chat Log
+  4.5 Join Hint
+    { type: "MISC.JOIN_HINT", username: string, uid: number }
+  4.6 Leave Hint
+    4.6.1 Announce
+      { type: "MISC.LEAVE_HINT.ANNOUNCE", uid: number }
+    4.6.2 Log
+      { type: "MISC.LEAVE_HINT.LOG", time: time, uid: number }
+  4.7 Broadcast
+    4.7.1 Send
+      { type: "MISC.BROADCAST.SEND", operator: number | 0, content: string }
+    4.7.2 Log
+      { type: "MISC.BROADCAST.LOG", time: time, operator: number | 0, content: string }
+  4.8 Enter Hint
+    4.8.1 Send
+      { type: "MISC.ENTER_HINT.SEND", content: string }
+    4.8.2 Reload
+      { type: "MISC.ENTER_HINT.RELOAD", content: string }
+    4.8.3 Response
+      { type: "MISC.ENTER_HINT.RESPONSE", succeeded: boolean }
+    4.8.4 Log
+      { type: "MISC.ENTER_HINT.LOG", time: time, operator: number | 0, content: string }
+  4.9 Admin
+    4.9.1 Add
+      { type: "MISC.ADMIN.ADD" }
+    4.9.2 Remove
+      { type: "MISC.ADMIN.REMOVE" }
+    4.9.3 Announce
+      4.9.3.1 Add
+        { type: "MISC.ADMIN.ANNOUNCE.ADD", uid: number }
+      4.9.3.2 Remove
+        { type: "MISC.ADMIN.ANNOUNCE.REMOVE", uid: number }
+    4.9.4 Log
+      4.9.4.1 Add
+        { type: "MISC.ADMIN.LOG.ADD", time: time, uid: number }
+      4.9.4.2 Remove
+        { type: "MISC.ADMIN.LOG.REMOVE", time: time, uid: number }
+  4.10 Config
+    4.10.1 Get
+      { type: "MISC.CONFIG.GET" }
+    4.10.2 Post
+      { type: "MISC.CONFIG.POST", changelog: JSON }
+    4.10.3 Post Status
+      { type: "MISC.CONFIG.POST_STATUS", succeeded: boolean }
+    4.10.4 Config Content
+      { type: "MISC.CONFIG.CONFIG_CONTENT", config: JSON }
+    4.10.5 Log
+      { type: "MISC.CONFIG.LOG", time: time, operator: number | 0, changelog: JSON }
+  4.11 Ban List
+    4.11.1 Get
+      { type: "MISC.BAN_LIST.GET" }
+    4.11.2 Post
+      4.11.2.1 IP
+        { type: "MISC.BAN_LIST.POST.IP", operation: "Add" | "Remove", elements: [ip, ...] }
+      4.11.2.2 Words
+        { type: "MISC.BAN_LIST.POST.WORDS", operation: "Add" | "Remove", elements: [string, ...] }
+    4.11.3 Post Status
+      { type: "MISC.BAN_LIST.POST_STATUS", succeeded: boolean }
+    4.11.4 Ban List Content
+      { type: "MISC.BAN_LIST.BAN_LIST_CONTENT", banned_ip_list: [ip, ...], benned_words_list: [string, ...] }
+    4.11.5 Log
+      4.11.5.1 IP
+        { type: "MISC.BAN_LIST.LOG.IP", time: time, operator: number | 0, operation: "Add" | "Remove", elements: [ip, ...] }
+      4.11.5.2 Words
+        { type: "MISC.BAN_LIST.LOG.WORDS", time: time, operator: number | 0, operation: "Add" | "Remove", elements: [string, ...] }
+  4.12 Kick
+    4.12.1 Request
+      { type: "MISC.KICK.REQUEST", elements: [number, ...] }
+    4.12.2 Response
+      { type: "MISC.KICK.RESPONSE", succeeded: boolean }
+    4.12.3 Announce
+      { type: "MISC.KICK.ANNOUNCE", elements: [number, ...] }
+    4.12.4 Log
+      { type: "MISC.KICK.LOG", time: time, operator: number | 0, elements: [number, ...] }
