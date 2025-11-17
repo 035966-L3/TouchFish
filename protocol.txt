@@ -1,11 +1,11 @@
 1 Join
   1.1 Request
-    { type: "JOIN.REQUEST", username: string, password: "TrI1nI<t2RoT3o=Lu4EnE5>" }
+    { type: "JOIN.REQUEST", username: string } // string: base64 format, non-empty
   1.2 Response
     1.2.1 Fetched
       { type: "JOIN.RESPONSE.FETCHED" }
     1.2.2 Accepted
-      { type: "JOIN.RESPONSE.ACCEPTED", server_version: string, uid: number, operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "Automatically accepted", uid: -1 }, }
+      { type: "JOIN.RESPONSE.ACCEPTED", server_version: string, uid: number, operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "Automatically accepted", uid: -1 } } // number: positive integer
     1.2.3 Rejected
       { type: "JOIN.RESPONSE.REJECTED", operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "IP is banned", uid: -1 } | { username: "Room is full", uid: -2 } | { username: "Duplicate usernames", uid: -3 } | { username: "Username consists of banned words", uid: -4 } }
   1.3 Enter Confirmation Request
@@ -37,14 +37,14 @@
 
 3 File Transfer
   3.1 Request
-    { type: "FILE_TRANSFER.REQUEST", filename: string, size: number, to: number | 0 }
+    { type: "FILE_TRANSFER.REQUEST", order: number, filename: string, size: number, to: number | 0 } // order: count for each user, start from 1
   3.2 Response
-    { type: "FILE_TRANSFER.RESPONSE", response: "Approved" | "Too large" | "Filename consists of banned words" | "Duplicate filenames" | "Receiver is offline" | "File transfer is not allowed" | "Private file transfer is not allowed" }
+    { type: "FILE_TRANSFER.RESPONSE", response: "Approved" | "Too large" | "File transfer system is busy" | "Filename consists of banned words" | "Duplicate filenames" | "Receiver is offline" | "File transfer is not allowed" | "Private file transfer is not allowed" }
   3.3 Announce
-    { type: "FILE_TRANSFER.ANNOUNCE", uid: number, filename: string, size: number, private: boolean }
+    { type: "FILE_TRANSFER.ANNOUNCE", uid: number, order: number, filename: string, size: number, private: boolean }
   3.4 New Sockets
     3.4.1 Request
-      { type: "FILE_TRANSFER.NEW_SOCKETS.REQUEST", uid: number, filename: string, password: "TrI5nI<t4RoT3o=Lu2EnE1>" }
+      { type: "FILE_TRANSFER.NEW_SOCKETS.REQUEST", uid: number, order: number }
     3.4.2 Response
       { type: "FILE_TRANSFER.NEW_SOCKETS.RESPONSE", response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
   3.5 Transferring
@@ -53,21 +53,21 @@
     3.5.2 Processing
       { type: "FILE_TRANSFER.TRANSFERRING.PROCESSING", data: string }
     3.5.3 Finish
-      { type: "FILE_TRANSFER.TRANSFERRING.FINISH", expected_data_length: number | -1 } // -1: failed
+      { type: "FILE_TRANSFER.TRANSFERRING.FINISH", expected_data_length: number | 0 } // 0: failed
     3.5.4 Confirm Received
       { type: "FILE_TRANSFER.TRANSFERRING.CONFIRM_RECEIVED" }
   3.6 Log
     3.6.1 Request
-      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, filename: string, size: number, to: number | 0, accepted: boolean }
+      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, order: number, filename: string, size: number, to: number | 0, accepted: boolean }
     3.6.2 New Sockets
-      { type: "FILE_TRANSFER.LOG.NEW_SOCKETS", time: time, ip: ip, uid: number, filename: string, size: number, to: number | 0, response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
+      { type: "FILE_TRANSFER.LOG.NEW_SOCKETS", time: time, ip: ip, uid: number, order: number, response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
     3.6.3 Transferring
       3.6.3.1 Start
-        { type: "FILE_TRANSFER.LOG.TRANSFERRING.START", time: time, new_sockets: { stringify(number): ip, ... } } // stringify(UID): new socket
+        { type: "FILE_TRANSFER.LOG.TRANSFERRING.START", time: time, uid: number, order: number, new_sockets: { stringify(number): ip, ... } } // stringify(UID): new socket
       3.6.3.2 Processing
-        { type: "FILE_TRANSFER.LOG.TRANSFERRING.PROCESSING", time: time, data: string }
+        { type: "FILE_TRANSFER.LOG.TRANSFERRING.PROCESSING", time: time, uid: number, order: number, data: string }
       3.6.3.3 Finish
-        { type: "FILE_TRANSFER.LOG.TRANSFERRING.FINISH", time: time, expected_data_length: number | -1, received: [number, ...], not_received: [number, ...] } // expected_data_length = -1 for sender issues (all failed); UID in lists
+        { type: "FILE_TRANSFER.LOG.TRANSFERRING.FINISH", time: time, uid: number, order: number, expected_data_length: number | 0, received: [number, ...], not_received: [number, ...] } // expected_data_length = 0 for sender issues (all failed); UID in lists
 
 
 4 Misc
