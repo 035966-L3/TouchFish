@@ -30,16 +30,16 @@
   2.2 Receive
     { type: "CHAT.RECEIVE", sender: number, content: string, private: boolean }
   2.3 Sending Result
-    { type: "CHAT.SENDING_RESULT", sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages are not allowed" }
+    { type: "CHAT.SENDING_RESULT", sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages forbidden" }
   2.4 Log
-    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0, sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages are not allowed" }
+    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0, sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages forbidden" }
 
 
 3 File Transfer
   3.1 Request
     { type: "FILE_TRANSFER.REQUEST", order: number, filename: string, size: number, to: number | 0 } // order: count for each user, start from 1
   3.2 Response
-    { type: "FILE_TRANSFER.RESPONSE", response: "Approved" | "Too large" | "File transfer system is busy" | "Filename consists of banned words" | "Duplicate filenames" | "Receiver is offline" | "File transfer is not allowed" | "Private file transfer is not allowed" }
+    { type: "FILE_TRANSFER.RESPONSE", response: "Approved" | "Too large" | "Server is busy" | "Filename consists of banned words" | "Receiver is offline" | "File transfer forbidden" | "Private file transfer forbidden" }
   3.3 Announce
     { type: "FILE_TRANSFER.ANNOUNCE", uid: number, order: number, filename: string, size: number, private: boolean }
   3.4 New Sockets
@@ -58,7 +58,7 @@
       { type: "FILE_TRANSFER.TRANSFERRING.CONFIRM_RECEIVED" }
   3.6 Log
     3.6.1 Request
-      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, order: number, filename: string, size: number, to: number | 0, accepted: boolean }
+      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, order: number, filename: string, size: number, to: number | 0, response: "Approved" | "Too large" | "Server is busy" | "Filename consists of banned words" | "Receiver is offline" | "File transfer forbidden" | "Private file transfer forbidden" }
     3.6.2 New Sockets
       { type: "FILE_TRANSFER.LOG.NEW_SOCKETS", time: time, ip: ip, uid: number, order: number, response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
     3.6.3 Transferring
