@@ -16,7 +16,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.5"
+VERSION = "v4.0.0-prealpha.6"
 
 config = \
 {
@@ -80,8 +80,6 @@ try:
                     if not isinstance(item, str):
                         raise
         config = tmp_config
-    print("检测到合法的配置文件：{}".format(CONFIG_PATH))
-    print("加载成功！")
 except:
     print(CONFIG_HINT)
     while True:
@@ -113,9 +111,6 @@ except:
         print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
     except:
         print("警告：无法将参数保存到配置文件 {}，请在聊天室启动后输入 save 重试。".format(CONFIG_PATH))
-
-print("正在启动 TouchFish 聊天室...")
-print()
 
 try:
     NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html", timeout=3).content.decode()
@@ -320,12 +315,83 @@ def thread_send():
                     if users[i]['joined'] and users[i]['online']:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': message['to']}}))
 
-
 # --------------------- 此分界线以下的内容等待施工。 ---------------------
 
+INTRODUCTION_TEMPLATE = \
+"""
+欢迎使用 TouchFish 聊天室！当前版本：{}，最新版本：{}
+如果想知道有什么命令，请输入 help。
+具体的使用指南，参见 help <你想用的命令>。
+详细的使用指南，见 wiki：
+https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
+配置文件位于目录下的 ./config.json。
+"""
 
+class Server(cmd.Cmd):
+    prompt = "TouchFish-Server@{}:{}> ".format(config['general']['server_ip'], config['general']['server_port'])
+    intro = INTRODUCTION_TEMPLATE[1:].format(VERSION, NEWEST_VERSION)
+    
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+    
+    def do_cmd(self, arg):
+        """
+        使用方法 (~ 表示 cmd):
+            ~ <cmd> 执行这个系统命令，并输出结果
+        """
+        if not arg.strip():
+            print("参数错误。")
+            return
+        try:
+            result = os.system(arg)
+            if result != 0:
+                print("命令执行失败！返回值: " + str(result))
+        except Exception as err:
+            print("命令执行失败！错误信息：", err)
+    
+    def do_exit(self, arg):
+        """
+        退出当前程序
+        """
+        global log_queue
+        global EXIT_FLAG
+        log_queue.put(json.dumps({'type': 'MISC.SERVER_STOP', 'time': time_str()}))
+        EXIT_FLAG = True
+        exit()
+
+server = Server()
 
 # --------------------- 此分界线以上的内容等待施工。 ---------------------
+
+def thread_check():
+    global online_count
+    global send_queue
+    global log_queue
+    global users
+    timer = 10
+    while True:
+        time.sleep(1)
+        if EXIT_FLAG:
+            exit()
+            break
+        timer -= 1
+        if timer:
+            continue
+        timer = 10
+        down = []
+        for i in range(len(users)):
+            if users[i]['online']:
+                try:
+                    users[i]['body'].send(bytes("\n", encoding="utf-8"))
+                except:
+                    users[i]['online'] = False
+                    down.append(i)
+                    online_count -= 1
+                    log_queue.put(json.dumps({'type': 'MISC.LEAVE_HINT.LOG', 'time': time_str(), 'uid': i}))
+        for i in down:
+            for j in range(len(users)):
+                if users[j]['joined'] and users[j]['online']:
+                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': i}}))
 
 def thread_log():
     global log_queue
@@ -339,31 +405,35 @@ def thread_log():
             exit()
             break
 
-def thread_control():
-    global EXIT_FLAG
-    while True:
-        time.sleep(0.1)
-        try:
-            input()
-        except:
-            EXIT_FLAG = True
-            exit()
-            break
-
-# THREAD_CMD = threading.Thread(target=server.cmdloop)
+THREAD_CMD = threading.Thread(target=server.cmdloop)
 # THREAD_RECEIVE = threading.Thread(target=thread_receive)
 THREAD_SEND = threading.Thread(target=thread_send)
 THREAD_JOIN = threading.Thread(target=thread_join)
 # THREAD_FILE = threading.Thread(target=thread_file)
 # THREAD_PROCESS = threading.Thread(target=thread_process)
+THREAD_CHECK = threading.Thread(target=thread_check)
 THREAD_LOG = threading.Thread(target=thread_log)
-THREAD_CONTROL = threading.Thread(target=thread_control) # 用于调试
 
-# THREAD_CMD.start()
+THREAD_CMD.start()
 # THREAD_RECEIVE.start()
 THREAD_SEND.start()
 THREAD_JOIN.start()
 # THREAD_FILE.start()
 # THREAD_PROCESS.start()
+THREAD_CHECK.start()
 THREAD_LOG.start()
-THREAD_CONTROL.start()
+
+# Test Script
+"""
+import socket
+import time
+p = [None] * 20
+def add(id, name):
+    p[id] = socket.socket()
+    p[id].connect(("127.0.0.1", 8080))
+    p[id].send(bytes('{{"type": "JOIN.REQUEST", "username": "{}"}}\n'.format(name), encoding="utf-8"))
+def get(id):
+    print(p[id].recv(16384).decode("utf-8"))
+def stop(id):
+    p[id].close()
+"""
