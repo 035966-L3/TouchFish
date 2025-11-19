@@ -10,12 +10,13 @@ import json
 import base64
 import queue
 import os
+import copy
 import tabulate
 import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.4"
+VERSION = "v4.0.0-prealpha.5"
 
 config = \
 {
@@ -133,9 +134,10 @@ except Exception as err:
 s.listen(config['join']['max_connections'])
 s.setblocking(False)
 
-users = [{"body": socket.socket(), "extra": None, "ip": ("127.0.0.1", config['general']['server_port']), "username": "root", "joined": True, "online": True, "admin": True}]
-users[0]['body'].connect((config['general']['server_ip'], config['general']['server_port']))
-s.accept()
+users = [{"body": None, "extra": None, "ip": None, "username": "root", "joined": True, "online": True, "admin": True}]
+a = socket.socket()
+a.connect(("127.0.0.1", config['general']['server_port']))
+users[0]['body'], users[0]['ip'] = s.accept()
 # 心跳包防止断连
 if platform.system() == "Windows":
     users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
@@ -176,18 +178,22 @@ EXIT_FLAG = False
 log_queue = queue.Queue()
 receive_queue = queue.Queue()
 send_queue = queue.Queue()
+history = []
 online_count = 0
 
 def thread_join():
     global online_count
     global log_queue
     global users
+    global send_queue
+    global history
     conntmp = None
     addresstmp = None
     while True:
         time.sleep(0.1)
         if EXIT_FLAG:
-            return
+            exit()
+            break
         
         conntmp, addresstmp = None, None
         try:
@@ -276,15 +282,44 @@ def thread_join():
             users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
         
         if not config['join']['enter_check']:
-            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.ACCEPTED', 'server_version': VERSION, 'uid': uid, 'operator': {'username': 'Automatically accepted', 'uid': -1}}) + "\n", encoding="utf-8"))
             log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.ACCEPTED', 'time': time_str(), 'uid': uid, 'operator': -1}))
             users[uid]['joined'] = True
             online_count += 1
+            users_abstract = []
+            for i in range(len(users)):
+                users_abstract.append({"username": users[i]['username'], "joined": users[i]['joined'], "online": users[i]['online'], "admin": users[i]['admin']})
+            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.ACCEPTED', 'server_version': VERSION, 'uid': uid, 'operator': {'username': 'Automatically accepted', 'uid': -1}, 'enter_hint': config['general']['enter_hint'], 'users': users_abstract, 'chat_history': history }) + "\n", encoding="utf-8"))
+            for i in range(len(users)):
+                if users[i]['joined'] and users[i]['online'] and i != uid:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.JOIN_HINT', 'username': users[uid]['username'], 'uid': uid}}))
             continue
         
         for i in range(len(users)):
             if users[i]['admin']:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'JOIN.ENTER_CONFIRMATION_REQUEST', 'ip': users[uid]['ip'], 'username': users[uid]['username'], 'uid': uid}}))
+
+def thread_send():
+    global online_count
+    global send_queue
+    global log_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        while not send_queue.empty():
+            message = json.loads(send_queue.get())
+            try:
+                users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
+            except:
+                users[message['to']]['online'] = False
+                online_count -= 1
+                log_queue.put(json.dumps({'type': 'MISC.LEAVE_HINT.LOG', 'time': time_str(), 'uid': message['to']}))
+                for i in range(len(users)):
+                    if users[i]['joined'] and users[i]['online']:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': message['to']}}))
+
 
 # --------------------- 此分界线以下的内容等待施工。 ---------------------
 
@@ -317,7 +352,7 @@ def thread_control():
 
 # THREAD_CMD = threading.Thread(target=server.cmdloop)
 # THREAD_RECEIVE = threading.Thread(target=thread_receive)
-# THREAD_SEND = threading.Thread(target=thread_send)
+THREAD_SEND = threading.Thread(target=thread_send)
 THREAD_JOIN = threading.Thread(target=thread_join)
 # THREAD_FILE = threading.Thread(target=thread_file)
 # THREAD_PROCESS = threading.Thread(target=thread_process)
@@ -326,7 +361,7 @@ THREAD_CONTROL = threading.Thread(target=thread_control) # 用于调试
 
 # THREAD_CMD.start()
 # THREAD_RECEIVE.start()
-# THREAD_SEND.start()
+THREAD_SEND.start()
 THREAD_JOIN.start()
 # THREAD_FILE.start()
 # THREAD_PROCESS.start()
