@@ -72,7 +72,7 @@
 
 4 Misc
   4.1 Server Start
-    { type: "MISC.SERVER_START", time: time, ip: ip, max_connections: number, config: JSON, banned_ip_list: [ip, ...], banned_words_list: [string, ...], enter_hint: string }
+    { type: "MISC.SERVER_START", time: time, config: JSON }
   4.2 Server Stop
     { type: "MISC.SERVER_STOP", time: time }
   4.3 Users
@@ -81,25 +81,18 @@
     { type: "MISC.CHAT_HISTORY", history: [JSON, ...] } // JSON format: Chat Log
   4.5 Join Hint
     { type: "MISC.JOIN_HINT", username: string, uid: number }
-  4.6 Leave Hint
-    4.6.1 Announce
+  4.6 Enter Hint
+    { type: "MISC.ENTER_HINT", content: string }
+  4.7 Leave Hint
+    4.7.1 Announce
       { type: "MISC.LEAVE_HINT.ANNOUNCE", uid: number }
-    4.6.2 Log
-      { type: "MISC.LEAVE_HINT.LOG", time: time, uid: number }
-  4.7 Broadcast
-    4.7.1 Send
-      { type: "MISC.BROADCAST.SEND", operator: number | 0, content: string }
     4.7.2 Log
-      { type: "MISC.BROADCAST.LOG", time: time, operator: number | 0, content: string }
-  4.8 Enter Hint
+      { type: "MISC.LEAVE_HINT.LOG", time: time, uid: number }
+  4.8 Broadcast
     4.8.1 Send
-      { type: "MISC.ENTER_HINT.SEND", content: string }
-    4.8.2 Reload
-      { type: "MISC.ENTER_HINT.RELOAD", content: string }
-    4.8.3 Response
-      { type: "MISC.ENTER_HINT.RESPONSE", succeeded: boolean }
-    4.8.4 Log
-      { type: "MISC.ENTER_HINT.LOG", time: time, operator: number | 0, content: string }
+      { type: "MISC.BROADCAST.SEND", operator: number | 0, content: string }
+    4.8.2 Log
+      { type: "MISC.BROADCAST.LOG", time: time, operator: number | 0, content: string }
   4.9 Admin
     4.9.1 Add
       { type: "MISC.ADMIN.ADD" }
@@ -115,40 +108,23 @@
         { type: "MISC.ADMIN.LOG.ADD", time: time, uid: number }
       4.9.4.2 Remove
         { type: "MISC.ADMIN.LOG.REMOVE", time: time, uid: number }
-  4.10 Config
-    4.10.1 Get
-      { type: "MISC.CONFIG.GET" }
-    4.10.2 Post
-      { type: "MISC.CONFIG.POST", changelog: JSON }
-    4.10.3 Post Status
-      { type: "MISC.CONFIG.POST_STATUS", succeeded: boolean }
-    4.10.4 Config Content
-      { type: "MISC.CONFIG.CONFIG_CONTENT", config: JSON }
-    4.10.5 Log
-      { type: "MISC.CONFIG.LOG", time: time, operator: number | 0, changelog: JSON }
-  4.11 Ban List
-    4.11.1 Get
-      { type: "MISC.BAN_LIST.GET" }
-    4.11.2 Post
-      4.11.2.1 IP
-        { type: "MISC.BAN_LIST.POST.IP", operation: "Add" | "Remove", elements: [ip, ...] }
-      4.11.2.2 Words
-        { type: "MISC.BAN_LIST.POST.WORDS", operation: "Add" | "Remove", elements: [string, ...] }
-    4.11.3 Post Status
-      { type: "MISC.BAN_LIST.POST_STATUS", succeeded: boolean }
-    4.11.4 Ban List Content
-      { type: "MISC.BAN_LIST.BAN_LIST_CONTENT", banned_ip_list: [ip, ...], benned_words_list: [string, ...] }
-    4.11.5 Log
-      4.11.5.1 IP
-        { type: "MISC.BAN_LIST.LOG.IP", time: time, operator: number | 0, operation: "Add" | "Remove", elements: [ip, ...] }
-      4.11.5.2 Words
-        { type: "MISC.BAN_LIST.LOG.WORDS", time: time, operator: number | 0, operation: "Add" | "Remove", elements: [string, ...] }
-  4.12 Kick
-    4.12.1 Request
+  4.10 Kick
+    4.10.1 Request
       { type: "MISC.KICK.REQUEST", elements: [number, ...] }
-    4.12.2 Response
+    4.10.2 Response
       { type: "MISC.KICK.RESPONSE", succeeded: boolean }
-    4.12.3 Announce
+    4.10.3 Announce
       { type: "MISC.KICK.ANNOUNCE", elements: [number, ...] }
-    4.12.4 Log
+    4.10.4 Log
       { type: "MISC.KICK.LOG", time: time, operator: number | 0, elements: [number, ...] }
+  4.11 Config
+    4.11.1 Get
+      { type: "MISC.CONFIG.GET" }
+    4.11.2 Post
+      { type: "MISC.CONFIG.POST", changelog: JSON } // ban: { ip: { add: [ip, ...], remove: [ip, ...] }; words: { add: [string, ...], remove: [string, ...] } }
+    4.11.3 Post Status
+      { type: "MISC.CONFIG.POST_STATUS", succeeded: boolean }
+    4.11.4 Config Content
+      { type: "MISC.CONFIG.CONFIG_CONTENT", config: JSON }
+    4.11.5 Log
+      { type: "MISC.CONFIG.LOG", time: time, operator: number | 0, changelog: JSON }
