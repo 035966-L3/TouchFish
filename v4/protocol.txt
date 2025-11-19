@@ -1,6 +1,6 @@
 1 Join
   1.1 Request
-    { type: "JOIN.REQUEST", username: string }
+    { type: "JOIN.REQUEST", username: string } // string: non-empty
   1.2 Response
     1.2.1 Fetched
       { type: "JOIN.RESPONSE.FETCHED" }
