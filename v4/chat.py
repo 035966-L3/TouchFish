@@ -15,8 +15,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.1"
-
+VERSION = "v4.0.0-prealpha.2"
 
 config = \
 {
@@ -129,12 +128,26 @@ except Exception as err:
 s.listen(config['join']['max_connections'])
 s.setblocking(False)
 
-try:
-    NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html").content.decode()
-except:
-    NEWEST_VERSION = "UNKNOWN"
+users = [{"body": socket.socket(), "ip": ("127.0.0.1", config['general']['server_port']), "username": "root", "online": True, "admin": True}]
+users[0]['body'].connect((config['general']['server_ip'], config['general']['server_port']))
+# 心跳包防止断连
+if platform.system() == "Windows":
+    users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+    users[0]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+else:
+    users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+    users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 
 with open("./log.txt", "a") as file:
-    file.write(r'{{ type: "MISC.SERVER_START", time: {}, config: {} }}'.format(time_str(), json.dumps(config)) + "\n")
+    file.write(r'{{type: "MISC.SERVER_START", time: {}, server_version: {}, config: {}}}'.format(time_str(), VERSION, json.dumps(config)) + "\n")
+    file.write(r'{{type: "JOIN.LOG.CLIENT_REQUEST", time: {}, ip: {}, username: "root", uid: 0}}'.format(time_str(), users[0]['ip']) + "\n")
+    file.write(r'{{type: "JOIN.LOG.RESPONSE_DETAIL.ACCEPTED", time: {}, uid: 0, operator: 0}}'.format(time_str()) + "\n")
+    file.write(r'{{type: "MISC.ADMIN.LOG.ADD", time: {}, uid: 0}}'.format(time_str()) + "\n")
+
+try:
+    NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html", timeout=3).content.decode()
+except:
+    NEWEST_VERSION = "UNKNOWN"
 
 # --------------------- 此分界线以下的内容等待施工。 ---------------------
