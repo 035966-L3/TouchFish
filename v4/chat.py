@@ -15,7 +15,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.3"
+VERSION = "v4.0.0-prealpha.4"
 
 config = \
 {
@@ -135,6 +135,7 @@ s.setblocking(False)
 
 users = [{"body": socket.socket(), "extra": None, "ip": ("127.0.0.1", config['general']['server_port']), "username": "root", "joined": True, "online": True, "admin": True}]
 users[0]['body'].connect((config['general']['server_ip'], config['general']['server_port']))
+s.accept()
 # 心跳包防止断连
 if platform.system() == "Windows":
     users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
@@ -228,17 +229,17 @@ def thread_join():
         uid = len(users)
         log_queue.put(json.dumps({'type': 'JOIN.LOG.CLIENT_REQUEST', 'time': time_str(), 'ip': addresstmp, 'username': data['username'], 'uid': uid}))
         users.append({"body": conntmp, "extra": None, "ip": addresstmp, "username": data['username'], "joined": False, "online": True, "admin": False})
-        users[uid]['body'].send(bytes("{type: 'JOIN.RESPONSE.FETCHED'}\n", encoding="utf-8"))
+        users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.FETCHED'}) + "\n", encoding="utf-8"))
         
         if users[uid]['ip'][0] in config['ban']['ip']:
-            users[uid]['body'].send(bytes("{type: 'JOIN.RESPONSE.REJECTED', operator: {username: 'IP is banned', uid: -1}}\n", encoding="utf-8"))
+            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'IP is banned', 'uid': -1}}) + "\n", encoding="utf-8"))
             log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -1}))
             users[uid]['online'] = False
             users[uid]['body'].close()
             continue
         
         if online_count == config['join']['max_connections']:
-            users[uid]['body'].send(bytes("{'type': 'JOIN.RESPONSE.REJECTED', operator: {username: 'Room is full', uid: -2}}\n", encoding="utf-8"))
+            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'Room is full', 'uid': -2}}) + "\n", encoding="utf-8"))
             log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -2}))
             users[uid]['online'] = False
             users[uid]['body'].close()
@@ -246,7 +247,7 @@ def thread_join():
         
         for user in users[:-1]:
             if user['online'] and users[uid]['username'] == user['username']:
-                users[uid]['body'].send(bytes("{type: 'JOIN.RESPONSE.REJECTED', operator: {username: 'Duplicate usernames', uid: -3}}\n", encoding="utf-8"))
+                users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'Duplicate usernames', 'uid': -3}}) + "\n", encoding="utf-8"))
                 log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -3}))
                 users[uid]['online'] = False
                 users[uid]['body'].close()
@@ -257,7 +258,7 @@ def thread_join():
         
         for word in config['ban']['words']:
             if word in users[uid]['username']:
-                users[uid]['body'].send(bytes("{type: 'JOIN.RESPONSE.REJECTED', operator: {username: 'Username consists of banned words', uid: -4}}\n", encoding="utf-8"))
+                users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'Username consists of banned words', 'uid': -4}}) + "\n", encoding="utf-8"))
                 log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -4}))
                 users[uid]['online'] = False
                 users[uid]['body'].close()
@@ -275,7 +276,7 @@ def thread_join():
             users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
         
         if not config['join']['enter_check']:
-            users[uid]['body'].send(bytes("{{type: 'JOIN.RESPONSE.ACCEPTED', server_version: '{}', uid: {}, operator: {{username: 'Automatically accepted', uid: -1}}}}\n".format(VERSION, uid), encoding="utf-8"))
+            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.ACCEPTED', 'server_version': VERSION, 'uid': uid, 'operator': {'username': 'Automatically accepted', 'uid': -1}}) + "\n", encoding="utf-8"))
             log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.ACCEPTED', 'time': time_str(), 'uid': uid, 'operator': -1}))
             users[uid]['joined'] = True
             online_count += 1
