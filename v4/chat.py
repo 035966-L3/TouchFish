@@ -13,7 +13,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.9"
+VERSION = "v4.0.0-prealpha.10"
 
 config = \
 {
@@ -64,6 +64,7 @@ message.max_length     16384       256            最大消息长度（字节）
 file.allow_any         True        False          是否允许发送文件
 file.allow_private     True        False          是否允许发送私有文件
 file.max_size          4294967296  16384          最大文件大小（字节）
+
 """
 
 try:
@@ -147,7 +148,7 @@ except Exception as err:
 s.listen(config['join']['max_connections'])
 s.setblocking(False)
 
-users = [{"body": None, "extra": None, "ip": None, "username": "root", "joined": True, "online": True, "admin": True}]
+users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": "root", "joined": True, "online": True, "admin": True}]
 a = socket.socket()
 a.connect(("127.0.0.1", config['general']['server_port']))
 users[0]['body'], users[0]['ip'] = s.accept()
@@ -186,6 +187,16 @@ For more information, please visit the official Github repository of this projec
 https://github.com/2044-space-elevator/TouchFish
 </pre></body></html>
 """[1:]
+
+INTRODUCTION_TEMPLATE = \
+"""
+欢迎使用 TouchFish 聊天室！当前版本：{}，最新版本：{}
+如果想知道有什么命令，请输入 help。
+具体的使用指南，参见 help <你想用的命令>。
+详细的使用指南，见 wiki：
+https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
+配置文件位于目录下的 ./config.json。
+"""
 
 EXIT_FLAG = False
 log_queue = queue.Queue()
@@ -248,7 +259,7 @@ def thread_join():
         
         uid = len(users)
         log_queue.put(json.dumps({'type': 'JOIN.LOG.CLIENT_REQUEST', 'time': time_str(), 'ip': addresstmp, 'username': data['username'], 'uid': uid}))
-        users.append({"body": conntmp, "extra": None, "ip": addresstmp, "username": data['username'], "joined": False, "online": True, "admin": False})
+        users.append({"body": conntmp, "extra": None, "buffer": "", "ip": addresstmp, "username": data['username'], "joined": False, "online": True, "admin": False})
         users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.FETCHED'}) + "\n", encoding="utf-8"))
         
         if users[uid]['ip'][0] in config['ban']['ip']:
@@ -287,6 +298,7 @@ def thread_join():
         if users[uid]['online'] == False:
             continue
         
+        users[uid]['body'].setblocking(False)
         if platform.system() != "Windows":
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
@@ -334,19 +346,37 @@ def thread_send():
                     if users[i]['joined'] and users[i]['online']:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': message['to']}}))
 
+def thread_receive():
+    global receive_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        for i in range(len(users)):
+            if users[i]['joined'] and users[i]['online']:
+                data = ""
+                while True:
+                    try:
+                        data += users[i]['body'].recv(16384).decode('utf-8')
+                    except:
+                        break
+                users[i]['buffer'] += data
+                while '\n' in users[i]['buffer']:
+                    try:
+                        message, users[i]['buffer'] = users[i]['buffer'].split('\n', 1)
+                    except:
+                        message, users[i]['buffer'] = users[i]['buffer'], ""
+                    try:
+                        message = json.loads(message)
+                    except:
+                        continue
+                    receive_queue.put(json.dumps({'from': i, 'content': message}))
 
 
 
 
-INTRODUCTION_TEMPLATE = \
-"""
-欢迎使用 TouchFish 聊天室！当前版本：{}，最新版本：{}
-如果想知道有什么命令，请输入 help。
-具体的使用指南，参见 help <你想用的命令>。
-详细的使用指南，见 wiki：
-https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
-配置文件位于目录下的 ./config.json。
-"""
 
 class Server(cmd.Cmd):
     prompt = "TouchFish-Server@{}:{}> ".format(config['general']['server_ip'], config['general']['server_port'])
@@ -539,8 +569,6 @@ class Server(cmd.Cmd):
         EXIT_FLAG = True
         exit()
 
-server = Server()
-
 
 
 
@@ -587,23 +615,26 @@ def thread_log():
             exit()
             break
 
-THREAD_CMD = threading.Thread(target=server.cmdloop)
-# THREAD_RECEIVE = threading.Thread(target=thread_receive)
+
+server = Server()
+
 THREAD_SEND = threading.Thread(target=thread_send)
+THREAD_RECEIVE = threading.Thread(target=thread_receive)
 THREAD_JOIN = threading.Thread(target=thread_join)
-# THREAD_FILE = threading.Thread(target=thread_file)
 # THREAD_PROCESS = threading.Thread(target=thread_process)
+THREAD_CMD = threading.Thread(target=server.cmdloop)
 THREAD_CHECK = threading.Thread(target=thread_check)
 THREAD_LOG = threading.Thread(target=thread_log)
+# THREAD_FILE = threading.Thread(target=thread_file)
 
-THREAD_CMD.start()
-# THREAD_RECEIVE.start()
 THREAD_SEND.start()
+THREAD_RECEIVE.start()
 THREAD_JOIN.start()
-# THREAD_FILE.start()
 # THREAD_PROCESS.start()
+THREAD_CMD.start()
 THREAD_CHECK.start()
 THREAD_LOG.start()
+# THREAD_FILE.start()
 
 # Test Script
 """
@@ -616,12 +647,11 @@ def add(id, name):
     p[id].send(bytes('{{"type": "JOIN.REQUEST", "username": "{}"}}\n'.format(name), encoding="utf-8"))
 def get(id):
     print(p[id].recv(16384).decode("utf-8"))
+def send(id, text):
+    p[id].send(bytes('{{"type": "CHAT.SEND", "content": "{}", "to": 0}}\n'.format(text), encoding="utf-8"))
 def stop(id):
     p[id].close()
-add(1,"x")
-add(2,"y")
-add(3,"z")
-get(1)
-get(2)
-get(3)
+add(1, "x")
+add(2, "y")
+add(3, "z")
 """
