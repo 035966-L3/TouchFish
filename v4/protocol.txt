@@ -83,19 +83,15 @@
     4.4.2 Log
       { type: "MISC.LEAVE_HINT.LOG", time: time, uid: number }
   4.5 Admin
-    4.5.1 Add
-      { type: "MISC.ADMIN.ADD" }
-    4.5.2 Remove
-      { type: "MISC.ADMIN.REMOVE" }
-    4.5.3 Announce
-      4.5.3.1 Add
+    4.5.1 Announce
+      4.5.1.1 Add
         { type: "MISC.ADMIN.ANNOUNCE.ADD", uid: number }
-      4.5.3.2 Remove
+      4.5.1.2 Remove
         { type: "MISC.ADMIN.ANNOUNCE.REMOVE", uid: number }
-    4.5.4 Log
-      4.5.4.1 Add
+    4.5.2 Log
+      4.5.2.1 Add
         { type: "MISC.ADMIN.LOG.ADD", time: time, uid: number }
-      4.5.4.2 Remove
+      4.5.2.2 Remove
         { type: "MISC.ADMIN.LOG.REMOVE", time: time, uid: number }
   4.6 Kick
     4.6.1 Request

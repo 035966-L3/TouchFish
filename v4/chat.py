@@ -13,7 +13,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.8"
+VERSION = "v4.0.0-prealpha.9"
 
 config = \
 {
@@ -37,10 +37,11 @@ CONFIG_TYPE_CHECK_TABLE = \
 
 CONFIG_HINT = \
 """
-系统没有检测到合法的配置文件，请根据下表手动指定参数。
-命令示例：general.server_ip "192.168.1.1"
+你可以直接输入某个参数的名字以查询该参数的值。
+修改命令格式示例：general.server_ip "192.168.1.1"
+修改命令的输入数据格式以下表给出的示例为准。
+请注意，查询命令的输出数据格式与此不尽相同。
 输入 done 以结束配置。
-未指定的参数将使用默认值。
 """
 
 CONFIG_LIST = \
@@ -80,39 +81,50 @@ try:
                     if not isinstance(item, str):
                         raise
         config = tmp_config
+    print("检测到合法的配置文件，请确认参数。")
+    print("未指定的参数将使用配置文件中给定的值。")
 except:
-    print(CONFIG_HINT)
-    print(CONFIG_LIST)
-    while True:
-        try:
-            command = input()
-            if command == "done":
-                break
-            key, value = command.split(' ', 1)
-            if not key in CONFIG_TYPE_CHECK_TABLE:
-                raise
-            if not eval("isinstance({}, {})".format(value, CONFIG_TYPE_CHECK_TABLE[key])):
-                raise
-            if CONFIG_TYPE_CHECK_TABLE[key] == "int" and int(value) <= 0:
-                raise
-            if CONFIG_TYPE_CHECK_TABLE[key] == "list":
-                for item in eval(value):
-                    if not isinstance(item, str):
-                        raise
-            first, second = key.split('.')
-            config[first][second] = eval(value)
-            print("设置成功。")
-        except KeyboardInterrupt:
-            sys.exit(0)
-        except:
-            print("输入格式不正确，请重试。")
+    print("没有检测到合法的配置文件，请手动指定参数。")
+    print("未指定的参数将使用默认值。")
+print(CONFIG_HINT)
+print(CONFIG_LIST)
+while True:
     try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(config, f)
-        print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
+        command = input()
+        if command == "done":
+            break
+        try:
+            key, value = command.split(' ', 1)
+        except:
+            key, value = command, None
+        if not key in CONFIG_TYPE_CHECK_TABLE:
+            raise
+        if not value:
+            first, second = key.split('.')
+            print(config[first][second])
+            continue
+        if not eval("isinstance({}, {})".format(value, CONFIG_TYPE_CHECK_TABLE[key])):
+            raise
+        if CONFIG_TYPE_CHECK_TABLE[key] == "int" and int(value) <= 0:
+            raise
+        if CONFIG_TYPE_CHECK_TABLE[key] == "list":
+            for item in eval(value):
+                if not isinstance(item, str):
+                    raise
+        first, second = key.split('.')
+        config[first][second] = eval(value)
+        print("设置成功。")
+    except KeyboardInterrupt:
+        sys.exit(0)
     except:
-        print("警告：无法将参数保存到配置文件 {}，请在聊天室启动后输入 config save 重试。".format(CONFIG_PATH))
-    print()
+        print("命令格式不正确，请重试。")
+try:
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(config, f)
+    print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
+except:
+    print("警告：无法将参数保存到配置文件 {}，请在聊天室启动后输入 config save 重试。".format(CONFIG_PATH))
+print()
 
 try:
     NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html", timeout=3).content.decode()
@@ -397,6 +409,43 @@ class Server(cmd.Cmd):
             for i in offline:
                 print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
     
+    
+    def do_admin(self, arg):
+        """
+        使用方法 (~ 表示 admin):
+            ~ add <uid>             添加管理员
+            ~ remove <uid>          撤销管理员
+        """
+        global log_queue
+        global send_queue
+        arg = arg.split()
+        if not arg[0] in ['add', 'remove']:
+            print("参数错误。")
+            return
+        try:
+            arg[1] = int(arg[1])
+        except:
+            print("参数错误。")
+            return
+        if arg[0] == 'add':
+            if arg[1] <= 1 or arg[1] >= len(users) or users[arg[1]]['admin'] or not users[arg[1]]['joined'] or not users[arg[1]]['online']:
+                print("参数错误。")
+                return
+            users[arg[1]]['admin'] = True
+            log_queue.put(json.dumps({'type': 'MISC.ADMIN.LOG.ADD', 'time': time_str(), 'uid': arg[1]}))
+            for i in range(len(users)):
+                if users[i]['joined'] and users[i]['online']:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.ADMIN.ANNOUNCE.ADD', 'uid': arg[1]}}))
+        if arg[0] == 'remove':
+            if arg[1] <= 1 or arg[1] >= len(users) or not users[arg[1]]['admin'] or not users[arg[1]]['joined'] or not users[arg[1]]['online']:
+                print("参数错误。")
+                return
+            users[arg[1]]['admin'] = False
+            log_queue.put(json.dumps({'type': 'MISC.ADMIN.LOG.REMOVE', 'time': time_str(), 'uid': arg[1]}))
+            for i in range(len(users)):
+                if users[i]['joined'] and users[i]['online']:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.ADMIN.ANNOUNCE.REMOVE', 'uid': arg[1]}}))
+    
     def do_config(self, arg):
         """
         使用方法 (~ 表示 config):
@@ -438,8 +487,8 @@ class Server(cmd.Cmd):
             if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
                 print("该参数不存在。")
                 return
-            if arg[1] == 'general.server_ip' or arg[1] == 'general.server_port':
-                print("不允许在命令行内修改该参数，请退出聊天室后打开本目录下的 ./config.json 手动修改。")
+            if arg[1] == 'general.server_ip' or arg[1] == 'general.server_port' or arg[1] == 'join.max_connections':
+                print("不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
                 return
             if arg[1] == 'general.enter_hint':
                 print("请注意，本参数修改时 <value> 需要带引号并转义。")
@@ -477,7 +526,7 @@ class Server(cmd.Cmd):
                             send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}}))
                 print("设置成功。")
             except:
-                print("输入格式不正确，请重试。")
+                print("命令格式不正确，请重试。")
             return
     
     def do_exit(self, arg):
@@ -569,4 +618,10 @@ def get(id):
     print(p[id].recv(16384).decode("utf-8"))
 def stop(id):
     p[id].close()
+add(1,"x")
+add(2,"y")
+add(3,"z")
+get(1)
+get(2)
+get(3)
 """
