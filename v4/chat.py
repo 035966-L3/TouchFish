@@ -1,6 +1,5 @@
 import socket
 import platform
-import re
 import cmd
 import datetime
 import threading
@@ -10,13 +9,11 @@ import json
 import base64
 import queue
 import os
-import copy
-import tabulate
 import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.6"
+VERSION = "v4.0.0-prealpha.7"
 
 config = \
 {
@@ -44,12 +41,15 @@ CONFIG_HINT = \
 命令示例：general.server_ip "192.168.1.1"
 输入 done 以结束配置。
 未指定的参数将使用默认值。
+"""
 
+CONFIG_LIST = \
+"""
 参数名称               默认值      修改示例       描述
 
 general.server_ip      "0.0.0.0"   "192.168.1.1"  服务器 IP
 general.server_port    8080        12345          服务器端口
-general.enter_hint     ""          "Hi there!"    进入提示
+general.enter_hint     ""          "Hi there!\n"  进入提示
 
 ban.ip                 []          ["8.8.8.8"]    封禁的 IP 列表
 ban.words              []          ["a", "b"]     屏蔽词列表
@@ -82,6 +82,7 @@ try:
         config = tmp_config
 except:
     print(CONFIG_HINT)
+    print(CONFIG_LIST)
     while True:
         try:
             command = input()
@@ -111,6 +112,7 @@ except:
         print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
     except:
         print("警告：无法将参数保存到配置文件 {}，请在聊天室启动后输入 save 重试。".format(CONFIG_PATH))
+    print()
 
 try:
     NEWEST_VERSION = requests.get("https://bopid.cn/chat/newest_version_chat.html", timeout=3).content.decode()
@@ -174,6 +176,7 @@ log_queue = queue.Queue()
 receive_queue = queue.Queue()
 send_queue = queue.Queue()
 history = []
+all_history = []
 online_count = 0
 
 def thread_join():
@@ -315,7 +318,9 @@ def thread_send():
                     if users[i]['joined'] and users[i]['online']:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': message['to']}}))
 
-# --------------------- 此分界线以下的内容等待施工。 ---------------------
+
+
+
 
 INTRODUCTION_TEMPLATE = \
 """
@@ -349,6 +354,48 @@ class Server(cmd.Cmd):
         except Exception as err:
             print("命令执行失败！错误信息：", err)
     
+    def do_user(self, arg):
+        """
+        显示聊天室内的用户
+        """
+        admin = []
+        online = []
+        pending = []
+        offline = []
+        
+        for i in range(len(users)):
+            if not users[i]['online']:
+                offline.append(i)
+                continue
+            if not users[i]['joined']:
+                pending.append(i)
+                continue
+            if not users[i]['admin']:
+                online.append(i)
+                continue
+            admin.append(i)
+        
+        if admin:
+            print("管理员：")
+            print(" UID  IP                        用户名")                 
+            for i in admin:
+                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
+        if online:
+            print("普通用户：")
+            print(" UID  IP                        用户名")                 
+            for i in online:
+                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
+        if pending:
+            print("等待加入用户：")
+            print(" UID  IP                        用户名")                 
+            for i in pending:
+                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
+        if offline:
+            print("已离线的用户：")
+            print(" UID  IP                        用户名")                 
+            for i in offline:
+                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
+    
     def do_exit(self, arg):
         """
         退出当前程序
@@ -361,7 +408,9 @@ class Server(cmd.Cmd):
 
 server = Server()
 
-# --------------------- 此分界线以上的内容等待施工。 ---------------------
+
+
+
 
 def thread_check():
     global online_count

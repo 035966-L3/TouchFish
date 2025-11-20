@@ -26,13 +26,13 @@
 
 2 Chat
   2.1 Send
-    { type: "CHAT.SEND", content: string, to: number | 0 } // to = 0 for public messages, to = UID for private messages for specific users
+    { type: "CHAT.SEND", content: string, to: number | 0 | -1 } // to = -1 for broadcasting, to = 0 for public messages, to = UID for private messages for specific users
   2.2 Receive
-    { type: "CHAT.RECEIVE", sender: number, content: string, private: boolean }
+    { type: "CHAT.RECEIVE", sender: number, content: string, broadcast: boolean, private: boolean }
   2.3 Sending Result
-    { type: "CHAT.SENDING_RESULT", sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages forbidden" }
+    { type: "CHAT.SENDING_RESULT", sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages forbidden" | "Only admins can broadcast" }
   2.4 Log
-    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0, sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages forbidden" }
+    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0 | -1, sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Private messages forbidden" | "Only admins can broadcast" }
 
 
 3 File Transfer
