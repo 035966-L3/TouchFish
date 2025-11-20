@@ -5,7 +5,7 @@
     1.2.1 Fetched
       { type: "JOIN.RESPONSE.FETCHED" }
     1.2.2 Accepted
-      { type: "JOIN.RESPONSE.ACCEPTED", server_version: string, uid: number, operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "Automatically accepted", uid: -1 }, enter_hint: string, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, joined: boolean, online: boolean, admin: boolean }, chat_history: { time: time, uid: number, content: string }, public messages only
+      { type: "JOIN.RESPONSE.ACCEPTED", server_version: string, uid: number, operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "Automatically accepted", uid: -1 }, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, joined: boolean, online: boolean, admin: boolean }, chat_history: { time: time, uid: number, content: string }, public messages only
     1.2.3 Rejected
       { type: "JOIN.RESPONSE.REJECTED", operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "IP is banned", uid: -1 } | { username: "Room is full", uid: -2 } | { username: "Duplicate usernames", uid: -3 } | { username: "Username consists of banned words", uid: -4 } }
   1.3 Enter Confirmation Request
@@ -100,22 +100,14 @@
   4.6 Kick
     4.6.1 Request
       { type: "MISC.KICK.REQUEST", elements: [number, ...] }
-    4.6.2 Response
-      { type: "MISC.KICK.RESPONSE", succeeded: boolean }
-    4.6.3 Announce
-      { type: "MISC.KICK.ANNOUNCE", elements: [number, ...] }
-    4.6.4 Log
+    4.6.2 Log
       { type: "MISC.KICK.LOG", time: time, operator: number | 0, elements: [number, ...] }
   4.7 Config
-    4.7.1 Get
-      { type: "MISC.CONFIG.GET" }
-    4.7.2 Post
-      { type: "MISC.CONFIG.POST", changelog: JSON } // ban: { ip: { add: [ip, ...], remove: [ip, ...] }; words: { add: [string, ...], remove: [string, ...] } }
-    4.7.3 Post Status
-      { type: "MISC.CONFIG.POST_STATUS", succeeded: boolean }
-    4.7.4 Config Content
-      { type: "MISC.CONFIG.CONFIG_CONTENT", config: JSON }
-    4.7.5 Save
-      { type: "MISC.CONFIG.SAVE", time: time, operator: number | 0 }
-    4.7.6 Log
+    4.7.1 Post
+      { type: "MISC.CONFIG.POST", changelog: JSON } // ban: { ip: { add: [ip, ...], remove: [ip, ...], set: [ip, ...], override: boolean }; words: { add: [string, ...], remove: [string, ...], set: [string, ...], override: boolean } }; use deltas if override = false, use assignments otherwise
+    4.7.2 Change
+      { type: "MISC.CONFIG.CHANGE", changelog: JSON }
+    4.7.3 Save
+      { type: "MISC.CONFIG.SAVE", time: time }
+    4.7.4 Log
       { type: "MISC.CONFIG.LOG", time: time, operator: number | 0, changelog: JSON }

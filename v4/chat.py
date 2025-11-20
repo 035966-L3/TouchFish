@@ -13,7 +13,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.7"
+VERSION = "v4.0.0-prealpha.8"
 
 config = \
 {
@@ -49,7 +49,7 @@ CONFIG_LIST = \
 
 general.server_ip      "0.0.0.0"   "192.168.1.1"  服务器 IP
 general.server_port    8080        12345          服务器端口
-general.enter_hint     ""          "Hi there!\n"  进入提示
+general.enter_hint     ""          "Hi there!\\n"  进入提示
 
 ban.ip                 []          ["8.8.8.8"]    封禁的 IP 列表
 ban.words              []          ["a", "b"]     屏蔽词列表
@@ -111,7 +111,7 @@ except:
             json.dump(config, f)
         print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
     except:
-        print("警告：无法将参数保存到配置文件 {}，请在聊天室启动后输入 save 重试。".format(CONFIG_PATH))
+        print("警告：无法将参数保存到配置文件 {}，请在聊天室启动后输入 config save 重试。".format(CONFIG_PATH))
     print()
 
 try:
@@ -126,7 +126,11 @@ s = socket.socket()
 try:
     s.bind((config['general']['server_ip'], config['general']['server_port']))
 except Exception as err:
-    print("[Error] 绑定端口失败，可能的原因有：\n1. 端口已被占用\n2. 没有权限绑定该端口\n错误信息：\n" + str(err))
+    print("绑定端口失败，可能的原因有：")
+    print("1. 端口已被占用")
+    print("2. 没有权限绑定该端口")
+    print("错误信息：")
+    print(str(err))
     exit()
 s.listen(config['join']['max_connections'])
 s.setblocking(False)
@@ -286,7 +290,7 @@ def thread_join():
             users_abstract = []
             for i in range(len(users)):
                 users_abstract.append({"username": users[i]['username'], "joined": users[i]['joined'], "online": users[i]['online'], "admin": users[i]['admin']})
-            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.ACCEPTED', 'server_version': VERSION, 'uid': uid, 'operator': {'username': 'Automatically accepted', 'uid': -1}, 'enter_hint': config['general']['enter_hint'], 'users': users_abstract, 'chat_history': history }) + "\n", encoding="utf-8"))
+            users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.ACCEPTED', 'server_version': VERSION, 'uid': uid, 'operator': {'username': 'Automatically accepted', 'uid': -1}, 'config': config, 'users': users_abstract, 'chat_history': history }) + "\n", encoding="utf-8"))
             for i in range(len(users)):
                 if users[i]['joined'] and users[i]['online'] and i != uid:
                     send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.JOIN_HINT', 'username': users[uid]['username'], 'uid': uid}}))
@@ -344,9 +348,6 @@ class Server(cmd.Cmd):
         使用方法 (~ 表示 cmd):
             ~ <cmd> 执行这个系统命令，并输出结果
         """
-        if not arg.strip():
-            print("参数错误。")
-            return
         try:
             result = os.system(arg)
             if result != 0:
@@ -395,6 +396,89 @@ class Server(cmd.Cmd):
             print(" UID  IP                        用户名")                 
             for i in offline:
                 print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
+    
+    def do_config(self, arg):
+        """
+        使用方法 (~ 表示 config):
+            ~ show                  列出参数列表
+            ~ get <name>            获取参数 <name> 的值
+            ~ set <name> <value>    将参数 <name> 的值改为 <value>
+            ~ save                  将参数保存到配置文件
+        """
+        global log_queue
+        global send_queue
+        global config
+        arg = arg.split(' ', 2)
+        if not arg:
+            print("参数错误。")
+            return
+        if not arg[0] in ['show', 'get', 'set', 'save']:
+            print("参数错误。")
+            return
+        if arg[0] == 'show':
+            print(CONFIG_LIST)
+            return
+        if arg[0] == 'save':
+            try:
+                with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(config, f)
+                print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.SAVE', 'time': time_str()}))
+            except:
+                print("无法将参数保存到配置文件 {}，请稍后重试。".format(CONFIG_PATH))
+            return
+        if arg[0] == 'get':
+            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
+                print("该参数不存在。")
+                return
+            first, second = arg[1].split('.')
+            print(config[first][second])
+            return
+        if arg[0] == 'set':
+            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
+                print("该参数不存在。")
+                return
+            if arg[1] == 'general.server_ip' or arg[1] == 'general.server_port':
+                print("不允许在命令行内修改该参数，请退出聊天室后打开本目录下的 ./config.json 手动修改。")
+                return
+            if arg[1] == 'general.enter_hint':
+                print("请注意，本参数修改时 <value> 需要带引号并转义。")
+                print("例如，将进入提示设为英文 Hi there! 并且末尾换行：")
+                print(r'  config set general.enter_hint "Hi there!\n"')
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+            if arg[1] == 'ban.ip' or arg[1] == 'ban.words':
+                print("请注意，本参数修改时 <value> 需要带引号并转义。")
+                print("例如，将 fuck 和 shit 设置为屏蔽词：")
+                print(r'  config set ban.words ["fuck", "shit"]')
+                print("该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+            try:
+                if not eval("isinstance({}, {})".format(arg[2], CONFIG_TYPE_CHECK_TABLE[arg[1]])):
+                    raise
+                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0:
+                    raise
+                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "list":
+                    for item in eval(arg[2]):
+                        if not isinstance(item, str):
+                            raise
+                first, second = arg[1].split('.')
+                config[first][second] = eval(arg[2])
+                if arg[1] != 'ban.ip' and arg[1] != 'ban.words':
+                    log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: eval(arg[2])}}}))
+                    for i in range(len(users)):
+                        if users[i]['joined'] and users[i]['online']:
+                            send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: eval(arg[2])}}}}))
+                else:
+                    log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}))
+                    for i in range(len(users)):
+                        if users[i]['joined'] and users[i]['online']:
+                            send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}}))
+                print("设置成功。")
+            except:
+                print("输入格式不正确，请重试。")
+            return
     
     def do_exit(self, arg):
         """
