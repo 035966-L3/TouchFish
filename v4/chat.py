@@ -14,7 +14,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.11"
+VERSION = "v4.0.0-prealpha.12"
 
 config = \
 {
@@ -214,7 +214,7 @@ except Exception as err:
 s.listen(config['join']['max_connections'])
 s.setblocking(False)
 
-users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": "root", "joined": True, "online": True, "admin": True}]
+users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": "root", "status": "Root"}]
 a = socket.socket()
 a.connect(("127.0.0.1", config['general']['server_port']))
 users[0]['body'], users[0]['ip'] = s.accept()
@@ -229,9 +229,8 @@ else:
 
 with open("./log.txt", "a", encoding="utf-8") as file:
     file.write(json.dumps({'type': 'MISC.SERVER_START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
-    file.write(json.dumps({'type': 'JOIN.LOG.CLIENT_REQUEST', 'time': time_str(), 'ip': users[0]['ip'], 'username': 'root', 'uid': 0}) + "\n")
-    file.write(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.ACCEPTED', 'time': time_str(), 'uid': 0, 'operator': -1}) + "\n")
-    file.write(json.dumps({'type': 'MISC.ADMIN.LOG.ADD', 'time': time_str(), 'uid': 0}) + "\n")
+    file.write(json.dumps({'type': 'JOIN.CLIENT_REQUEST.LOG', 'time': time_str(), 'ip': users[0]['ip'], 'username': 'root', 'uid': 0}) + "\n")
+    file.write(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Root', 'uid': 0, 'operator': -1}) + "\n")
 
 WEBPAGE_CONTENT = \
 """
@@ -262,6 +261,7 @@ INTRODUCTION_TEMPLATE = \
 详细的使用指南，见 wiki：
 https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
 配置文件位于目录下的 ./config.json。
+用户列表中的 root 用户（UID = 0）代指本服务端程序自身。
 """
 
 EXIT_FLAG = False
@@ -309,7 +309,7 @@ def thread_join():
                 except:
                     pass
                 tagged = True
-                log_queue.put(json.dumps({'type': 'JOIN.LOG.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
+                log_queue.put(json.dumps({'type': 'JOIN.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
                 break
         if tagged:
             continue
@@ -324,44 +324,59 @@ def thread_join():
             continue
         
         uid = len(users)
-        log_queue.put(json.dumps({'type': 'JOIN.LOG.CLIENT_REQUEST', 'time': time_str(), 'ip': addresstmp, 'username': data['username'], 'uid': uid}))
-        users.append({"body": conntmp, "extra": None, "buffer": "", "ip": addresstmp, "username": data['username'], "joined": False, "online": True, "admin": False})
+        users.append({"body": conntmp, "extra": None, "buffer": "", "ip": addresstmp, "username": data['username'], "status": "Pending"})
         users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.FETCHED'}) + "\n", encoding="utf-8"))
+        log_queue.put(json.dumps({'type': 'JOIN.CLIENT_REQUEST.LOG', 'time': time_str(), 'ip': addresstmp, 'username': data['username'], 'uid': uid}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'JOIN.CLIENT_REQUEST.ANNOUNCE', 'username': users[uid]['username'], 'uid': uid}}))
         
         if users[uid]['ip'][0] in config['ban']['ip']:
             users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'IP is banned', 'uid': -1}}) + "\n", encoding="utf-8"))
-            log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -1}))
-            users[uid]['online'] = False
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': uid, 'operator': -1}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': uid}}))
+            users[uid]['status'] = "Rejected"
             users[uid]['body'].close()
             continue
         
         if online_count == config['join']['max_connections']:
             users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'Room is full', 'uid': -2}}) + "\n", encoding="utf-8"))
-            log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -2}))
-            users[uid]['online'] = False
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': uid, 'operator': -2}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': uid}}))
+            users[uid]['status'] = "Rejected"
             users[uid]['body'].close()
             continue
         
         for user in users[:-1]:
-            if user['online'] and users[uid]['username'] == user['username']:
+            if user['status'] in ["Online", "Admin", "Root"] and users[uid]['username'] == user['username']:
                 users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'Duplicate usernames', 'uid': -3}}) + "\n", encoding="utf-8"))
-                log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -3}))
-                users[uid]['online'] = False
+                log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': uid, 'operator': -3}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': uid}}))
+                users[uid]['status'] = "Rejected"
                 users[uid]['body'].close()
                 break
         
-        if users[uid]['online'] == False:
+        if users[uid]['status'] == "Rejected":
             continue
         
         for word in config['ban']['words']:
             if word in users[uid]['username']:
                 users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.REJECTED', 'operator': {'username': 'Username consists of banned words', 'uid': -4}}) + "\n", encoding="utf-8"))
-                log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.REJECTED', 'time': time_str(), 'uid': uid, 'operator': -4}))
-                users[uid]['online'] = False
+                log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': uid, 'operator': -4}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': uid}}))
+                users[uid]['status'] = "Rejected"
                 users[uid]['body'].close()
                 break
         
-        if users[uid]['online'] == False:
+        if users[uid]['status'] == "Rejected":
             continue
         
         users[uid]['body'].setblocking(False)
@@ -374,21 +389,17 @@ def thread_join():
             users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
         
         if not config['join']['enter_check']:
-            log_queue.put(json.dumps({'type': 'JOIN.LOG.RESPONSE_DETAIL.ACCEPTED', 'time': time_str(), 'uid': uid, 'operator': -1}))
-            users[uid]['joined'] = True
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': uid, 'operator': -1}))
+            users[uid]['status'] = "Online"
             online_count += 1
             users_abstract = []
             for i in range(len(users)):
-                users_abstract.append({"username": users[i]['username'], "joined": users[i]['joined'], "online": users[i]['online'], "admin": users[i]['admin']})
+                users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
             users[uid]['body'].send(bytes(json.dumps({'type': 'JOIN.RESPONSE.ACCEPTED', 'server_version': VERSION, 'uid': uid, 'operator': {'username': 'Automatically accepted', 'uid': -1}, 'config': config, 'users': users_abstract, 'chat_history': history }) + "\n", encoding="utf-8"))
             for i in range(len(users)):
-                if users[i]['joined'] and users[i]['online'] and i != uid:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.JOIN_HINT', 'username': users[uid]['username'], 'uid': uid}}))
+                if users[i]['status'] in ["Online", "Admin"] and i != uid:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': uid}}))
             continue
-        
-        for i in range(len(users)):
-            if users[i]['admin']:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'JOIN.ENTER_CONFIRMATION_REQUEST', 'ip': users[uid]['ip'], 'username': users[uid]['username'], 'uid': uid}}))
 
 def thread_send():
     global online_count
@@ -405,12 +416,12 @@ def thread_send():
             try:
                 users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
             except:
-                users[message['to']]['online'] = False
+                users[message['to']]['status'] = "Offline"
                 online_count -= 1
-                log_queue.put(json.dumps({'type': 'MISC.LEAVE_HINT.LOG', 'time': time_str(), 'uid': message['to']}))
+                log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': -1}))
                 for i in range(len(users)):
-                    if users[i]['joined'] and users[i]['online']:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': message['to']}}))
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to']}}))
 
 def thread_receive():
     global receive_queue
@@ -421,7 +432,7 @@ def thread_receive():
             exit()
             break
         for i in range(len(users)):
-            if users[i]['joined'] and users[i]['online']:
+            if users[i]['status'] in ["Online", "Admin"]:
                 data = ""
                 while True:
                     try:
@@ -454,7 +465,7 @@ class Server(cmd.Cmd):
     def do_cmd(self, arg):
         """
         使用方法 (~ 表示 cmd):
-            ~ <cmd> 执行这个系统命令，并输出结果
+            ~ <cmd>                 执行某个系统命令，并输出结果
         """
         try:
             result = os.system(arg)
@@ -472,38 +483,9 @@ class Server(cmd.Cmd):
         pending = []
         offline = []
         
+        print(" UID  IP                        状态      用户名") 
         for i in range(len(users)):
-            if not users[i]['online']:
-                offline.append(i)
-                continue
-            if not users[i]['joined']:
-                pending.append(i)
-                continue
-            if not users[i]['admin']:
-                online.append(i)
-                continue
-            admin.append(i)
-        
-        if admin:
-            print("管理员：")
-            print(" UID  IP                        用户名")                 
-            for i in admin:
-                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
-        if online:
-            print("普通用户：")
-            print(" UID  IP                        用户名")                 
-            for i in online:
-                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
-        if pending:
-            print("等待加入用户：")
-            print(" UID  IP                        用户名")                 
-            for i in pending:
-                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
-        if offline:
-            print("已离线的用户：")
-            print(" UID  IP                        用户名")                 
-            for i in offline:
-                print("{:>4}  {:<26}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['username']))
+            print("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']))
     
     
     def do_admin(self, arg):
@@ -516,33 +498,39 @@ class Server(cmd.Cmd):
         global send_queue
         arg = arg.split()
         if not arg[0] in ['add', 'remove']:
-            print("参数错误。")
+            print("参数错误：第一个参数必须是 add 或 remove。")
             return
         try:
             arg[1] = int(arg[1])
         except:
-            print("参数错误。")
+            print("参数错误：UID 必须是整数。")
             return
         
         if arg[0] == 'add':
-            if arg[1] <= 1 or arg[1] >= len(users) or users[arg[1]]['admin'] or not users[arg[1]]['joined'] or not users[arg[1]]['online']:
-                print("参数错误。")
+            if arg[1] <= 0 or arg[1] >= len(users):
+                print("UID 输入错误。")
                 return
-            users[arg[1]]['admin'] = True
-            log_queue.put(json.dumps({'type': 'MISC.ADMIN.LOG.ADD', 'time': time_str(), 'uid': arg[1]}))
+            if users[arg[1]]['status'] != "Online":
+                print("只能对状态为 Online 的用户操作。")
+                return
+            users[arg[1]]['status'] = "Admin"
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
-                if users[i]['joined'] and users[i]['online']:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.ADMIN.ANNOUNCE.ADD', 'uid': arg[1]}}))
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Admin', 'uid': arg[1]}}))
         
         if arg[0] == 'remove':
-            if arg[1] <= 1 or arg[1] >= len(users) or not users[arg[1]]['admin'] or not users[arg[1]]['joined'] or not users[arg[1]]['online']:
-                print("参数错误。")
+            if arg[1] <= 0 or arg[1] >= len(users):
+                print("UID 输入错误。")
                 return
-            users[arg[1]]['admin'] = False
-            log_queue.put(json.dumps({'type': 'MISC.ADMIN.LOG.REMOVE', 'time': time_str(), 'uid': arg[1]}))
+            if users[arg[1]]['status'] != "Admin":
+                print("只能对状态为 Admin 的用户操作。")
+                return
+            users[arg[1]]['status'] = "Online"
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
-                if users[i]['joined'] and users[i]['online']:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.ADMIN.ANNOUNCE.REMOVE', 'uid': arg[1]}}))
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1]}}))
     
     def do_config(self, arg):
         """
@@ -557,10 +545,10 @@ class Server(cmd.Cmd):
         global config
         arg = arg.split(' ', 2)
         if not arg:
-            print("参数错误。")
+            print("参数错误：参数不能为空。")
             return
         if not arg[0] in ['show', 'get', 'set', 'save']:
-            print("参数错误。")
+            print("参数错误：第一个参数必须是 show，get，set，save 中的某一项。")
             return
         
         if arg[0] == 'show':
@@ -637,12 +625,12 @@ class Server(cmd.Cmd):
                 if arg[1] != 'ban.ip' and arg[1] != 'ban.words':
                     log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: eval(arg[2])}}}))
                     for i in range(len(users)):
-                        if users[i]['joined'] and users[i]['online']:
+                        if users[i]['status'] in ["Online", "Admin"]:
                             send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: eval(arg[2])}}}}))
                 else:
                     log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}))
                     for i in range(len(users)):
-                        if users[i]['joined'] and users[i]['online']:
+                        if users[i]['status'] in ["Online", "Admin"]:
                             send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}}))
                 print("设置成功。")
             except:
@@ -680,18 +668,18 @@ def thread_check():
         timer = 10
         down = []
         for i in range(len(users)):
-            if users[i]['online']:
+            if users[i]['status'] in ["Online", "Admin"]:
                 try:
                     users[i]['body'].send(bytes("\n", encoding="utf-8"))
                 except:
-                    users[i]['online'] = False
+                    users[i]['status'] = "Offline"
                     down.append(i)
                     online_count -= 1
-                    log_queue.put(json.dumps({'type': 'MISC.LEAVE_HINT.LOG', 'time': time_str(), 'uid': i}))
+                    log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': -1}))
         for i in down:
             for j in range(len(users)):
-                if users[j]['joined'] and users[j]['online']:
-                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'MISC.LEAVE_HINT.ANNOUNCE', 'uid': i}}))
+                if users[j]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': i}}))
 
 def thread_log():
     global log_queue
