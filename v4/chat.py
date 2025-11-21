@@ -13,8 +13,7 @@ import re
 import requests
 from random import randint
 
-# 版本
-VERSION = "v4.0.0-prealpha.13"
+VERSION = "v4.0.0-prealpha.14"
 
 config = \
 {
@@ -78,8 +77,10 @@ def check_ip_segment(element):
     for i in range(1, 5):
         if int(match.group(i)) < 0 or int(match.group(i)) > 255:
             return []
-    if int(match.group(5)) < 24 or int(match.group(5)) > 32:
+    if int(match.group(5)) < 0 or int(match.group(5)) > 32:
         return []
+    if int(match.group(5)) < 24:
+        return [""]
     if int(match.group(4)) % 2 ** (32 - int(match.group(5))):
         return []
     result = []
@@ -170,17 +171,17 @@ while True:
         if key == "ban.ip":
             for item in eval(value):
                 if not check_ip(item):
-                    print("IP 黑名单中的元素 {} 不是有效的 IPv4 地址。".format(item))
+                    print("IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
                     raise
         if key == "general.server_ip" and not check_ip(eval(value)):
-            print("输入的服务器 IP 不是有效的 IPv4 地址。")
+            print("输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。")
             raise
         if key == "general.server_port" and eval(value) >= 65536:
             print("服务器端口号不能大于 65535。")
             raise
         first, second = key.split('.')
         config[first][second] = eval(value)
-        print("设置成功。")
+        print("操作成功。")
     except KeyboardInterrupt:
         sys.exit(0)
     except:
@@ -271,6 +272,304 @@ send_queue = queue.Queue()
 history = []
 all_history = []
 online_count = 0
+
+
+
+
+
+class Server(cmd.Cmd):
+    prompt = "TouchFish-Server@{}:{}> ".format(config['general']['server_ip'], config['general']['server_port'])
+    intro = INTRODUCTION_TEMPLATE[1:].format(VERSION, NEWEST_VERSION)
+    
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+    
+    def do_cmd(self, arg):
+        """
+        使用方法 (~ 表示 cmd):
+            ~ <cmd>                 执行某个系统命令，并输出结果
+        """
+        try:
+            result = os.system(arg)
+            if result != 0:
+                print("命令执行失败！返回值: " + str(result))
+            if result == 0:
+                print("操作成功。")
+        except Exception as err:
+            print("命令执行失败！错误信息：", err)
+    
+    def do_user(self, arg):
+        """
+        显示聊天室内的用户
+        """
+        admin = []
+        online = []
+        pending = []
+        offline = []
+        
+        print(" UID  IP                        状态      用户名") 
+        for i in range(len(users)):
+            print("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']))
+    
+    def do_kick(self, arg):
+        """
+        使用方法 (~ 表示 kick):
+            ~ <uid>                 踢出某个用户
+        """
+        global log_queue
+        global send_queue
+        try:
+            arg = int(arg)
+        except:
+            print("参数错误：UID 必须是整数。")
+            return
+        if arg <= -1 or arg >= len(users):
+            print("UID 输入错误。")
+            return
+        if not users[arg]['status'] in ["Online", "Admin"]:
+            print("只能对状态为 Online 或 Admin 的用户操作。")
+            return
+        users[arg]['status'] = "Kicked"
+        log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg}}))
+        print("操作成功。")
+    
+    def do_admin(self, arg):
+        """
+        使用方法 (~ 表示 admin):
+            ~ add <uid>             添加管理员
+            ~ remove <uid>          撤销管理员
+        """
+        global log_queue
+        global send_queue
+        arg = arg.split()
+        if not arg[0] in ['add', 'remove']:
+            print("参数错误：第一个参数必须是 add 或 remove。")
+            return
+        try:
+            arg[1] = int(arg[1])
+        except:
+            print("参数错误：UID 必须是整数。")
+            return
+        
+        if arg[0] == 'add':
+            if arg[1] <= 0 or arg[1] >= len(users):
+                print("UID 输入错误。")
+                return
+            if users[arg[1]]['status'] != "Online":
+                print("只能对状态为 Online 的用户操作。")
+                return
+            users[arg[1]]['status'] = "Admin"
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Admin', 'uid': arg[1]}}))
+        
+        if arg[0] == 'remove':
+            if arg[1] <= 0 or arg[1] >= len(users):
+                print("UID 输入错误。")
+                return
+            if users[arg[1]]['status'] != "Admin":
+                print("只能对状态为 Admin 的用户操作。")
+                return
+            users[arg[1]]['status'] = "Online"
+            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1]}}))
+        print("操作成功。")
+    
+    def do_config(self, arg):
+        """
+        使用方法 (~ 表示 config):
+            ~ show                  列出参数列表
+            ~ get <name>            获取参数 <name> 的值
+            ~ set <name> <value>    将参数 <name> 的值改为 <value>
+            ~ save                  将参数保存到配置文件
+        """
+        global log_queue
+        global send_queue
+        global config
+        arg = arg.split(' ', 2)
+        if not arg:
+            print("参数错误：参数不能为空。")
+            return
+        if not arg[0] in ['show', 'get', 'set', 'save']:
+            print("参数错误：第一个参数必须是 show、get、set、save 中的某一项。")
+            return
+        
+        if arg[0] == 'show':
+            print(CONFIG_LIST)
+            return
+        
+        if arg[0] == 'save':
+            try:
+                with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(config, f)
+                print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.SAVE', 'time': time_str()}))
+            except:
+                print("无法将参数保存到配置文件 {}，请稍后重试。".format(CONFIG_PATH))
+            return
+        
+        if arg[0] == 'get':
+            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
+                print("该参数不存在。")
+                return
+            first, second = arg[1].split('.')
+            print(config[first][second])
+            return
+        
+        if arg[0] == 'set':
+            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
+                print("该参数不存在。")
+                return
+            if arg[1] == "general.server_ip" or arg[1] == "general.server_port" or arg[1] == "join.max_connections":
+                print("不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
+                return
+            if arg[1] == "general.enter_hint":
+                print("请注意，本参数修改时 <value> 需要带引号并转义。")
+                print("例如，将进入提示设为英文 Hi there! 并且末尾换行：")
+                print(r'  config set general.enter_hint "Hi there!\n"')
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+            if arg[1] == "ban.ip" or arg[1] == "ban.words":
+                print("请注意，本参数修改时 <value> 需要带引号并转义。")
+                print("例如，将 fuck 和 shit 设置为屏蔽词：")
+                print(r'  config set ban.words ["fuck", "shit"]')
+                print("该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+            
+            try:
+                if not eval("isinstance({}, {})".format(arg[2], CONFIG_TYPE_CHECK_TABLE[arg[1]])):
+                    print("输入数据的类型与参数不匹配。")
+                    raise
+                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0:
+                    print("输入的数值必须是正整数。")
+                    raise
+                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "list":
+                    for item in eval(arg[2]):
+                        if not isinstance(item, str):
+                            print("列表中的元素必须是 str（字符串）类型。")
+                            raise
+                    if len(eval(arg[2])) != len(set(eval(arg[2]))):
+                        print("列表中不能出现重复元素。")
+                        raise
+                if arg[1] == "ban.words":
+                    for item in eval(arg[2]):
+                        if '\n' in item or '\r' in item or not item:
+                            print("屏蔽词列表中不能出现空串和换行符。")
+                            raise
+                if arg[1] == "ban.ip":
+                    for item in eval(arg[2]):
+                        if not check_ip(item):
+                            print("IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
+                            raise
+                
+                first, second = arg[1].split('.')
+                config[first][second] = eval(arg[2])
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: eval(arg[2])}}}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: eval(arg[2])}}}}))
+                print("操作成功。")
+            except:
+                print("命令格式不正确，请重试。")
+            return
+    
+    def do_ban(self, arg):
+        """
+        使用方法 (~ 表示 ban):
+            ~ ip add <ip>           封禁 IP（段）
+            ~ ip remove <ip>        解除封禁 IP（段）
+            ~ words add <word>      屏蔽某个词语
+            ~ words remove <word>   解除屏蔽某个词语
+        """
+        global log_queue
+        global send_queue
+        global config
+        arg = arg.split(' ', 2)
+        if len(arg) != 3:
+            print("参数错误：应当给出恰好 3 个参数。")
+            return
+        if not arg[0] in ['ip', 'words']:
+            print("参数错误：第一个参数必须是 ip 和 words 中的某一项。")
+            return
+        if not arg[1] in ['add', 'remove']:
+            print("参数错误：第二个参数必须是 add 和 remove 中的某一项。")
+            return
+
+        if arg[0] == 'ip':
+            ips = check_ip_segment(arg[2])
+            if ips == []:
+                print("输入数据不是合法的点分十进制格式 IPv4 地址或 IPv4 段。")
+                return
+            if ips == [""]:
+                print("出于性能、安全性和实际使用环境考虑，IPv4 段的 CIDR 不得小于 24。")
+                return
+            if arg[1] == 'add':
+                ips = [item for item in ips if item not in config['ban']['ip']]
+                config['ban']['ip'] += ips
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'ip': config['ban']['ip']}}}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'ip': config['ban']['ip']}}}}))
+                print("操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
+            if arg[1] == 'remove':
+                ips = [item for item in ips if item in config['ban']['ip']]
+                config['ban']['ip'] = [item for item in config['ban']['ip'] if not item in ips]
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'ip': config['ban']['ip']}}}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'ip': config['ban']['ip']}}}}))
+                print("操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
+        if arg[0] == 'words':
+            if '\n' in item or '\r' in item or not item:
+                print("屏蔽词不能为空串，且不能包含换行符。")
+                return
+            if ' ' in arg[2]:
+                print("请注意，你输入的屏蔽词包含空格。")
+                print("系统读取到的屏蔽词为（不包含开头的 ^ 符号和结尾的 $ 符号）：")
+                print("^", arg[2], "$", sep="")
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+            if arg[1] == 'add':
+                if arg[2] in config['ban']['words']:
+                    print("该屏蔽词已经在列表中出现了。")
+                    return
+                config['ban']['words'].append(arg[2])
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'words': config['ban']['words']}}}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'words': config['ban']['words']}}}}))
+                print("操作成功。")
+            if arg[1] == 'remove':
+                if not arg[2] in config['ban']['words']:
+                    print("该屏蔽词不在列表中。")
+                    return
+                config['ban']['words'].remove(arg[2])
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'words': config['ban']['words']}}}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'words': config['ban']['words']}}}}))
+                print("操作成功。")
+    
+    def do_exit(self, arg):
+        """
+        退出当前程序
+        """
+        global log_queue
+        global EXIT_FLAG
+        log_queue.put(json.dumps({'type': 'MISC.SERVER_STOP', 'time': time_str()}))
+        EXIT_FLAG = True
+        exit()
+
+
+
+
 
 def thread_join():
     global online_count
@@ -401,30 +700,6 @@ def thread_join():
                     send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': uid}}))
             continue
 
-def thread_send():
-    global online_count
-    global send_queue
-    global log_queue
-    global users
-    while True:
-        time.sleep(0.1)
-        if EXIT_FLAG:
-            exit()
-            break
-        while not send_queue.empty():
-            message = json.loads(send_queue.get())
-            if not users[message['to']]['status'] in ["Online", "Admin"]:
-                continue
-            try:
-                users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
-            except:
-                users[message['to']]['status'] = "Offline"
-                online_count -= 1
-                log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': -1}))
-                for i in range(len(users)):
-                    if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to']}}))
-
 def thread_receive():
     global receive_queue
     global users
@@ -453,228 +728,41 @@ def thread_receive():
                         continue
                     receive_queue.put(json.dumps({'from': i, 'content': message}))
 
-
-
-
-
-class Server(cmd.Cmd):
-    prompt = "TouchFish-Server@{}:{}> ".format(config['general']['server_ip'], config['general']['server_port'])
-    intro = INTRODUCTION_TEMPLATE[1:].format(VERSION, NEWEST_VERSION)
-    
-    def __init__(self):
-        cmd.Cmd.__init__(self)
-    
-    def do_cmd(self, arg):
-        """
-        使用方法 (~ 表示 cmd):
-            ~ <cmd>                 执行某个系统命令，并输出结果
-        """
-        try:
-            result = os.system(arg)
-            if result != 0:
-                print("命令执行失败！返回值: " + str(result))
-        except Exception as err:
-            print("命令执行失败！错误信息：", err)
-    
-    def do_user(self, arg):
-        """
-        显示聊天室内的用户
-        """
-        admin = []
-        online = []
-        pending = []
-        offline = []
-        
-        print(" UID  IP                        状态      用户名") 
-        for i in range(len(users)):
-            print("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']))
-    
-    def do_kick(self, arg):
-        """
-        使用方法 (~ 表示 kick):
-            ~ <uid>                 踢出某个用户
-        """
-        global log_queue
-        global send_queue
-        try:
-            arg = int(arg)
-        except:
-            print("参数错误：UID 必须是整数。")
-            return
-        if arg <= -1 or arg >= len(users):
-            print("UID 输入错误。")
-            return
-        if not users[arg]['status'] in ["Online", "Admin"]:
-            print("只能对状态为 Online 或 Admin 的用户操作。")
-            return
-        users[arg]['status'] = "Kicked"
-        log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
-        for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg}}))
-    
-    def do_admin(self, arg):
-        """
-        使用方法 (~ 表示 admin):
-            ~ add <uid>             添加管理员
-            ~ remove <uid>          撤销管理员
-        """
-        global log_queue
-        global send_queue
-        arg = arg.split()
-        if not arg[0] in ['add', 'remove']:
-            print("参数错误：第一个参数必须是 add 或 remove。")
-            return
-        try:
-            arg[1] = int(arg[1])
-        except:
-            print("参数错误：UID 必须是整数。")
-            return
-        
-        if arg[0] == 'add':
-            if arg[1] <= 0 or arg[1] >= len(users):
-                print("UID 输入错误。")
-                return
-            if users[arg[1]]['status'] != "Online":
-                print("只能对状态为 Online 的用户操作。")
-                return
-            users[arg[1]]['status'] = "Admin"
-            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Admin', 'uid': arg[1]}}))
-        
-        if arg[0] == 'remove':
-            if arg[1] <= 0 or arg[1] >= len(users):
-                print("UID 输入错误。")
-                return
-            if users[arg[1]]['status'] != "Admin":
-                print("只能对状态为 Admin 的用户操作。")
-                return
-            users[arg[1]]['status'] = "Online"
-            log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1]}}))
-    
-    def do_config(self, arg):
-        """
-        使用方法 (~ 表示 config):
-            ~ show                  列出参数列表
-            ~ get <name>            获取参数 <name> 的值
-            ~ set <name> <value>    将参数 <name> 的值改为 <value>
-            ~ save                  将参数保存到配置文件
-        """
-        global log_queue
-        global send_queue
-        global config
-        arg = arg.split(' ', 2)
-        if not arg:
-            print("参数错误：参数不能为空。")
-            return
-        if not arg[0] in ['show', 'get', 'set', 'save']:
-            print("参数错误：第一个参数必须是 show，get，set，save 中的某一项。")
-            return
-        
-        if arg[0] == 'show':
-            print(CONFIG_LIST)
-            return
-        
-        if arg[0] == 'save':
+def thread_send():
+    global online_count
+    global send_queue
+    global log_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        while not send_queue.empty():
+            message = json.loads(send_queue.get())
+            if not users[message['to']]['status'] in ["Online", "Admin"]:
+                continue
             try:
-                with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                    json.dump(config, f)
-                print("参数已经成功保存到配置文件 {}，下次启动时将自动加载配置项。".format(CONFIG_PATH))
-                log_queue.put(json.dumps({'type': 'MISC.CONFIG.SAVE', 'time': time_str()}))
+                users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
             except:
-                print("无法将参数保存到配置文件 {}，请稍后重试。".format(CONFIG_PATH))
-            return
-        
-        if arg[0] == 'get':
-            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
-                print("该参数不存在。")
-                return
-            first, second = arg[1].split('.')
-            print(config[first][second])
-            return
-        
-        if arg[0] == 'set':
-            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
-                print("该参数不存在。")
-                return
-            if arg[1] == "general.server_ip" or arg[1] == "general.server_port" or arg[1] == "join.max_connections":
-                print("不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
-                return
-            if arg[1] == "general.enter_hint":
-                print("请注意，本参数修改时 <value> 需要带引号并转义。")
-                print("例如，将进入提示设为英文 Hi there! 并且末尾换行：")
-                print(r'  config set general.enter_hint "Hi there!\n"')
-                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                    return
-            if arg[1] == "ban.ip" or arg[1] == "ban.words":
-                print("请注意，本参数修改时 <value> 需要带引号并转义。")
-                print("例如，将 fuck 和 shit 设置为屏蔽词：")
-                print(r'  config set ban.words ["fuck", "shit"]')
-                print("该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
-                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                    return
-            
-            try:
-                if not eval("isinstance({}, {})".format(arg[2], CONFIG_TYPE_CHECK_TABLE[arg[1]])):
-                    print("输入数据的类型与参数不匹配。")
-                    raise
-                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0:
-                    print("输入的数值必须是正整数。")
-                    raise
-                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "list":
-                    for item in eval(arg[2]):
-                        if not isinstance(item, str):
-                            print("列表中的元素必须是 str（字符串）类型。")
-                            raise
-                    if len(eval(arg[2])) != len(set(eval(arg[2]))):
-                        print("列表中不能出现重复元素。")
-                        raise
-                if arg[1] == "ban.words":
-                    for item in eval(arg[2]):
-                        if '\n' in item or '\r' in item or not item:
-                            print("屏蔽词列表中不能出现空串和换行符。")
-                            raise
-                if arg[1] == "ban.ip":
-                    for item in eval(arg[2]):
-                        if not check_ip(item):
-                            print("IP 黑名单中的元素 {} 不是有效的 IPv4 地址。".format(item))
-                            raise
-                
-                first, second = arg[1].split('.')
-                config[first][second] = eval(arg[2])
-                if arg[1] != 'ban.ip' and arg[1] != 'ban.words':
-                    log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: eval(arg[2])}}}))
-                    for i in range(len(users)):
-                        if users[i]['status'] in ["Online", "Admin"]:
-                            send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: eval(arg[2])}}}}))
-                else:
-                    log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}))
-                    for i in range(len(users)):
-                        if users[i]['status'] in ["Online", "Admin"]:
-                            send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: {'add': [], 'remove': [], 'set': eval(arg[2]), 'override': True}}}}}))
-                print("设置成功。")
-            except:
-                print("命令格式不正确，请重试。")
-            return
-    
-    def do_exit(self, arg):
-        """
-        退出当前程序
-        """
-        global log_queue
-        global EXIT_FLAG
-        log_queue.put(json.dumps({'type': 'MISC.SERVER_STOP', 'time': time_str()}))
-        EXIT_FLAG = True
-        exit()
+                users[message['to']]['status'] = "Offline"
+                online_count -= 1
+                log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': -1}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to']}}))
 
-
-
-
+def thread_log():
+    global log_queue
+    while True:
+        time.sleep(1)
+        if not log_queue.empty():
+            with open("./log.txt", "a", encoding="utf-8") as file:
+                while not log_queue.empty():
+                    file.write(log_queue.get() + "\n")
+        if EXIT_FLAG:
+            exit()
+            break
 
 def thread_check():
     global online_count
@@ -706,38 +794,33 @@ def thread_check():
                 if users[j]['status'] in ["Online", "Admin"]:
                     send_queue.put(json.dumps({'to': j, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': i}}))
 
-def thread_log():
-    global log_queue
-    while True:
-        time.sleep(1)
-        if not log_queue.empty():
-            with open("./log.txt", "a", encoding="utf-8") as file:
-                while not log_queue.empty():
-                    file.write(log_queue.get() + "\n")
-        if EXIT_FLAG:
-            exit()
-            break
+
+
 
 
 server = Server()
 
-THREAD_SEND = threading.Thread(target=thread_send)
-THREAD_RECEIVE = threading.Thread(target=thread_receive)
+THREAD_CMD = threading.Thread(target=server.cmdloop)
 THREAD_JOIN = threading.Thread(target=thread_join)
 # THREAD_PROCESS = threading.Thread(target=thread_process)
-THREAD_CMD = threading.Thread(target=server.cmdloop)
-THREAD_CHECK = threading.Thread(target=thread_check)
-THREAD_LOG = threading.Thread(target=thread_log)
 # THREAD_FILE = threading.Thread(target=thread_file)
+THREAD_RECEIVE = threading.Thread(target=thread_receive)
+THREAD_SEND = threading.Thread(target=thread_send)
+THREAD_LOG = threading.Thread(target=thread_log)
+THREAD_CHECK = threading.Thread(target=thread_check)
 
-THREAD_SEND.start()
-THREAD_RECEIVE.start()
+THREAD_CMD.start()
 THREAD_JOIN.start()
 # THREAD_PROCESS.start()
-THREAD_CMD.start()
-THREAD_CHECK.start()
-THREAD_LOG.start()
 # THREAD_FILE.start()
+THREAD_RECEIVE.start()
+THREAD_SEND.start()
+THREAD_LOG.start()
+THREAD_CHECK.start()
+
+
+
+
 
 # Test Script
 """
