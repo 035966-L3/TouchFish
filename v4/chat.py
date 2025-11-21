@@ -9,11 +9,12 @@ import json
 import base64
 import queue
 import os
+import re
 import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.10"
+VERSION = "v4.0.0-prealpha.11"
 
 config = \
 {
@@ -52,7 +53,7 @@ general.server_ip      "0.0.0.0"   "192.168.1.1"  服务器 IP
 general.server_port    8080        12345          服务器端口
 general.enter_hint     ""          "Hi there!\\n"  进入提示
 
-ban.ip                 []          ["8.8.8.8"]    封禁的 IP 列表
+ban.ip                 []          ["8.8.8.8"]    IP 黑名单
 ban.words              []          ["a", "b"]     屏蔽词列表
 
 join.enter_check       False       True           加入是否需要人工放行
@@ -66,6 +67,35 @@ file.allow_private     True        False          是否允许发送私有文件
 file.max_size          4294967296  16384          最大文件大小（字节）
 
 """
+
+def check_ip_segment(element):
+    if not '/' in element:
+        element = element + "/32"
+    pattern = r'^(\d+)\.(\d+)\.(\d+)\.(\d+)/(\d+)$'
+    match = re.search(pattern, element)
+    if not match:
+        return []
+    for i in range(1, 5):
+        if int(match.group(i)) < 0 or int(match.group(i)) > 255:
+            return []
+    if int(match.group(5)) < 24 or int(match.group(5)) > 32:
+        return []
+    if int(match.group(4)) % 2 ** (32 - int(match.group(5))):
+        return []
+    result = []
+    for i in range(int(match.group(4)), int(match.group(4)) + 2 ** (32 - int(match.group(5)))):
+        result.append("{}.{}.{}.{}".format(int(match.group(1)), int(match.group(2)), int(match.group(3)), i))
+    return result
+
+def check_ip(element):
+    pattern = r'^(\d+)\.(\d+)\.(\d+)\.(\d+)$'
+    match = re.search(pattern, element)
+    if not match:
+        return False
+    for i in range(1, 5):
+        if int(match.group(i)) < 0 or int(match.group(i)) > 255:
+            return False
+    return True
 
 try:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -97,21 +127,57 @@ while True:
         try:
             key, value = command.split(' ', 1)
         except:
-            key, value = command, None
+            key, value = command, ""
         if not key in CONFIG_TYPE_CHECK_TABLE:
+            print("该参数不存在。")
             raise
         if not value:
             first, second = key.split('.')
             print(config[first][second])
             continue
+        if key == "general.server_ip" or key == "general.enter_hint":
+            print("请注意，本参数修改时输入数据需要带引号并转义。")
+            print("例如，将进入提示设为英文 Hi there! 并且末尾换行：")
+            print(r'  general.enter_hint "Hi there!\n"')
+            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                continue
+        if key == "ban.ip" or key == "ban.words":
+            print("请注意，本参数修改时 <value> 需要带引号并转义。")
+            print("例如，将 fuck 和 shit 设置为屏蔽词：")
+            print(r'  config set ban.words ["fuck", "shit"]')
+            print("该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
+            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                continue
         if not eval("isinstance({}, {})".format(value, CONFIG_TYPE_CHECK_TABLE[key])):
+            print("输入数据的类型与参数不匹配。")
             raise
         if CONFIG_TYPE_CHECK_TABLE[key] == "int" and int(value) <= 0:
+            print("输入的数值必须是正整数。")
             raise
         if CONFIG_TYPE_CHECK_TABLE[key] == "list":
             for item in eval(value):
                 if not isinstance(item, str):
+                    print("列表中的元素必须是 str（字符串）类型。")
                     raise
+            if len(eval(value)) != len(set(eval(value))):
+                print("列表中不能出现重复元素。")
+                raise
+        if key == "ban.words":
+            for item in eval(value):
+                if '\n' in item or '\r' in item or not item:
+                    print("屏蔽词列表中不能出现空串和换行符。")
+                    raise
+        if key == "ban.ip":
+            for item in eval(value):
+                if not check_ip(item):
+                    print("IP 黑名单中的元素 {} 不是有效的 IPv4 地址。".format(item))
+                    raise
+        if key == "general.server_ip" and not check_ip(eval(value)):
+            print("输入的服务器 IP 不是有效的 IPv4 地址。")
+            raise
+        if key == "general.server_port" and eval(value) >= 65536:
+            print("服务器端口号不能大于 65535。")
+            raise
         first, second = key.split('.')
         config[first][second] = eval(value)
         print("设置成功。")
@@ -457,6 +523,7 @@ class Server(cmd.Cmd):
         except:
             print("参数错误。")
             return
+        
         if arg[0] == 'add':
             if arg[1] <= 1 or arg[1] >= len(users) or users[arg[1]]['admin'] or not users[arg[1]]['joined'] or not users[arg[1]]['online']:
                 print("参数错误。")
@@ -466,6 +533,7 @@ class Server(cmd.Cmd):
             for i in range(len(users)):
                 if users[i]['joined'] and users[i]['online']:
                     send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.ADMIN.ANNOUNCE.ADD', 'uid': arg[1]}}))
+        
         if arg[0] == 'remove':
             if arg[1] <= 1 or arg[1] >= len(users) or not users[arg[1]]['admin'] or not users[arg[1]]['joined'] or not users[arg[1]]['online']:
                 print("参数错误。")
@@ -494,9 +562,11 @@ class Server(cmd.Cmd):
         if not arg[0] in ['show', 'get', 'set', 'save']:
             print("参数错误。")
             return
+        
         if arg[0] == 'show':
             print(CONFIG_LIST)
             return
+        
         if arg[0] == 'save':
             try:
                 with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -506,6 +576,7 @@ class Server(cmd.Cmd):
             except:
                 print("无法将参数保存到配置文件 {}，请稍后重试。".format(CONFIG_PATH))
             return
+        
         if arg[0] == 'get':
             if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
                 print("该参数不存在。")
@@ -513,35 +584,54 @@ class Server(cmd.Cmd):
             first, second = arg[1].split('.')
             print(config[first][second])
             return
+        
         if arg[0] == 'set':
             if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
                 print("该参数不存在。")
                 return
-            if arg[1] == 'general.server_ip' or arg[1] == 'general.server_port' or arg[1] == 'join.max_connections':
+            if arg[1] == "general.server_ip" or arg[1] == "general.server_port" or arg[1] == "join.max_connections":
                 print("不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
                 return
-            if arg[1] == 'general.enter_hint':
+            if arg[1] == "general.enter_hint":
                 print("请注意，本参数修改时 <value> 需要带引号并转义。")
                 print("例如，将进入提示设为英文 Hi there! 并且末尾换行：")
                 print(r'  config set general.enter_hint "Hi there!\n"')
                 if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
                     return
-            if arg[1] == 'ban.ip' or arg[1] == 'ban.words':
+            if arg[1] == "ban.ip" or arg[1] == "ban.words":
                 print("请注意，本参数修改时 <value> 需要带引号并转义。")
                 print("例如，将 fuck 和 shit 设置为屏蔽词：")
                 print(r'  config set ban.words ["fuck", "shit"]')
                 print("该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
                 if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
                     return
+            
             try:
                 if not eval("isinstance({}, {})".format(arg[2], CONFIG_TYPE_CHECK_TABLE[arg[1]])):
+                    print("输入数据的类型与参数不匹配。")
                     raise
                 if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0:
+                    print("输入的数值必须是正整数。")
                     raise
                 if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "list":
                     for item in eval(arg[2]):
                         if not isinstance(item, str):
+                            print("列表中的元素必须是 str（字符串）类型。")
                             raise
+                    if len(eval(arg[2])) != len(set(eval(arg[2]))):
+                        print("列表中不能出现重复元素。")
+                        raise
+                if arg[1] == "ban.words":
+                    for item in eval(arg[2]):
+                        if '\n' in item or '\r' in item or not item:
+                            print("屏蔽词列表中不能出现空串和换行符。")
+                            raise
+                if arg[1] == "ban.ip":
+                    for item in eval(arg[2]):
+                        if not check_ip(item):
+                            print("IP 黑名单中的元素 {} 不是有效的 IPv4 地址。".format(item))
+                            raise
+                
                 first, second = arg[1].split('.')
                 config[first][second] = eval(arg[2])
                 if arg[1] != 'ban.ip' and arg[1] != 'ban.words':
