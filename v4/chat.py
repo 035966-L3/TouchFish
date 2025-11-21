@@ -14,7 +14,7 @@ import requests
 from random import randint
 
 # 版本
-VERSION = "v4.0.0-prealpha.12"
+VERSION = "v4.0.0-prealpha.13"
 
 config = \
 {
@@ -413,6 +413,8 @@ def thread_send():
             break
         while not send_queue.empty():
             message = json.loads(send_queue.get())
+            if not users[message['to']]['status'] in ["Online", "Admin"]:
+                continue
             try:
                 users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
             except:
@@ -487,6 +489,29 @@ class Server(cmd.Cmd):
         for i in range(len(users)):
             print("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']))
     
+    def do_kick(self, arg):
+        """
+        使用方法 (~ 表示 kick):
+            ~ <uid>                 踢出某个用户
+        """
+        global log_queue
+        global send_queue
+        try:
+            arg = int(arg)
+        except:
+            print("参数错误：UID 必须是整数。")
+            return
+        if arg <= -1 or arg >= len(users):
+            print("UID 输入错误。")
+            return
+        if not users[arg]['status'] in ["Online", "Admin"]:
+            print("只能对状态为 Online 或 Admin 的用户操作。")
+            return
+        users[arg]['status'] = "Kicked"
+        log_queue.put(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg}}))
     
     def do_admin(self, arg):
         """
@@ -729,7 +754,6 @@ def send(id, text):
     p[id].send(bytes('{{"type": "CHAT.SEND", "content": "{}", "to": 0}}\n'.format(text), encoding="utf-8"))
 def stop(id):
     p[id].close()
-add(1, "x")
-add(2, "y")
-add(3, "z")
+for i in range(1, 6):
+    add(i, "User {}".format(i))
 """
