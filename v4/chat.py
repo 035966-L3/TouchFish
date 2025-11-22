@@ -13,7 +13,7 @@ import re
 import requests
 from random import randint
 
-VERSION = "v4.0.0-prealpha.16"
+VERSION = "v4.0.0-prealpha.17"
 
 config = \
 {
@@ -305,14 +305,60 @@ class Server(cmd.Cmd):
         """
         显示聊天室内的用户
         """
-        admin = []
-        online = []
-        pending = []
-        offline = []
-        
         print(" UID  IP                        状态      用户名") 
         for i in range(len(users)):
             print("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']))
+    
+    def do_doorman(self, arg):
+        """
+        使用方法 (~ 表示 doorman):
+            ~ accept <uid>          通过某个用户的加入申请
+            ~ reject <uid>          拒绝某个用户的加入申请
+        """
+        global log_queue
+        global send_queue
+        global online_count
+        arg = arg.split()
+        try:
+            arg[1] = int(arg[1])
+        except:
+            print("参数错误：UID 必须是整数。")
+            return
+        if not arg[0] in ['accept', 'reject']:
+            print("参数错误：第一个参数必须是 accept 和 reject 中的某一项。")
+            return
+        if arg[1] <= -1 or arg[1] >= len(users):
+            print("UID 输入错误。")
+            return
+        if users[arg[1]]['status'] != "Pending":
+            print("只能对状态为 Pending 的用户操作。")
+            if users[arg[1]]['status'] in ["Online", "Admin"] and arg[0] == "reject":
+                print("你似乎想要踢出该用户，请使用以下命令：kick {}".format(arg))
+            return
+        
+        if arg[0] == "accept":
+            send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True}}))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1]}}))
+            users[arg[1]]['status'] = "Online"
+            users_abstract = []
+            for i in range(len(users)):
+                users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
+            send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': arg[1], 'config': config, 'users': users_abstract, 'chat_history': history}}))
+        
+        if arg[0] == "reject":
+            users[arg[1]]['status'] = "Rejected"
+            users[arg[1]]['body'].send(bytes(json.dumps({'type': 'GATE.REVIEW_RESULT', 'accepted': False}) + "\n", encoding="utf-8"))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': arg[1], 'operator': 0}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1]}}))
+            users[arg[1]]['body'].close()
+            online_count -= 1
+            
+        print("操作成功。")
     
     def do_kick(self, arg):
         """
@@ -332,12 +378,14 @@ class Server(cmd.Cmd):
             return
         if not users[arg]['status'] in ["Online", "Admin"]:
             print("只能对状态为 Online 或 Admin 的用户操作。")
+            if users[arg]['status'] == "Pending":
+                print("你似乎想要拒绝该用户的加入申请，请使用以下命令：doorman reject {}".format(arg))
             return
-        users[arg]['status'] = "Kicked"
         log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg}}))
+        users[arg]['status'] = "Kicked"
         online_count -= 1
         print("操作成功。")
     
@@ -611,7 +659,6 @@ def thread_gate():
         conntmp, addresstmp = None, None
         try:
             conntmp, addresstmp = s.accept()
-            print(addresstmp)
             conntmp.setblocking(False)
         except:
             continue
@@ -673,8 +720,6 @@ def thread_gate():
             users[uid]['status'] = "Rejected"
             users[uid]['body'].close()
             continue
-        
-        users[uid]['body'].setblocking(False)
         if platform.system() != "Windows":
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
@@ -682,14 +727,14 @@ def thread_gate():
         else:
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+        online_count += 1
         
         if result == "Accepted":
             users[uid]['status'] = "Online"
-            online_count += 1
             users_abstract = []
             for i in range(len(users)):
                 users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
-            users[uid]['body'].send(bytes(json.dumps({'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history }) + "\n", encoding="utf-8"))
+            users[uid]['body'].send(bytes(json.dumps({'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history}) + "\n", encoding="utf-8"))
 
 def thread_receive():
     global receive_queue
@@ -738,7 +783,7 @@ def thread_send():
             except:
                 users[message['to']]['status'] = "Offline"
                 online_count -= 1
-                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': -1}))
+                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': message['to']}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to']}}))
@@ -779,7 +824,7 @@ def thread_check():
                     users[i]['status'] = "Offline"
                     down.append(i)
                     online_count -= 1
-                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': -1}))
+                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': i}))
         for i in down:
             for j in range(len(users)):
                 if users[j]['status'] in ["Online", "Admin"]:
@@ -815,8 +860,6 @@ THREAD_CHECK.start()
 
 # Test Script
 """
-import requests
-requests.get("http://127.0.0.1:8080")
 import socket
 import time
 p = [None] * 20
@@ -830,6 +873,6 @@ def send(id, text):
     p[id].send(bytes('{{"type": "CHAT.SEND", "content": "{}", "to": 0}}\n'.format(text), encoding="utf-8"))
 def stop(id):
     p[id].close()
-for i in range(1, 6):
+for i in range(1, 4):
     add(i, "User {}".format(i))
 """

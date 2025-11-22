@@ -10,7 +10,7 @@
   1.5 Kick Request
     { type: "GATE.KICK_REQUEST", uid: number } // number: positive integer
   1.6 Incorrect Protocol
-    { type: "GATE.INCORRECT_PROTOCOL", time: time, ip: ip } // time: rounded to millisecond, ip: IPv4 with port ID
+    { type: "GATE.INCORRECT_PROTOCOL", time: time, ip: ip } // time: rounded to microseconds, ip: IPv4 with port ID
   1.7 Client Request
     1.7.1 Announce
       { type: "GATE.CLIENT_REQUEST.ANNOUNCE", username: string, uid: number, result: "Accepted" | "Pending review" | "IP is banned" | "Room is full" | "Duplicate usernames" | "Username consists of banned words" }
