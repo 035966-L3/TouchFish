@@ -1,22 +1,26 @@
-1 Join
+1 Gate
   1.1 Request
-    { type: "JOIN.REQUEST", username: string } // string: non-empty
+    { type: "GATE.REQUEST", username: string } // string: non-empty
   1.2 Response
-    1.2.1 Fetched
-      { type: "JOIN.RESPONSE.FETCHED" }
-    1.2.2 Accepted
-      { type: "JOIN.RESPONSE.ACCEPTED", server_version: string, uid: number, operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "Automatically accepted", uid: -1 }, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root" }, chat_history: { time: time, uid: number, content: string }, public messages only
-    1.2.3 Rejected
-      { type: "JOIN.RESPONSE.REJECTED", operator: { username: string, uid: number } | { username: "Room owner", uid: 0 } | { username: "IP is banned", uid: -1 } | { username: "Room is full", uid: -2 } | { username: "Duplicate usernames", uid: -3 } | { username: "Username consists of banned words", uid: -4 } }
-  1.3 Enter Confirmation
-    { type: "JOIN.ENTER_CONFIRMATION", uid: number, accepted: boolean }
-  1.4 Incorrect Protocol
-    { type: "JOIN.INCORRECT_PROTOCOL", time: time, ip: ip }
-  1.5 Client Request
-    1.5.1 Announce
-      { type: "JOIN.CLIENT_REQUEST.ANNOUNCE", username: string, uid: number }
-    1.5.2 Log
-      { type: "JOIN.CLIENT_REQUEST.LOG", time: time, ip: ip, username: string, uid: number }
+    { type: "GATE.RESPONSE", result: "Accepted" | "Pending review" | "IP is banned" | "Room is full" | "Duplicate usernames" | "Username consists of banned words" }
+  1.3 Review Result
+    { type: "GATE.REVIEW_RESULT", accepted: boolean }
+  1.4 Enter Confirmation
+    { type: "GATE.ENTER_CONFIRMATION", uid: number, accepted: boolean }
+  1.5 Kick Request
+    { type: "GATE.KICK_REQUEST", uid: number } // number: positive integer
+  1.6 Incorrect Protocol
+    { type: "GATE.INCORRECT_PROTOCOL", time: time, ip: ip } // time: rounded to millisecond, ip: IPv4 with port ID
+  1.7 Client Request
+    1.7.1 Announce
+      { type: "GATE.CLIENT_REQUEST.ANNOUNCE", username: string, uid: number, result: "Accepted" | "Pending review" | "IP is banned" | "Room is full" | "Duplicate usernames" | "Username consists of banned words" }
+    1.7.2 Log
+      { type: "GATE.CLIENT_REQUEST.LOG", time: time, ip: ip, username: string, uid: number }
+  1.8 Status Change Hint
+    1.8.1 Announce
+      { type: "GATE.STATUS_CHANGE_HINT.ANNOUNCE", status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
+    1.8.2 Log
+      { type: "GATE.STATUS_CHANGE_HINT.LOG", time: time, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number, operator: number | 0 | -1 } // 0: root, -1: system
 
 
 2 Chat
@@ -65,24 +69,19 @@
         { type: "FILE_TRANSFER.LOG.TRANSFERRING.FINISH", time: time, uid: number, order: number, expected_data_length: number | 0, received: [number, ...], not_received: [number, ...] } // expected_data_length = 0 for sender issues (all failed); UID in lists
 
 
-4 Misc
-  4.1 Server Start
-    { type: "MISC.SERVER_START", time: time, server_version: string, config: JSON }
-  4.2 Server Stop
-    { type: "MISC.SERVER_STOP", time: time }
-  4.3 Kick Request
-    { type: "MISC.KICK_REQUEST", uid: number }
-  4.4 Status Change Hint
-    4.4.1 Announce
-      { type: "MISC.STATUS_CHANGE_HINT.ANNOUNCE", status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
-    4.4.2 Log
-      { type: "MISC.STATUS_CHANGE_HINT.LOG", time: time, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number, operator: number | 0 | -1 | -2 | -3 | -4 }
-  4.5 Config
-    4.5.1 Post
-      { type: "MISC.CONFIG.POST", key: string, value: any }
-    4.5.2 Change
-      { type: "MISC.CONFIG.CHANGE", key: string, value: any }
-    4.5.3 Save
-      { type: "MISC.CONFIG.SAVE", time: time }
-    4.5.4 Log
-      { type: "MISC.CONFIG.LOG", time: time, operator: number | 0, key: string, value: any }
+4 Server
+  4.1 Start
+    { type: "SERVER.START", time: time, server_version: string, config: JSON }
+  4.2 Stop
+    { type: "SERVER.STOP", time: time }
+  4.3 Data
+    { type: "SERVER.DATA", server_version: string, uid: number, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root" }, chat_history: { time: time, uid: number, content: string }, public messages only
+  4.4 Config
+    4.4.1 Post
+      { type: "SERVER.CONFIG.POST", key: string, value: any }
+    4.4.2 Change
+      { type: "SERVER.CONFIG.CHANGE", key: string, value: any }
+    4.4.3 Save
+      { type: "SERVER.CONFIG.SAVE", time: time }
+    4.4.4 Log
+      { type: "SERVER.CONFIG.LOG", time: time, operator: number | 0, key: string, value: any }
