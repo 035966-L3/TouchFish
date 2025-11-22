@@ -13,7 +13,7 @@ import re
 import requests
 from random import randint
 
-VERSION = "v4.0.0-prealpha.14"
+VERSION = "v4.0.0-prealpha.15"
 
 config = \
 {
@@ -179,6 +179,16 @@ while True:
         if key == "general.server_port" and eval(value) >= 65536:
             print("服务器端口号不能大于 65535。")
             raise
+        if key == "file.allow_private" and eval(value) and not config['file']['allow_any']:
+            print("请注意，仅将 file.allow_private 参数设置为 True 是无效的，")
+            print("因为 file.allow_any 参数被设置为 False。")
+            if not input("是否要同时将 file.allow_any 参数设置为 True？[Y/n] ") in ['n', 'N']:
+                config['file']['allow_any'] = True
+        if key == "file.allow_any" and config['file']['allow_private'] and not eval(value):
+            print("请注意，当前 file.allow_private 参数被设置为 True，")
+            print("它将在 file.allow_any 参数被设置为 False 后失效。")
+            if not input("是否要同时将 file.allow_private 参数设置为 False？[Y/n] ") in ['n', 'N']:
+                config['file']['allow_private'] = False
         first, second = key.split('.')
         config[first][second] = eval(value)
         print("操作成功。")
@@ -216,22 +226,9 @@ s.listen(config['join']['max_connections'])
 s.setblocking(False)
 
 users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": "root", "status": "Root"}]
-a = socket.socket()
-a.connect(("127.0.0.1", config['general']['server_port']))
-users[0]['body'], users[0]['ip'] = s.accept()
-# 心跳包防止断连
-if platform.system() == "Windows":
-    users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-    users[0]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
-else:
-    users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-    users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
-    users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 
 with open("./log.txt", "a", encoding="utf-8") as file:
     file.write(json.dumps({'type': 'MISC.SERVER_START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
-    file.write(json.dumps({'type': 'JOIN.CLIENT_REQUEST.LOG', 'time': time_str(), 'ip': users[0]['ip'], 'username': 'root', 'uid': 0}) + "\n")
-    file.write(json.dumps({'type': 'MISC.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Root', 'uid': 0, 'operator': -1}) + "\n")
 
 WEBPAGE_CONTENT = \
 """
@@ -261,8 +258,9 @@ INTRODUCTION_TEMPLATE = \
 具体的使用指南，参见 help <你想用的命令>。
 详细的使用指南，见 wiki：
 https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
+用户列表中的 root 用户（UID = 0）代指本服务端程序自身，不计入连接数限制。
 配置文件位于目录下的 ./config.json。
-用户列表中的 root 用户（UID = 0）代指本服务端程序自身。
+
 """
 
 EXIT_FLAG = False
@@ -468,13 +466,31 @@ class Server(cmd.Cmd):
                         if not check_ip(item):
                             print("IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
                             raise
+                if arg[1] == "file.allow_private" and eval(arg[2]) and not config['file']['allow_any']:
+                    print("请注意，仅将 file.allow_private 参数设置为 True 是无效的，")
+                    print("因为 file.allow_any 参数被设置为 False。")
+                    if not input("是否要同时将 file.allow_any 参数设置为 True？[Y/n] ") in ['n', 'N']:
+                        config['file']['allow_any'] = True
+                        log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'file.allow_any', 'value': True}))
+                        for i in range(len(users)):
+                            if users[i]['status'] in ["Online", "Admin"]:
+                                send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': 'file.allow_any', 'value': True}}))
+                if arg[1] == "file.allow_any" and config['file']['allow_private'] and not eval(arg[2]):
+                    print("请注意，当前 file.allow_private 参数被设置为 True，")
+                    print("它将在 file.allow_any 参数被设置为 False 后失效。")
+                    if not input("是否要同时将 file.allow_private 参数设置为 False？[Y/n] ") in ['n', 'N']:
+                        config['file']['allow_private'] = False
+                        log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'file.allow_private', 'value': False}))
+                        for i in range(len(users)):
+                            if users[i]['status'] in ["Online", "Admin"]:
+                                send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': 'file.allow_private', 'value': False}}))
                 
                 first, second = arg[1].split('.')
                 config[first][second] = eval(arg[2])
-                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {first: {second: eval(arg[2])}}}))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': first + '.' + second, 'value': eval(arg[2])}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {first: {second: eval(arg[2])}}}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[2])}}))
                 print("操作成功。")
             except:
                 print("命令格式不正确，请重试。")
@@ -513,18 +529,18 @@ class Server(cmd.Cmd):
             if arg[1] == 'add':
                 ips = [item for item in ips if item not in config['ban']['ip']]
                 config['ban']['ip'] += ips
-                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'ip': config['ban']['ip']}}}))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.ip', 'value': config['ban']['ip']}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'ip': config['ban']['ip']}}}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip']}}))
                 print("操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
             if arg[1] == 'remove':
                 ips = [item for item in ips if item in config['ban']['ip']]
                 config['ban']['ip'] = [item for item in config['ban']['ip'] if not item in ips]
-                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'ip': config['ban']['ip']}}}))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.ip', 'value': config['ban']['ip']}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'ip': config['ban']['ip']}}}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip']}}))
                 print("操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
         if arg[0] == 'words':
             if '\n' in item or '\r' in item or not item:
@@ -541,20 +557,20 @@ class Server(cmd.Cmd):
                     print("该屏蔽词已经在列表中出现了。")
                     return
                 config['ban']['words'].append(arg[2])
-                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'words': config['ban']['words']}}}))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.words', 'value': config['ban']['words']}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'words': config['ban']['words']}}}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words']}}))
                 print("操作成功。")
             if arg[1] == 'remove':
                 if not arg[2] in config['ban']['words']:
                     print("该屏蔽词不在列表中。")
                     return
                 config['ban']['words'].remove(arg[2])
-                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'changelog': {'ban': {'words': config['ban']['words']}}}))
+                log_queue.put(json.dumps({'type': 'MISC.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.words', 'value': config['ban']['words']}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'changelog': {'ban': {'words': config['ban']['words']}}}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'MISC.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words']}}))
                 print("操作成功。")
     
     def do_exit(self, arg):
@@ -591,7 +607,7 @@ def thread_join():
         except:
             continue
         
-        time.sleep(3)
+        time.sleep(2)
         data = ""
         while True:
             try:
@@ -778,7 +794,7 @@ def thread_check():
         timer -= 1
         if timer:
             continue
-        timer = 10
+        timer = 5
         down = []
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin"]:
