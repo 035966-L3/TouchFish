@@ -11,9 +11,8 @@ import queue
 import os
 import re
 import requests
-from random import randint
 
-VERSION = "v4.0.0-prealpha.18"
+VERSION = "v4.0.0-prealpha.19"
 
 config = \
 {
@@ -24,7 +23,7 @@ config = \
     "file": {"allow_any": True, "allow_private": True, "max_size": 4294967296}
 }
 
-CONFIG_PATH = "config.json"
+CONFIG_PATH = "config_server.json"
 
 CONFIG_TYPE_CHECK_TABLE = \
 {
@@ -264,7 +263,7 @@ INTRODUCTION_TEMPLATE = \
 详细的使用指南，见 wiki：
 https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
 用户列表中的 root 用户（UID = 0）代指本服务端程序自身，不计入连接数限制。
-配置文件位于目录下的 ./config.json。
+配置文件位于目录下的 ./config_server.json。
 
 """
 
@@ -726,7 +725,7 @@ def thread_gate():
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-        else:
+        if platform.system() == "Windows":
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
         online_count += 1

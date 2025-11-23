@@ -29,23 +29,23 @@
   2.2 Receive
     { type: "CHAT.RECEIVE", sender: number, content: string, broadcast: boolean, private: boolean }
   2.3 Sending Result
-    { type: "CHAT.SENDING_RESULT", sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Receiver cannot be the same as sender" | "Private messages forbidden" | "Only admins can broadcast" }
+    { type: "CHAT.SENDING_RESULT", success: boolean }
   2.4 Log
-    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0 | -1, sending_result: "Success" | "Too long" | "Consists of banned words" | "Receiver is offline" | "Receiver cannot be the same as sender" | "Private messages forbidden" | "Only admins can broadcast" }
+    { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0 | -1, success: boolean }
 
 
 3 File Transfer
   3.1 Request
     { type: "FILE_TRANSFER.REQUEST", order: number, filename: string, size: number, to: number | 0 } // order: count for each user, start from 1
   3.2 Response
-    { type: "FILE_TRANSFER.RESPONSE", response: "Approved" | "Too large" | "Server is busy" | "Filename consists of banned words" | "Receiver is offline" | "File transfer forbidden" | "Private file transfer forbidden" }
+    { type: "FILE_TRANSFER.RESPONSE", success: boolean }
   3.3 Announce
     { type: "FILE_TRANSFER.ANNOUNCE", uid: number, order: number, filename: string, size: number, private: boolean }
   3.4 New Sockets
     3.4.1 Request
       { type: "FILE_TRANSFER.NEW_SOCKETS.REQUEST", uid: number, order: number }
     3.4.2 Response
-      { type: "FILE_TRANSFER.NEW_SOCKETS.RESPONSE", response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
+      { type: "FILE_TRANSFER.NEW_SOCKETS.RESPONSE", success: boolean }
   3.5 Transferring
     3.5.1 Start
       { type: "FILE_TRANSFER.TRANSFERRING.START" }
@@ -57,9 +57,9 @@
       { type: "FILE_TRANSFER.TRANSFERRING.CONFIRM_RECEIVED" }
   3.6 Log
     3.6.1 Request
-      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, order: number, filename: string, size: number, to: number | 0, response: "Approved" | "Too large" | "Server is busy" | "Filename consists of banned words" | "Receiver is offline" | "File transfer forbidden" | "Private file transfer forbidden" }
+      { type: "FILE_TRANSFER.LOG.REQUEST", time: time, uid: number, order: number, filename: string, size: number, to: number | 0, success: boolean }
     3.6.2 New Sockets
-      { type: "FILE_TRANSFER.LOG.NEW_SOCKETS", time: time, ip: ip, uid: number, order: number, response: "OK" | "User not found" | "IP mismatched" | "File not found" | "File is not for you" }
+      { type: "FILE_TRANSFER.LOG.NEW_SOCKETS", time: time, ip: ip, uid: number, order: number, success: boolean }
     3.6.3 Transferring
       3.6.3.1 Start
         { type: "FILE_TRANSFER.LOG.TRANSFERRING.START", time: time, uid: number, order: number, new_sockets: { stringify(number): ip, ... } } // stringify(UID): new socket
@@ -75,7 +75,7 @@
   4.2 Stop
     { type: "SERVER.STOP", time: time }
   4.3 Data
-    { type: "SERVER.DATA", server_version: string, uid: number, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root" }, chat_history: { time: time, uid: number, content: string }, public messages only
+    { type: "SERVER.DATA", server_version: string, uid: number, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root" }, chat_history: { time: time, uid: number, content: string, broadcast: boolean, private: boolean }, public messages only
   4.4 Config
     4.4.1 Post
       { type: "SERVER.CONFIG.POST", key: string, value: any }
