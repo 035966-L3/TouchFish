@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.24"
+VERSION = "v4.0.0-prealpha.25"
 
 COLORS = \
 {
@@ -242,6 +242,17 @@ def enter():
             break
     return message
 
+def announce(uid):
+    first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
+    if uid == my_uid:
+        first_line += dye(" [您发送的]", "blue")
+    first_line += dye(" [公告]", "red")
+    first_line += " "
+    first_line += dye("@", "black")
+    first_line += dye(users[uid]['username'], "yellow")
+    first_line += dye(":", "black")
+    prints(first_line)
+
 def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
     if message['uid'] == my_uid:
@@ -252,7 +263,7 @@ def print_message(message):
         first_line += dye(" [私聊]", "green")
     first_line += " "
     first_line += dye("@", "black")
-    first_line += dye(users[message['uid']], "yellow")
+    first_line += dye(users[message['uid']]['username'], "yellow")
     if message['to'] >= 1:
         first_line += dye(" -> ", "green")
         first_line += dye("@", "black")
@@ -286,7 +297,32 @@ if config['general']['enter_hint']:
     first_line += dye(":", "black")
     prints(first_line)
     prints(config['general']['enter_hint'], "white")
-    
+
+def process(message):
+    if message['type'] == "CHAT.RECEIVE":
+        message['time'] = str(datetime.datetime.now())
+        print_message(message)
+        return
+    if message['type'] == "GATE.CLIENT_REQUEST.ANNOUNCE":
+        announce(0)
+        prints("用户 {} (UID = {}) 请求加入聊天室，请求结果：".format(message['username'], message['uid']) + message['result'], "cyan")
+        users.append({'username': message['username'], 'status': "Rejected"})
+        if message['result'] == "Pending review":
+            users[message['uid']]['status'] = "Pending"
+        if message['result'] == "Accepted":
+            users[message['uid']]['status'] = "Online"
+        return
+    if message['type'] == "GATE.STATUS_CHANGE_HINT.ANNOUNCE":
+        announce(0)
+        prints("用户 {} (UID = {}) 的状态变更为：".format(users[message['uid']]['username'], message['uid']) + message['status'], "cyan")
+        users[message['uid']]['status'] = message['status']
+        return
+    if message['type'] == "SERVER.CONFIG.CHANGE":
+        announce(message['operator'])
+        prints("配置项 {} 变更为：".format(message['key']) + str(message['value']), "cyan")
+        config[message['key'].split('.')[0]][message['key'].split('.')[1]] = message['value']
+        return
+
 def thread_input():
     global blocked
     global EXIT_FLAG
@@ -303,7 +339,7 @@ def thread_input():
             print("命令输入错误。\n\033[8;30m", end="")
             continue
         if command.split()[0] == "exit":
-            print("\033[0m\033[1;35m再见！\033[0m")
+            print("\033[0m\033[1;36m再见！\033[0m")
             EXIT_FLAG = True
             sys.exit(0)
             exit()
@@ -382,7 +418,7 @@ def thread_output():
         message = get_message()
         if not message:
             continue
-        print(dye(json.dumps(message), "white")) # test only
+        process(message)
 
 THREAD_INPUT = threading.Thread(target=thread_input)
 THREAD_OUTPUT = threading.Thread(target=thread_output)

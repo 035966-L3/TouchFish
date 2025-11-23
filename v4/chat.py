@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.24"
+VERSION = "v4.0.0-prealpha.25"
 
 config = \
 {
@@ -272,7 +272,6 @@ log_queue = queue.Queue()
 receive_queue = queue.Queue()
 send_queue = queue.Queue()
 history = []
-all_history = []
 online_count = 0
 
 
