@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.20"
+VERSION = "v4.0.0-prealpha.21"
 
 COLORS = \
 {
@@ -31,10 +31,10 @@ connection = None
 username = ""
 ip = ""
 port = 0
-bell = False
 buffer = ""
 print_queue = queue.Queue()
 blocked = False
+EXIT_FLAG = False
 
 def clear_screen():
     if platform.system() == 'Windows':
@@ -55,6 +55,9 @@ def prints(text, color_code=None):
     if blocked:
         print_queue.put(dye(text, color_code))
 
+def printf(text, color_code=None):
+    print(dye(text, color_code))
+
 clear_screen()
 prints("欢迎使用 TouchFish 聊天室客户端！", "yellow")
 try:
@@ -67,11 +70,11 @@ prints("请连接聊天室。", "yellow")
 try:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         tmp_config = json.load(f)
-        config = {'ip': tmp_config['ip'], 'port': tmp_config['port'], 'username': tmp_config['username'], 'bell': tmp_config['bell']}
+        config = {'ip': tmp_config['ip'], 'port': tmp_config['port'], 'username': tmp_config['username']}
         if not config['username']:
             config['username'] = 'user'
 except:
-    config = {'ip': '127.0.0.1', 'port': 8080, 'username': 'user', 'bell': True}
+    config = {'ip': '127.0.0.1', 'port': 8080, 'username': 'user'}
 
 ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip'])).strip()
 ip = ip if ip else config['ip']
@@ -113,6 +116,9 @@ def read():
             buffer += chunk
         except BlockingIOError:
             break
+        except Exception as e:
+            return e
+    return None
 
 def get_message():
     global buffer
@@ -124,7 +130,12 @@ def get_message():
             message = ""
     return json.loads(message)
 
-read()
+a = read()
+if a:
+    prints("发生错误：{}".format(a), "red")
+    prints("连接失败。", "red")
+    input()
+    sys.exit(1)
 
 try:
     message = get_message()
@@ -155,21 +166,26 @@ if message['result'] == "Pending review":
     prints("服务端需要对连接请求进行人工审核，请等待...", "white")
     while True:
         try:
-            read()
+            a = read()
+            if a:
+                prints("发生错误：{}".format(a), "red")
+                prints("连接失败。", "red")
+                input()
+                sys.exit(1)
             message = get_message()
             if not message['accepted']:
-                prints("服务端拒绝了您的连接请求。", "red")
+                prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
                 prints("连接失败。", "red")
                 input()
                 sys.exit(1)
             if message['accepted']:
-                prints("服务端通过了您的连接请求。", "green")
+                prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
                 prints("连接成功！", "green")
                 break
         except:
             pass
 
-config = {'ip': ip, 'port': port, 'username': username, 'bell': bell}
+config = {'ip': ip, 'port': port, 'username': username}
 
 try:
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -177,11 +193,17 @@ try:
 except:
     pass
 
-prints("本次连接中输入的参数已经保存到配置文件 {}，下次连接时将自动加载。".format(CONFIG_PATH), "cyan")
-prints("进入聊天室后，按换行符唤醒命令行，输入 help 获取帮助。", "cyan")
 prints("5 秒后将进入聊天室...", "cyan")
+prints("本次连接中输入的参数已经保存到配置文件 {}，下次连接时将自动加载。".format(CONFIG_PATH), "cyan")
+prints("进入聊天室后，按换行符唤醒命令行：", "cyan")
+print()
+prints("    exit             退出聊天室", "blue")
+prints("    info             展示聊天室信息", "blue")
+prints("    send             发送消息", "blue")
+prints("    whisper <uid>    发送私聊消息", "blue")
+print()
 time.sleep(5)
-clear_screen()
+
 
 CONFIG_LIST = \
 """
@@ -224,29 +246,33 @@ def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
     if message['uid'] == my_uid:
         first_line += dye(" [您发送的]", "blue")
-    if message['broadcast']:
+    if message['to'] == -1:
         first_line += dye(" [广播]", "red")
-    if message['private']:
+    if message['to'] >= 1:
         first_line += dye(" [私聊]", "green")
     first_line += " "
     first_line += dye("@", "black")
     first_line += dye(users[message['uid']], "yellow")
+    if message['to'] >= 1:
+        first_line += dye(" -> ", "green")
+        first_line += dye("@", "black")
+        first_line += dye(users[message[message['to']]], "yellow")
     first_line += dye(":", "black")
     prints(first_line)
     prints(message['content'], "white")
 
 def print_info():
-    prints("=" * 70, "black")
-    prints("服务端版本：" + server_version, "black")
-    prints("您的 UID：" + str(my_uid), "black")
-    prints("聊天室参数及具体用户信息详见下表。", "black")
-    prints("=" * 70, "black")
-    prints(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']), "black")
-    prints("=" * 70, "black")
-    prints(" UID  状态      用户名", "black")
+    printf("=" * 70, "black")
+    printf("服务端版本：" + server_version, "black")
+    printf("您的 UID：" + str(my_uid), "black")
+    printf("聊天室参数及具体用户信息详见下表。", "black")
+    printf("=" * 70, "black")
+    printf(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']), "black")
+    printf("=" * 70, "black")
+    printf(" UID  状态      用户名", "black")
     for i in range(len(users)):
-        prints("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
-    prints("=" * 70, "black")
+        printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
+    printf("=" * 70, "black")
 
 for i in first_data['chat_history']:
     print_message(i)
@@ -261,5 +287,57 @@ if config['general']['enter_hint']:
     prints(first_line)
     prints(config['general']['enter_hint'], "white")
     
-while True:
-    input()
+def thread_input():
+    global blocked
+    global EXIT_FLAG
+    while True:
+        input()
+        blocked = True
+        command = input("\033[0m\033[1;30m")
+        while not command:
+            command = input("\033[0m\033[1;30m")
+        if not command.split()[0] in ['exit', 'info', 'send', 'whisper']:
+            print("命令输入错误。\n\033[8;30m", end="")
+            continue
+        if command.split()[0] == "exit":
+            print("\033[0m\033[1;35m再见！\033[0m")
+            EXIT_FLAG = True
+            sys.exit(0)
+            exit()
+            break
+        if command.split()[0] == "info":
+            print_info()
+            print("\033[8;30m", end="")
+            blocked = False
+            continue
+        if command.split()[0] == "send":
+            # To be done
+            print("\033[8;30m", end="")
+            blocked = False
+            continue
+        if command.split()[0] == "whisper":
+            # To be done
+            print("\033[8;30m", end="")
+            blocked = False
+            continue
+
+def thread_output():
+    global EXIT_FLAG
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        a = read()
+        if a:
+            prints("发生错误：{}".format(a), "red")
+            input()
+            sys.exit(1)
+        message = get_message()
+        print(dye(json.dumps(message), "white")) # test only
+
+THREAD_INPUT = threading.Thread(target=thread_input)
+THREAD_OUTPUT = threading.Thread(target=thread_output)
+
+THREAD_INPUT.start()
+THREAD_OUTPUT.start()

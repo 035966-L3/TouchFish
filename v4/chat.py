@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.20"
+VERSION = "v4.0.0-prealpha.21"
 
 config = \
 {
@@ -262,7 +262,7 @@ INTRODUCTION_TEMPLATE = \
 具体的使用指南，参见 help <您想用的命令>。
 详细的使用指南，见 wiki：
 https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
-用户列表中的 root 用户（UID = 0）代指本服务端程序自身，不计入连接数限制。
+用户列表中的 root 用户 (UID = 0) 代指本服务端程序自身，不计入连接数限制。
 配置文件位于目录下的 ./{}。
 
 """
@@ -336,11 +336,11 @@ class Server(cmd.Cmd):
             return
         
         if arg[0] == "accept":
-            send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True}}))
+            send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True, 'operator': {'username': 'root', 'uid': 0}}}))
             log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1]}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
             users[arg[1]]['status'] = "Online"
             users_abstract = []
             for i in range(len(users)):
@@ -349,11 +349,11 @@ class Server(cmd.Cmd):
         
         if arg[0] == "reject":
             users[arg[1]]['status'] = "Rejected"
-            users[arg[1]]['body'].send(bytes(json.dumps({'type': 'GATE.REVIEW_RESULT', 'accepted': False}) + "\n", encoding="utf-8"))
+            users[arg[1]]['body'].send(bytes(json.dumps({'type': 'GATE.REVIEW_RESULT', 'accepted': False, 'operator': {'username': 'root', 'uid': 0}}) + "\n", encoding="utf-8"))
             log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1]}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1], 'operator': 0}}))
             users[arg[1]]['body'].close()
             online_count -= 1
             
@@ -383,7 +383,7 @@ class Server(cmd.Cmd):
         log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg}}))
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': 0}}))
         users[arg]['status'] = "Kicked"
         online_count -= 1
         print("操作成功。")
@@ -417,7 +417,7 @@ class Server(cmd.Cmd):
             log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Admin', 'uid': arg[1]}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Admin', 'uid': arg[1], 'operator': 0}}))
         
         if arg[0] == 'remove':
             if arg[1] <= 0 or arg[1] >= len(users):
@@ -430,7 +430,7 @@ class Server(cmd.Cmd):
             log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1]}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
         print("操作成功。")
     
     def do_config(self, arg):
@@ -516,26 +516,26 @@ class Server(cmd.Cmd):
                     print("因为 file.allow_any 参数被设置为 False。")
                     if not input("是否要同时将 file.allow_any 参数设置为 True？[Y/n] ") in ['n', 'N']:
                         config['file']['allow_any'] = True
-                        log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'file.allow_any', 'value': True}))
+                        log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'file.allow_any', 'value': True, 'operator': 0}))
                         for i in range(len(users)):
                             if users[i]['status'] in ["Online", "Admin"]:
-                                send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'file.allow_any', 'value': True}}))
+                                send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'file.allow_any', 'value': True, 'operator': 0}}))
                 if arg[1] == "file.allow_any" and config['file']['allow_private'] and not eval(arg[2]):
                     print("请注意，当前 file.allow_private 参数被设置为 True，")
                     print("它将在 file.allow_any 参数被设置为 False 后失效。")
                     if not input("是否要同时将 file.allow_private 参数设置为 False？[Y/n] ") in ['n', 'N']:
                         config['file']['allow_private'] = False
-                        log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'file.allow_private', 'value': False}))
+                        log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'file.allow_private', 'value': False, 'operator': 0}))
                         for i in range(len(users)):
                             if users[i]['status'] in ["Online", "Admin"]:
-                                send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'file.allow_private', 'value': False}}))
+                                send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'file.allow_private', 'value': False, 'operator': 0}}))
                 
                 first, second = arg[1].split('.')
                 config[first][second] = eval(arg[2])
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': first + '.' + second, 'value': eval(arg[2])}))
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[2])}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': 0}}))
                 print("操作成功。")
             except:
                 print("命令格式不正确，请重试。")
@@ -574,18 +574,18 @@ class Server(cmd.Cmd):
             if arg[1] == 'add':
                 ips = [item for item in ips if item not in config['ban']['ip']]
                 config['ban']['ip'] += ips
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.ip', 'value': config['ban']['ip']}))
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip']}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}}))
                 print("操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
             if arg[1] == 'remove':
                 ips = [item for item in ips if item in config['ban']['ip']]
                 config['ban']['ip'] = [item for item in config['ban']['ip'] if not item in ips]
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.ip', 'value': config['ban']['ip']}))
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip']}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}}))
                 print("操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
         if arg[0] == 'words':
             if '\n' in item or '\r' in item or not item:
@@ -602,20 +602,20 @@ class Server(cmd.Cmd):
                     print("该屏蔽词已经在列表中出现了。")
                     return
                 config['ban']['words'].append(arg[2])
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.words', 'value': config['ban']['words']}))
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words']}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}}))
                 print("操作成功。")
             if arg[1] == 'remove':
                 if not arg[2] in config['ban']['words']:
                     print("该屏蔽词不在列表中。")
                     return
                 config['ban']['words'].remove(arg[2])
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'operator': 0, 'key': 'ban.words', 'value': config['ban']['words']}))
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words']}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}}))
                 print("操作成功。")
     
     def do_exit(self, arg):
@@ -775,10 +775,10 @@ def thread_send():
             except:
                 users[message['to']]['status'] = "Offline"
                 online_count -= 1
-                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': message['to']}))
+                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to']}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
 
 def thread_log():
     global log_queue
@@ -816,11 +816,11 @@ def thread_check():
                     users[i]['status'] = "Offline"
                     down.append(i)
                     online_count -= 1
-                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': i}))
+                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': 0}))
         for i in down:
             for j in range(len(users)):
                 if users[j]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': i}}))
+                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': i, 'operator': 0}}))
 
 
 
