@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.25"
+VERSION = "v4.0.0-prealpha.26"
 
 COLORS = \
 {
@@ -47,10 +47,15 @@ def dye(text, color_code):
         return "\033[0m\033[1;3{}m{}\033[8;30m".format(COLORS[color_code], text)
     return text
 
-def prints(text, color_code=None):
+def flush():
+    global print_queue
     if not blocked:
         while not print_queue.empty():
             print(print_queue.get())
+
+def prints(text, color_code=None):
+    global print_queue
+    if not blocked:
         print(dye(text, color_code))
     if blocked:
         print_queue.put(dye(text, color_code))
@@ -255,7 +260,7 @@ def announce(uid):
 
 def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
-    if message['uid'] == my_uid:
+    if message['from'] == my_uid:
         first_line += dye(" [您发送的]", "blue")
     if message['to'] == -1:
         first_line += dye(" [广播]", "red")
@@ -263,7 +268,7 @@ def print_message(message):
         first_line += dye(" [私聊]", "green")
     first_line += " "
     first_line += dye("@", "black")
-    first_line += dye(users[message['uid']]['username'], "yellow")
+    first_line += dye(users[message['from']]['username'], "yellow")
     if message['to'] >= 1:
         first_line += dye(" -> ", "green")
         first_line += dye("@", "black")
@@ -337,6 +342,7 @@ def thread_input():
             command = input("\033[0m\033[1;30m")
         if not command.split()[0] in ['exit', 'info', 'send', 'whisper']:
             print("命令输入错误。\n\033[8;30m", end="")
+            blocked = False
             continue
         if command.split()[0] == "exit":
             print("\033[0m\033[1;36m再见！\033[0m")
@@ -416,9 +422,11 @@ def thread_output():
             break
         read()
         message = get_message()
+        flush()
         if not message:
             continue
         process(message)
+
 
 THREAD_INPUT = threading.Thread(target=thread_input)
 THREAD_OUTPUT = threading.Thread(target=thread_output)

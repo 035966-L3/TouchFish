@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.25"
+VERSION = "v4.0.0-prealpha.26"
 
 config = \
 {
@@ -318,6 +318,9 @@ class Server(cmd.Cmd):
                 message += input() + "\n"
             except EOFError:
                 break
+        if not message:
+            print("操作失败：消息不能为空。")
+            return
         log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'uid': 0, 'content': message, 'to': -1, 'success': True}))
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin"]:
