@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.22"
+VERSION = "v4.0.0-prealpha.23"
 
 config = \
 {
@@ -307,6 +307,23 @@ class Server(cmd.Cmd):
         print(" UID  IP                        状态      用户名") 
         for i in range(len(users)):
             print("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']))
+    
+    def do_broadcast(self, arg):
+        """
+        广播消息
+        """
+        print("请输入消息，按 Ctrl + C 结束。")
+        message = ""
+        while True:
+            try:
+                message += input() + "\n"
+            except EOFError:
+                break
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'uid': 0, 'content': message, 'to': -1, 'success': True}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': 0, 'content': message, 'to': -1}}))
+        print("操作成功。")
     
     def do_doorman(self, arg):
         """

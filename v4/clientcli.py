@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.22"
+VERSION = "v4.0.0-prealpha.23"
 
 COLORS = \
 {

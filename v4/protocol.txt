@@ -27,7 +27,7 @@
   2.1 Send
     { type: "CHAT.SEND", content: string, to: number | 0 | -1 } // to = -1 for broadcasting, to = 0 for public messages, to = UID for private messages for specific users
   2.2 Receive
-    { type: "CHAT.RECEIVE", sender: number, content: string, to: number | 0 | -1 }
+    { type: "CHAT.RECEIVE", from: number, content: string, to: number | 0 | -1 }
   2.3 Log
     { type: "CHAT.LOG", time: time, uid: number, content: string, to: number | 0 | -1, success: boolean }
 
