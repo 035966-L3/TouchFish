@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.21"
+VERSION = "v4.0.0-prealpha.22"
 
 config = \
 {

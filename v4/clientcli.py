@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.21"
+VERSION = "v4.0.0-prealpha.22"
 
 COLORS = \
 {
@@ -39,7 +39,7 @@ EXIT_FLAG = False
 def clear_screen():
     if platform.system() == 'Windows':
         os.system('cls')
-    if platform.system() != 'Windows':
+    else:
         os.system('clear')
 
 def dye(text, color_code):
@@ -106,18 +106,17 @@ else:
     connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 
 def read():
-    global connnection
+    global connection
     global buffer
     while True:
         try:
+            connection.setblocking(False)
             chunk = connection.recv(16384).decode('utf-8')
             if not chunk:
                 break
             buffer += chunk
         except BlockingIOError:
             break
-        except Exception as e:
-            return e
     return None
 
 def get_message():
@@ -127,17 +126,11 @@ def get_message():
         try:
             message, buffer = buffer.split('\n', 1)
         except:
-            message = ""
+            return None
     return json.loads(message)
 
-a = read()
-if a:
-    prints("发生错误：{}".format(a), "red")
-    prints("连接失败。", "red")
-    input()
-    sys.exit(1)
-
 try:
+    read()
     message = get_message()
     if not message['result'] in ["Accepted", "Pending review", "IP is banned", "Room is full", "Duplicate usernames", "Username consists of banned words"]:
         raise
@@ -166,13 +159,10 @@ if message['result'] == "Pending review":
     prints("服务端需要对连接请求进行人工审核，请等待...", "white")
     while True:
         try:
-            a = read()
-            if a:
-                prints("发生错误：{}".format(a), "red")
-                prints("连接失败。", "red")
-                input()
-                sys.exit(1)
+            read()
             message = get_message()
+            if not message:
+                continue
             if not message['accepted']:
                 prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
                 prints("连接失败。", "red")
@@ -328,12 +318,10 @@ def thread_output():
         if EXIT_FLAG:
             exit()
             break
-        a = read()
-        if a:
-            prints("发生错误：{}".format(a), "red")
-            input()
-            sys.exit(1)
+        read()
         message = get_message()
+        if not message:
+            continue
         print(dye(json.dumps(message), "white")) # test only
 
 THREAD_INPUT = threading.Thread(target=thread_input)
