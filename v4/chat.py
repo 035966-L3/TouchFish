@@ -13,7 +13,7 @@ import re
 import requests
 from random import randint
 
-VERSION = "v4.0.0-prealpha.17"
+VERSION = "v4.0.0-prealpha.18"
 
 config = \
 {
@@ -37,7 +37,7 @@ CONFIG_TYPE_CHECK_TABLE = \
 
 CONFIG_HINT = \
 """
-你可以直接输入某个参数的名字以查询该参数的值。
+您可以直接输入某个参数的名字以查询该参数的值。
 修改命令格式示例：general.server_ip "192.168.1.1"
 修改命令的输入数据格式以下表给出的示例为准。
 请注意，查询命令的输出数据格式与此不尽相同。
@@ -260,7 +260,7 @@ INTRODUCTION_TEMPLATE = \
 """
 欢迎使用 TouchFish 聊天室！当前版本：{}，最新版本：{}
 如果想知道有什么命令，请输入 help。
-具体的使用指南，参见 help <你想用的命令>。
+具体的使用指南，参见 help <您想用的命令>。
 详细的使用指南，见 wiki：
 https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
 用户列表中的 root 用户（UID = 0）代指本服务端程序自身，不计入连接数限制。
@@ -333,7 +333,7 @@ class Server(cmd.Cmd):
         if users[arg[1]]['status'] != "Pending":
             print("只能对状态为 Pending 的用户操作。")
             if users[arg[1]]['status'] in ["Online", "Admin"] and arg[0] == "reject":
-                print("你似乎想要踢出该用户，请使用以下命令：kick {}".format(arg))
+                print("您似乎想要踢出该用户，请使用以下命令：kick {}".format(arg))
             return
         
         if arg[0] == "accept":
@@ -379,7 +379,7 @@ class Server(cmd.Cmd):
         if not users[arg]['status'] in ["Online", "Admin"]:
             print("只能对状态为 Online 或 Admin 的用户操作。")
             if users[arg]['status'] == "Pending":
-                print("你似乎想要拒绝该用户的加入申请，请使用以下命令：doorman reject {}".format(arg))
+                print("您似乎想要拒绝该用户的加入申请，请使用以下命令：doorman reject {}".format(arg))
             return
         log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
         for i in range(len(users)):
@@ -602,7 +602,7 @@ class Server(cmd.Cmd):
                 print("屏蔽词不能为空串，且不能包含换行符。")
                 return
             if ' ' in arg[2]:
-                print("请注意，你输入的屏蔽词包含空格。")
+                print("请注意，您输入的屏蔽词包含空格。")
                 print("系统读取到的屏蔽词为（不包含开头的 ^ 符号和结尾的 $ 符号）：")
                 print("^", arg[2], "$", sep="")
                 if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
@@ -660,6 +660,8 @@ def thread_gate():
         try:
             conntmp, addresstmp = s.accept()
             conntmp.setblocking(False)
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
         except:
             continue
         
@@ -853,26 +855,3 @@ THREAD_RECEIVE.start()
 THREAD_SEND.start()
 THREAD_LOG.start()
 THREAD_CHECK.start()
-
-
-
-
-
-# Test Script
-"""
-import socket
-import time
-p = [None] * 20
-def add(id, name):
-    p[id] = socket.socket()
-    p[id].connect(("127.0.0.1", 8080))
-    p[id].send(bytes('{{"type": "GATE.REQUEST", "username": "{}"}}\n'.format(name), encoding="utf-8"))
-def get(id):
-    print(p[id].recv(16384).decode("utf-8"))
-def send(id, text):
-    p[id].send(bytes('{{"type": "CHAT.SEND", "content": "{}", "to": 0}}\n'.format(text), encoding="utf-8"))
-def stop(id):
-    p[id].close()
-for i in range(1, 4):
-    add(i, "User {}".format(i))
-"""
