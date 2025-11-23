@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.19"
+VERSION = "v4.0.0-prealpha.20"
 
 COLORS = \
 {
@@ -185,26 +185,33 @@ clear_screen()
 
 CONFIG_LIST = \
 """
-参数名称               默认值      修改示例       描述
+参数名称               当前值      修改示例       描述
 
-general.server_ip      "0.0.0.0"   "192.168.1.1"  服务器 IP
-general.server_port    8080        12345          服务器端口
-general.enter_hint     ""          "Hi there!\\n"  进入提示
+general.server_ip      {:<12}"192.168.1.1"  服务器 IP
+general.server_port    {:<12}12345          服务器端口
+general.enter_hint     <1>         "Hi there!\\n"  进入提示
 
-ban.ip                 []          ["8.8.8.8"]    IP 黑名单
-ban.words              []          ["a", "b"]     屏蔽词列表
+ban.ip                 <2>         ["8.8.8.8"]    IP 黑名单
+ban.words              <3>         ["a", "b"]     屏蔽词列表
 
-gate.enter_check       False       True           加入是否需要人工放行
-gate.max_connections   256         8              最大在线连接数
+gate.enter_check       {!s:<12}True           加入是否需要人工放行
+gate.max_connections   {:<12}8              最大在线连接数
 
-message.allow_private  True        False          是否允许私聊
-message.max_length     16384       256            最大消息长度（字节）
+message.allow_private  {!s:<12}False          是否允许私聊
+message.max_length     {:<12}256            最大消息长度（字节）
 
-file.allow_any         True        False          是否允许发送文件
-file.allow_private     True        False          是否允许发送私有文件
-file.max_size          4294967296  16384          最大文件大小（字节）
+file.allow_any         {!s:<12}False          是否允许发送文件
+file.allow_private     {!s:<12}False          是否允许发送私有文件
+file.max_size          {:<12}16384          最大文件大小（字节）
 
-"""
+为了防止尖括号处的内容写不下，此处单独列出：
+<1>:
+{}
+<2>:
+{}
+<3>:
+{}
+"""[1:-1]
 
 read()
 first_data = get_message()
@@ -214,7 +221,7 @@ config = first_data['config']
 users = first_data['users']
 
 def print_message(message):
-    first_line = dye(message['time'][11:19], "black")
+    first_line = dye("[" + message['time'][11:19] + "]", "black")
     if message['uid'] == my_uid:
         first_line += dye(" [您发送的]", "blue")
     if message['broadcast']:
@@ -229,19 +236,30 @@ def print_message(message):
     prints(message['content'], "white")
 
 def print_info():
-    prints("=" * 50, "black")
+    prints("=" * 70, "black")
     prints("服务端版本：" + server_version, "black")
     prints("您的 UID：" + str(my_uid), "black")
-    prints("具体用户信息详见下表。", "black")
-    prints("=" * 50, "black")
+    prints("聊天室参数及具体用户信息详见下表。", "black")
+    prints("=" * 70, "black")
+    prints(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']), "black")
+    prints("=" * 70, "black")
     prints(" UID  状态      用户名", "black")
     for i in range(len(users)):
         prints("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
-    prints("=" * 50, "black")
+    prints("=" * 70, "black")
 
 for i in first_data['chat_history']:
     print_message(i)
 print_info()
-
+if config['general']['enter_hint']:
+    first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
+    first_line += dye(" [加入提示]", "red")
+    first_line += " "
+    first_line += dye("@", "black")
+    first_line += dye("root", "yellow")
+    first_line += dye(":", "black")
+    prints(first_line)
+    prints(config['general']['enter_hint'], "white")
+    
 while True:
     input()

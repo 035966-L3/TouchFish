@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.19"
+VERSION = "v4.0.0-prealpha.20"
 
 config = \
 {
@@ -36,33 +36,40 @@ CONFIG_TYPE_CHECK_TABLE = \
 
 CONFIG_HINT = \
 """
-您可以直接输入某个参数的名字以查询该参数的值。
 修改命令格式示例：general.server_ip "192.168.1.1"
-修改命令的输入数据格式以下表给出的示例为准。
+修改命令的输入数据格式以下表给出的修改示例（而非当前值）为准。
 请注意，查询命令的输出数据格式与此不尽相同。
 输入 done 以结束配置。
 """
 
 CONFIG_LIST = \
 """
-参数名称               默认值      修改示例       描述
+参数名称               当前值      修改示例       描述
 
-general.server_ip      "0.0.0.0"   "192.168.1.1"  服务器 IP
-general.server_port    8080        12345          服务器端口
-general.enter_hint     ""          "Hi there!\\n"  进入提示
+general.server_ip      {:<12}"192.168.1.1"  服务器 IP
+general.server_port    {:<12}12345          服务器端口
+general.enter_hint     <1>         "Hi there!\\n"  进入提示
 
-ban.ip                 []          ["8.8.8.8"]    IP 黑名单
-ban.words              []          ["a", "b"]     屏蔽词列表
+ban.ip                 <2>         ["8.8.8.8"]    IP 黑名单
+ban.words              <3>         ["a", "b"]     屏蔽词列表
 
-gate.enter_check       False       True           加入是否需要人工放行
-gate.max_connections   256         8              最大在线连接数
+gate.enter_check       {!s:<12}True           加入是否需要人工放行
+gate.max_connections   {:<12}8              最大在线连接数
 
-message.allow_private  True        False          是否允许私聊
-message.max_length     16384       256            最大消息长度（字节）
+message.allow_private  {!s:<12}False          是否允许私聊
+message.max_length     {:<12}256            最大消息长度（字节）
 
-file.allow_any         True        False          是否允许发送文件
-file.allow_private     True        False          是否允许发送私有文件
-file.max_size          4294967296  16384          最大文件大小（字节）
+file.allow_any         {!s:<12}False          是否允许发送文件
+file.allow_private     {!s:<12}False          是否允许发送私有文件
+file.max_size          {:<12}16384          最大文件大小（字节）
+
+为了防止尖括号处的内容写不下，此处单独列出：
+<1>:
+{}
+<2>:
+{}
+<3>:
+{}
 
 """
 
@@ -116,9 +123,9 @@ try:
     print("未指定的参数将使用配置文件中给定的值。")
 except:
     print("没有检测到合法的配置文件，请手动指定参数。")
-    print("未指定的参数将使用默认值。")
+    print("未指定的参数将使用列出的默认值。")
 print(CONFIG_HINT)
-print(CONFIG_LIST)
+print(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']))
 if config['file']['allow_private'] and not config['file']['allow_any']:
     print("检测到 file.allow_any 被设置为 False 而 file.allow_private 被设置为 True。")
     print("这看起来不像是正常配置，请仔细检查。")
@@ -129,17 +136,10 @@ while True:
         command = input()
         if command == "done":
             break
-        try:
-            key, value = command.split(' ', 1)
-        except:
-            key, value = command, ""
+        key, value = command.split(' ', 1)
         if not key in CONFIG_TYPE_CHECK_TABLE:
             print("该参数不存在。")
             raise
-        if not value:
-            first, second = key.split('.')
-            print(config[first][second])
-            continue
         if key == "general.server_ip" or key == "general.enter_hint":
             print("请注意，本参数修改时输入数据需要带引号并转义。")
             print("例如，将进入提示设为英文 Hi there! 并且末尾换行：")
@@ -156,8 +156,8 @@ while True:
         if not eval("isinstance({}, {})".format(value, CONFIG_TYPE_CHECK_TABLE[key])):
             print("输入数据的类型与参数不匹配。")
             raise
-        if CONFIG_TYPE_CHECK_TABLE[key] == "int" and int(value) <= 0:
-            print("输入的数值必须是正整数。")
+        if CONFIG_TYPE_CHECK_TABLE[key] == "int" and int(value) <= 0 or CONFIG_TYPE_CHECK_TABLE[key] == "int" and int(value) >= 4294967297:
+            print("输入的数值必须是不大于 4294967296 的正整数。")
             raise
         if CONFIG_TYPE_CHECK_TABLE[key] == "list":
             for item in eval(value):
@@ -213,7 +213,7 @@ try:
 except:
     NEWEST_VERSION = "UNKNOWN"
 
-def time_str() -> str:
+def time_str():
     return str(datetime.datetime.now())
 
 s = socket.socket()
@@ -263,7 +263,7 @@ INTRODUCTION_TEMPLATE = \
 详细的使用指南，见 wiki：
 https://github.com/2044-space-elevator/TouchFish/wiki/How-to-use-chat
 用户列表中的 root 用户（UID = 0）代指本服务端程序自身，不计入连接数限制。
-配置文件位于目录下的 ./config_server.json。
+配置文件位于目录下的 ./{}。
 
 """
 
@@ -281,7 +281,7 @@ online_count = 0
 
 class Server(cmd.Cmd):
     prompt = "TouchFish-Server@{}:{}> ".format(config['general']['server_ip'], config['general']['server_port'])
-    intro = INTRODUCTION_TEMPLATE[1:].format(VERSION, NEWEST_VERSION)
+    intro = INTRODUCTION_TEMPLATE[1:].format(VERSION, NEWEST_VERSION, CONFIG_PATH)
     
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -437,7 +437,6 @@ class Server(cmd.Cmd):
         """
         使用方法 (~ 表示 config):
             ~ show                  列出参数列表
-            ~ get <name>            获取参数 <name> 的值
             ~ set <name> <value>    将参数 <name> 的值改为 <value>
             ~ save                  将参数保存到配置文件
         """
@@ -448,12 +447,12 @@ class Server(cmd.Cmd):
         if not arg:
             print("参数错误：参数不能为空。")
             return
-        if not arg[0] in ['show', 'get', 'set', 'save']:
-            print("参数错误：第一个参数必须是 show、get、set、save 中的某一项。")
+        if not arg[0] in ['show', 'set', 'save']:
+            print("参数错误：第一个参数必须是 show、set、save 中的某一项。")
             return
         
         if arg[0] == 'show':
-            print(CONFIG_LIST)
+            print(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']))
             return
         
         if arg[0] == 'save':
@@ -464,14 +463,6 @@ class Server(cmd.Cmd):
                 log_queue.put(json.dumps({'type': 'SERVER.CONFIG.SAVE', 'time': time_str()}))
             except:
                 print("无法将参数保存到配置文件 {}，请稍后重试。".format(CONFIG_PATH))
-            return
-        
-        if arg[0] == 'get':
-            if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
-                print("该参数不存在。")
-                return
-            first, second = arg[1].split('.')
-            print(config[first][second])
             return
         
         if arg[0] == 'set':
@@ -499,8 +490,8 @@ class Server(cmd.Cmd):
                 if not eval("isinstance({}, {})".format(arg[2], CONFIG_TYPE_CHECK_TABLE[arg[1]])):
                     print("输入数据的类型与参数不匹配。")
                     raise
-                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0:
-                    print("输入的数值必须是正整数。")
+                if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0 or CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) >= 4294967297:
+                    print("输入的数值必须是不大于 4294967296 的正整数。")
                     raise
                 if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "list":
                     for item in eval(arg[2]):
