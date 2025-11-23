@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.23"
+VERSION = "v4.0.0-prealpha.24"
 
 config = \
 {
@@ -758,6 +758,7 @@ def thread_receive():
                 data = ""
                 while True:
                     try:
+                        users[i]['body'].setblocking(False)
                         data += users[i]['body'].recv(16384).decode('utf-8')
                     except:
                         break
@@ -862,3 +863,4 @@ THREAD_RECEIVE.start()
 THREAD_SEND.start()
 THREAD_LOG.start()
 THREAD_CHECK.start()
+

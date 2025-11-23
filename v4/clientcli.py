@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.23"
+VERSION = "v4.0.0-prealpha.24"
 
 COLORS = \
 {
@@ -232,6 +232,16 @@ my_uid = first_data['uid']
 config = first_data['config']
 users = first_data['users']
 
+def enter():
+    print("请输入消息，按 Ctrl + C 结束。")
+    message = ""
+    while True:
+        try:
+            message += input() + "\n"
+        except EOFError:
+            break
+    return message
+
 def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
     if message['uid'] == my_uid:
@@ -281,7 +291,10 @@ def thread_input():
     global blocked
     global EXIT_FLAG
     while True:
-        input()
+        try:
+            input()
+        except:
+            pass
         blocked = True
         command = input("\033[0m\033[1;30m")
         while not command:
@@ -301,12 +314,59 @@ def thread_input():
             blocked = False
             continue
         if command.split()[0] == "send":
-            # To be done
+            message = enter()
+            success = True
+            if not message:
+                success = False
+                print("发送失败：消息不能为空。")
+            if len(message) > config['message']['max_length'] and success:
+                success = False
+                print("发送失败：消息太长。")
+            for word in config['ban']['words']:
+                if word in message and success:
+                    success = False
+                    print("发送失败：消息中包含屏蔽词：" + word)
+                    break
+            if success:
+                try:
+                    connection.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': 0}) + "\n", encoding="utf-8"))
+                    print("发送成功。")
+                except Exception as e:
+                    print("发送失败：" + e)
             print("\033[8;30m", end="")
             blocked = False
             continue
         if command.split()[0] == "whisper":
-            # To be done
+            success = True
+            try:
+                target = int(command.split()[1])
+                if target <= -1 or target >= len(users):
+                    raise
+            except:
+                print("UID 输入错误。")
+                target = 0
+                success = False
+            if success and not users[target]['status'] in ["Online", "Admin"]:
+                print("只能向状态为 Online 或 Admin 的用户发送私聊消息。")
+                success = False
+            message = enter()
+            if success and not message:
+                success = False
+                print("发送失败：消息不能为空。")
+            if len(message) > config['message']['max_length'] and success:
+                success = False
+                print("发送失败：消息太长。")
+            for word in config['ban']['words']:
+                if word in message and success:
+                    success = False
+                    print("发送失败：消息中包含屏蔽词：" + word)
+                    break
+            if success:
+                try:
+                    connection.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': target}) + "\n", encoding="utf-8"))
+                    print("发送成功。")
+                except Exception as e:
+                    print("发送失败：" + e)
             print("\033[8;30m", end="")
             blocked = False
             continue
