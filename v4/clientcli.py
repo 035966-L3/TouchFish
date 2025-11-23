@@ -11,7 +11,7 @@ import time
 import base64
 import queue
 
-VERSION = "v4.0.0-prealpha.26"
+VERSION = "v4.0.0-prealpha.27"
 
 COLORS = \
 {
@@ -272,7 +272,7 @@ def print_message(message):
     if message['to'] >= 1:
         first_line += dye(" -> ", "green")
         first_line += dye("@", "black")
-        first_line += dye(users[message[message['to']]], "yellow")
+        first_line += dye(users[message['to']]['username'], "yellow")
     first_line += dye(":", "black")
     prints(first_line)
     prints(message['content'], "white")
@@ -390,6 +390,9 @@ def thread_input():
                 success = False
             if success and not users[target]['status'] in ["Online", "Admin"]:
                 print("只能向状态为 Online 或 Admin 的用户发送私聊消息。")
+                success = False
+            if success and target == my_uid:
+                print("不能向自己发送私聊消息。")
                 success = False
             message = enter()
             if success and not message:

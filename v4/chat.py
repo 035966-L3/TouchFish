@@ -12,7 +12,7 @@ import os
 import re
 import requests
 
-VERSION = "v4.0.0-prealpha.26"
+VERSION = "v4.0.0-prealpha.27"
 
 config = \
 {
@@ -800,6 +800,46 @@ def thread_send():
                     if users[i]['status'] in ["Online", "Admin"]:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
 
+def thread_process():
+    global online_count
+    global receive_queue
+    global send_queue
+    global log_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        while not receive_queue.empty():
+            message = json.loads(receive_queue.get())
+            sender, content = message['from'], message['content']
+            if content['type'] == "CHAT.SEND":
+                if not content['content'] or len(content['content']) > config['message']['max_length'] or content['to'] <= -2 or content['to'] >= len(users) or content['to'] == sender or content['to'] == -1 and users[sender]['status'] != "Admin" or content['to'] >= 1 and not users[content['to']]['status'] in ["Online", "Admin"] or sum([1 for word in config['ban']['words'] if word in content['content']]) >= 1:
+                    log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': sender, 'content': content['content'], 'to': content['to'], 'success': False}))
+                    continue
+            if content['to'] >= 1:
+                try:
+                    users[content['to']]['body'].send(bytes("\n", encoding="utf-8"))
+                except:
+                    users[content['to']]['status'] = "Offline"
+                    online_count -= 1
+                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': content['to'], 'operator': 0}))
+                    for j in range(len(users)):
+                        if users[j]['status'] in ["Online", "Admin"]:
+                            send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': content['to'], 'operator': 0}}))
+                    log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': sender, 'content': content['content'], 'to': content['to'], 'success': False}))
+                    continue
+            log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': sender, 'content': content['content'], 'to': content['to'], 'success': True}))
+            if content['to'] <= 0:
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': sender, 'content': content['content'], 'to': content['to']}}))
+                continue
+            for i in range(len(users)):
+                if users[i]['status'] == "Admin" or i == sender or i == content['to']:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': sender, 'content': content['content'], 'to': content['to']}}))
+
 def thread_log():
     global log_queue
     while True:
@@ -850,7 +890,7 @@ server = Server()
 
 THREAD_CMD = threading.Thread(target=server.cmdloop)
 THREAD_GATE = threading.Thread(target=thread_gate)
-# THREAD_PROCESS = threading.Thread(target=thread_process)
+THREAD_PROCESS = threading.Thread(target=thread_process)
 # THREAD_FILE = threading.Thread(target=thread_file)
 THREAD_RECEIVE = threading.Thread(target=thread_receive)
 THREAD_SEND = threading.Thread(target=thread_send)
@@ -859,7 +899,7 @@ THREAD_CHECK = threading.Thread(target=thread_check)
 
 THREAD_CMD.start()
 THREAD_GATE.start()
-# THREAD_PROCESS.start()
+THREAD_PROCESS.start()
 # THREAD_FILE.start()
 THREAD_RECEIVE.start()
 THREAD_SEND.start()
