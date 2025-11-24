@@ -1,17 +1,16 @@
-import time
-import socket
-import threading
-import platform
-import sys
-import requests
-import os
-import json
-import datetime
-import time
 import base64
+import datetime
+import json
+import os
+import platform
 import queue
+import requests
+import socket
+import sys
+import threading
+import time
 
-VERSION = "v4.0.0-prealpha.27"
+VERSION = "v4.0.0-prealpha.28"
 
 COLORS = \
 {
@@ -188,17 +187,19 @@ try:
 except:
     pass
 
-prints("5 秒后将进入聊天室...", "cyan")
 prints("本次连接中输入的参数已经保存到配置文件 {}，下次连接时将自动加载。".format(CONFIG_PATH), "cyan")
-prints("进入聊天室后，按换行符唤醒命令行：", "cyan")
+prints("聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。", "cyan")
+prints("按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。", "cyan")
+prints("输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。", "cyan")
+prints("输出模式下，输入的指令将被忽略，且不会显示在屏幕上。", "cyan")
+prints("输入模式下，新的消息将等待到退出输入模式才会显示。", "cyan")
+prints("可用的命令有：", "cyan")
 print()
 prints("    exit             退出聊天室", "blue")
 prints("    info             展示聊天室信息", "blue")
 prints("    send             发送消息", "blue")
 prints("    whisper <uid>    发送私聊消息", "blue")
 print()
-time.sleep(5)
-
 
 CONFIG_LIST = \
 """
@@ -290,9 +291,9 @@ def print_info():
         printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
     printf("=" * 70, "black")
 
+print_info()
 for i in first_data['chat_history']:
     print_message(i)
-print_info()
 if config['general']['enter_hint']:
     first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
     first_line += dye(" [加入提示]", "red")
@@ -317,7 +318,7 @@ def process(message):
         if message['result'] == "Accepted":
             users[message['uid']]['status'] = "Online"
         return
-    if message['type'] == "GATE.STATUS_CHANGE_HINT.ANNOUNCE":
+    if message['type'] == "GATE.STATUS_CHANGE.ANNOUNCE":
         announce(0)
         prints("用户 {} (UID = {}) 的状态变更为：".format(users[message['uid']]['username'], message['uid']) + message['status'], "cyan")
         users[message['uid']]['status'] = message['status']
@@ -337,9 +338,9 @@ def thread_input():
         except:
             pass
         blocked = True
-        command = input("\033[0m\033[1;30m")
+        command = input("\033[0m\033[1;30m> ")
         while not command:
-            command = input("\033[0m\033[1;30m")
+            command = input("\033[0m\033[1;30m> ")
         if not command.split()[0] in ['exit', 'info', 'send', 'whisper']:
             print("命令输入错误。\n\033[8;30m", end="")
             blocked = False

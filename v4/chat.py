@@ -1,18 +1,18 @@
-import socket
-import platform
+import base64
 import cmd
 import datetime
-import threading
-import time
-import sys
 import json
-import base64
-import queue
 import os
+import platform
+import queue
 import re
 import requests
+import socket
+import sys
+import threading
+import time
 
-VERSION = "v4.0.0-prealpha.27"
+VERSION = "v4.0.0-prealpha.28"
 
 config = \
 {
@@ -223,16 +223,21 @@ except Exception as err:
     print("绑定端口失败，可能的原因有：")
     print("1. 端口已被占用")
     print("2. 没有权限绑定该端口")
-    print("错误信息：")
-    print(str(err))
-    exit()
+    print("错误信息：" + str(err))
+    input()
+    sys.exit(1)
 s.listen(config['gate']['max_connections'])
 s.setblocking(False)
 
 users = [{"body": None, "extra": None, "buffer": "", "ip": (config['general']['server_ip'], config['general']['server_port']), "username": "root", "status": "Root"}]
 
-with open("./log.txt", "a", encoding="utf-8") as file:
-    file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
+try:
+    with open("./log.txt", "a", encoding="utf-8") as file:
+        file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
+except:
+    print("错误：无法写入日志文件 ./log.txt。")
+    input()
+    sys.exit(1)
 
 WEBPAGE_CONTENT = \
 """
@@ -320,8 +325,19 @@ class Server(cmd.Cmd):
                 break
         if not message:
             print("操作失败：消息不能为空。")
+            log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': False}))
             return
-        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'uid': 0, 'content': message, 'to': -1, 'success': True}))
+        if len(message) > config['message']['max_length']:
+            print("操作失败：消息太长。")
+            log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': False}))
+            return
+        for word in config['ban']['words']:
+            if word in message and success:
+                print("操作失败：消息中包含屏蔽词：" + word)
+                log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': False}))
+                return
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': True}))
+        history.append({'time': time_str(), 'from': 0, 'content': message, 'to': -1})
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': 0, 'content': message, 'to': -1}}))
@@ -356,10 +372,10 @@ class Server(cmd.Cmd):
         
         if arg[0] == "accept":
             send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True, 'operator': {'username': 'root', 'uid': 0}}}))
-            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
             users[arg[1]]['status'] = "Online"
             users_abstract = []
             for i in range(len(users)):
@@ -369,10 +385,10 @@ class Server(cmd.Cmd):
         if arg[0] == "reject":
             users[arg[1]]['status'] = "Rejected"
             users[arg[1]]['body'].send(bytes(json.dumps({'type': 'GATE.REVIEW_RESULT', 'accepted': False, 'operator': {'username': 'root', 'uid': 0}}) + "\n", encoding="utf-8"))
-            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': arg[1], 'operator': 0}))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1], 'operator': 0}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1], 'operator': 0}}))
             users[arg[1]]['body'].close()
             online_count -= 1
             
@@ -399,10 +415,10 @@ class Server(cmd.Cmd):
             if users[arg]['status'] == "Pending":
                 print("您似乎想要拒绝该用户的加入申请，请使用以下命令：doorman reject {}".format(arg))
             return
-        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
+        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': 0}}))
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': 0}}))
         users[arg]['status'] = "Kicked"
         online_count -= 1
         print("操作成功。")
@@ -433,10 +449,10 @@ class Server(cmd.Cmd):
                 print("只能对状态为 Online 的用户操作。")
                 return
             users[arg[1]]['status'] = "Admin"
-            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Admin', 'uid': arg[1], 'operator': 0}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Admin', 'uid': arg[1], 'operator': 0}}))
         
         if arg[0] == 'remove':
             if arg[1] <= 0 or arg[1] >= len(users):
@@ -446,10 +462,10 @@ class Server(cmd.Cmd):
                 print("只能对状态为 Admin 的用户操作。")
                 return
             users[arg[1]]['status'] = "Online"
-            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
         print("操作成功。")
     
     def do_config(self, arg):
@@ -795,10 +811,10 @@ def thread_send():
             except:
                 users[message['to']]['status'] = "Offline"
                 online_count -= 1
-                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': 0}))
+                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': 0}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
 
 def thread_process():
     global online_count
@@ -824,14 +840,15 @@ def thread_process():
                 except:
                     users[content['to']]['status'] = "Offline"
                     online_count -= 1
-                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': content['to'], 'operator': 0}))
+                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': content['to'], 'operator': 0}))
                     for j in range(len(users)):
                         if users[j]['status'] in ["Online", "Admin"]:
-                            send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': content['to'], 'operator': 0}}))
+                            send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': content['to'], 'operator': 0}}))
                     log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': sender, 'content': content['content'], 'to': content['to'], 'success': False}))
                     continue
             log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': sender, 'content': content['content'], 'to': content['to'], 'success': True}))
             if content['to'] <= 0:
+                history.append({'time': time_str(), 'from': sender, 'content': content['content'], 'to': content['to']})
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin"]:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': sender, 'content': content['content'], 'to': content['to']}}))
@@ -857,7 +874,7 @@ def thread_check():
     global send_queue
     global log_queue
     global users
-    timer = 10
+    timer = 5
     while True:
         time.sleep(1)
         if EXIT_FLAG:
@@ -876,11 +893,11 @@ def thread_check():
                     users[i]['status'] = "Offline"
                     down.append(i)
                     online_count -= 1
-                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE_HINT.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': 0}))
+                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': 0}))
         for i in down:
             for j in range(len(users)):
                 if users[j]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE_HINT.ANNOUNCE', 'status': 'Offline', 'uid': i, 'operator': 0}}))
+                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': i, 'operator': 0}}))
 
 
 
@@ -905,4 +922,3 @@ THREAD_RECEIVE.start()
 THREAD_SEND.start()
 THREAD_LOG.start()
 THREAD_CHECK.start()
-

@@ -4,23 +4,21 @@
   1.2 Response
     { type: "GATE.RESPONSE", result: "Accepted" | "Pending review" | "IP is banned" | "Room is full" | "Duplicate usernames" | "Username consists of banned words" }
   1.3 Review Result
-    { type: "GATE.REVIEW_RESULT", accepted: boolean, operator: { username: string, uid: number } }
-  1.4 Enter Confirmation
-    { type: "GATE.ENTER_CONFIRMATION", uid: number, accepted: boolean }
-  1.5 Kick Request
-    { type: "GATE.KICK_REQUEST", uid: number } // number: positive integer
-  1.6 Incorrect Protocol
+    { type: "GATE.REVIEW_RESULT", accepted: boolean, operator: { username: string, uid: number } | { username: "root", uid: 0 } } // number: positive integer, 0: root
+  1.4 Incorrect Protocol
     { type: "GATE.INCORRECT_PROTOCOL", time: time, ip: ip } // time: rounded to microseconds, ip: IPv4 with port ID
-  1.7 Client Request
-    1.7.1 Announce
+  1.5 Client Request
+    1.5.1 Announce
       { type: "GATE.CLIENT_REQUEST.ANNOUNCE", username: string, uid: number, result: "Accepted" | "Pending review" | "IP is banned" | "Room is full" | "Duplicate usernames" | "Username consists of banned words" }
-    1.7.2 Log
+    1.5.2 Log
       { type: "GATE.CLIENT_REQUEST.LOG", time: time, ip: ip, username: string, uid: number }
-  1.8 Status Change Hint
-    1.8.1 Announce
-      { type: "GATE.STATUS_CHANGE_HINT.ANNOUNCE", status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
-    1.8.2 Log
-      { type: "GATE.STATUS_CHANGE_HINT.LOG", time: time, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number, operator: number | 0 } // 0: root
+  1.6 Status Change
+    1.6.1 Request
+      { type: "GATE.STATUS_CHANGE.KICK_REQUEST", uid: number }
+    1.6.2 Announce
+      { type: "GATE.STATUS_CHANGE.ANNOUNCE", status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
+    1.6.3 Log
+      { type: "GATE.STATUS_CHANGE.LOG", time: time, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number, operator: number | 0 }
 
 
 
