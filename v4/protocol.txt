@@ -21,7 +21,6 @@
       { type: "GATE.STATUS_CHANGE.LOG", time: time, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number, operator: number | 0 }
 
 
-
 2 Chat
   2.1 Send
     { type: "CHAT.SEND", content: string, to: number | 0 | -1 } // to = -1 for broadcasting, to = 0 for public messages, to = UID for private messages for specific users
@@ -29,7 +28,6 @@
     { type: "CHAT.RECEIVE", from: number, content: string, to: number | 0 | -1 }
   2.3 Log
     { type: "CHAT.LOG", time: time, from: number, content: string, to: number | 0 | -1, success: boolean }
-
 
 
 3 File Transfer
@@ -60,7 +58,6 @@
         { type: "FILE_TRANSFER.LOG.TRANSFERRING.PROCESSING", time: time, uid: number, data: base64 }
       3.5.3.3 Finish
         { type: "FILE_TRANSFER.LOG.TRANSFERRING.FINISH", time: time, uid: number, expected_data_length: number | 0, received: [number, ...], not_received: [number, ...] } // expected_data_length = 0 for sender issues (all failed); UID in lists
-
 
 
 4 Server

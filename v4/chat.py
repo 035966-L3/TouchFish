@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-prealpha.28"
+VERSION = "v4.0.0-alpha.0"
 
 config = \
 {
