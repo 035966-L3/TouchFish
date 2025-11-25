@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.1"
+VERSION = "v4.0.0-alpha.2"
 
 COLORS = \
 {
@@ -26,12 +26,11 @@ COLORS = \
     "white": 7
 }
 
-CONFIG_PATH = "config.json"
-
-DEFAULT_CLIENT_CONFIG = {"ip": "127.0.0.1", "port": 8080, "username": "user"}
+DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "127.0.0.1", "port": 8080, "username": "user"}
 
 DEFAULT_SERVER_CONFIG = \
 {
+    "side": "Server",
     "general": {"server_ip": "127.0.0.1", "server_port": 8080, "enter_hint": ""},
     "ban": {"ip": [], "words": []},
     "gate": {"enter_check": False, "max_connections": 256},
@@ -169,11 +168,60 @@ def check_ip(element):
 def time_str():
     return str(datetime.datetime.now())
 
-side = "Server"
+def announce(uid):
+    first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
+    if uid == my_uid:
+        first_line += dye(" [您发送的]", "blue")
+    first_line += dye(" [公告]", "red")
+    first_line += " "
+    first_line += dye("@", "black")
+    first_line += dye(users[uid]['username'], "yellow")
+    first_line += dye(":", "black")
+    prints(first_line)
+
+def print_message(message):
+    first_line = dye("[" + message['time'][11:19] + "]", "black")
+    if message['from'] == my_uid:
+        first_line += dye(" [您发送的]", "blue")
+    if message['to'] == my_uid and my_uid:
+        first_line += dye(" [发给您的]", "blue")
+    if message['to'] == -1:
+        first_line += dye(" [广播]", "red")
+    if message['to'] >= 1:
+        first_line += dye(" [私聊]", "green")
+    first_line += " "
+    first_line += dye("@", "black")
+    first_line += dye(users[message['from']]['username'], "yellow")
+    if message['to'] >= 1:
+        first_line += dye(" -> ", "green")
+        first_line += dye("@", "black")
+        first_line += dye(users[message['to']]['username'], "yellow")
+    first_line += dye(":", "black")
+    prints(first_line)
+    prints(message['content'], "white")
+
+def print_info():
+    printf("=" * 70, "black")
+    printf("服务端版本：" + server_version, "black")
+    printf("您的 UID：" + str(my_uid), "black")
+    printf("聊天室参数及具体用户信息详见下表。", "black")
+    printf("=" * 70, "black")
+    printf(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']), "black")
+    printf("=" * 70, "black")
+    if 'ip' in users[0]:
+        printf(" UID  IP                        状态      用户名", "black")
+        for i in range(len(users)):
+            printf("{:>4}  {:<26}{:<10}{}".format(i, "{}:{}".format(users[i]['ip'][0], users[i]['ip'][1]), users[i]['status'], users[i]['username']), "black")
+    else:
+        printf(" UID  状态      用户名", "black")
+        for i in range(len(users)):
+            printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
+    printf("=" * 70, "black")
+
 config = DEFAULT_SERVER_CONFIG
 
 try:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    with open("config.json", "r", encoding="utf-8") as f:
         tmp_config = json.load(f)
         if not tmp_config['side'] in ["Server", "Client"]:
             raise
@@ -186,13 +234,121 @@ try:
                 if type == "int" and tmp_object <= 0 or type == "int" and tmp_object >= 4294967297:
                     raise
                 if type == "list":
-                    for item in tmp_object:
-                        if not isinstance(item, str):
+                    for element in tmp_object:
+                        if not isinstance(element, str):
                             raise
-            # ...
+                    if len(tmp_object) != len(set(tmp_object)):
+                        raise
+                if item == "ban.words":
+                    for element in tmp_object:
+                        if '\n' in element or '\r' in element or not element:
+                            raise
+                if item == "ban.ip":
+                    for element in tmp_object:
+                        if not check_ip(element):
+                            raise
+                if item == "general.server_ip" and not check_ip(tmp_object):
+                    raise
+                if item == "general.server_port" and tmp_object >= 65536:
+                    raise
             config = tmp_config
         if tmp_config['side'] == "Client":
-            # ...
+            if not isinstance(tmp_config['ip'], str):
+                raise
+            if not isinstance(tmp_config['port'], int):
+                raise
+            if not isinstance(tmp_config['username'], str):
+                raise
+            if int(tmp_config['port']) >= 65536:
+                raise
+            if tmp_config['username'] in ["", "root"]:
+                raise
+            if not check_ip(tmp_config['ip']):
+                raise
             config = tmp_config
+except:
+    config = DEFAULT_CLIENT_CONFIG
 
-# ...
+EXIT_FLAG = False
+blocked = False
+my_uid = 0
+users = []
+
+clear_screen()
+prints("欢迎使用 TouchFish 聊天室！", "yellow")
+prints("当前程序版本：{}".format(VERSION), "yellow")
+tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
+if not tmp_side in ["Server", "Client"]:
+    prints("参数错误。", "red")
+    input()
+    sys.exit(1)
+
+if tmp_side == "Server":
+    if config['side'] == "Client":
+        config = DEFAULT_SERVER_CONFIG
+    tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
+    if not tmp_ip:
+        tmp_ip = config['general']['server_ip']
+    config['general']['server_ip'] = tmp_ip
+    if not check_ip(tmp_ip):
+        prints("参数错误。", "red")
+        input()
+        sys.exit(1)
+    tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
+    if not tmp_port:
+       tmp_port = config['general']['server_port']
+    try:
+        tmp_port = int(tmp_port)
+        if tmp_port <= 0 or tmp_port >= 65536:
+            raise
+    except:
+        prints("参数错误。", "red")
+        input()
+        sys.exit(1)
+    config['general']['server_port'] = tmp_port
+    tmp_max_connections = input("\033[0m\033[1;37m最大连接数 [{}]：".format(config['gate']['max_connections']))
+    if not tmp_max_connections:
+       tmp_max_connections = config['gate']['max_connections']
+    try:
+        tmp_max_connections = int(tmp_max_connections)
+        if tmp_max_connections <= 0 or tmp_max_connections >= 4294967297:
+            raise
+    except:
+        prints("参数错误。", "red")
+        input()
+        sys.exit(1)
+    config['gate']['max_connections'] = tmp_max_connections
+    
+    try:
+        with open("config.json", "w", encoding="utf-8") as f:
+            json.dump(config, f)
+    except:
+        prints("启动时遇到错误：参数 config.json 保存失败。", "red")
+        input()
+        sys.exit(1)
+    try:
+        with open("log.txt", "w", encoding="utf-8") as f:
+            json.dump(config, f)
+    except:
+        prints("启动时遇到错误：无法向日志文件 log.txt 写入内容。", "red")
+        input()
+        sys.exit(1)
+    
+    try:
+        s = socket.socket()
+        s.bind((config['general']['server_ip'], config['general']['server_port']))
+        s.listen(config['gate']['max_connections'])
+        s.setblocking(False)
+    except:
+        print("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。")
+        input()
+        sys.exit(1)
+
+    users = [{"body": None, "extra": None, "buffer": "", "ip": (config['general']['server_ip'], config['general']['server_port']), "username": "root", "status": "Root"}]
+
+    with open("./log.txt", "a", encoding="utf-8") as file:
+        file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
+
+if tmp_side == "Client":
+    pass # test
+    
