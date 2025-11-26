@@ -12,7 +12,15 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.4"
+VERSION = "v4.0.0-alpha.5"
+
+RESULTS = \
+{
+    "IP is banned": "您的 IP 被服务端封禁。",
+    "Room is full": "服务端连接数已满，无法加入。",
+    "Duplicate usernames": "该用户名已被占用，请更换用户名。",
+    "Username consists of banned words": "用户名中包含违禁词，请更换用户名。"
+}
 
 COLORS = \
 {
@@ -46,14 +54,6 @@ CONFIG_TYPE_CHECK_TABLE = \
     "message.allow_private": "bool", "message.max_length": "int",
     "file.allow_any": "bool", "file.allow_private": "bool", "file.max_size": "int" 
 }
-
-CONFIG_HINT = \
-"""
-修改命令格式示例：general.server_ip "192.168.1.1"
-修改命令的输入数据格式以下表给出的修改示例（而非当前值）为准。
-请注意，查询命令的输出数据格式与此不尽相同。
-输入 done 以结束配置。
-"""
 
 CONFIG_LIST = \
 """
@@ -105,6 +105,24 @@ For more information, please visit the official Github repository of this projec
 https://github.com/2044-space-elevator/TouchFish
 </pre></body></html>
 """[1:]
+
+config = DEFAULT_SERVER_CONFIG
+EXIT_FLAG = False
+blocked = False
+my_username = "root"
+my_uid = 0
+my_socket = None
+users = []
+s = socket.socket()
+side = "Server"
+server_version = VERSION
+connection = None
+log_queue = queue.Queue()
+receive_queue = queue.Queue()
+send_queue = queue.Queue()
+history = []
+online_count = 1
+first_data = None
 
 def clear_screen():
     if platform.system() == 'Windows':
@@ -198,14 +216,14 @@ def print_message(message):
         first_line += dye(" [您发送的]", "blue")
     if message['to'] == my_uid and my_uid:
         first_line += dye(" [发给您的]", "blue")
-    if message['to'] == -1:
+    if message['to'] == -2:
         first_line += dye(" [广播]", "red")
-    if message['to'] >= 1:
+    if message['to'] >= 0:
         first_line += dye(" [私聊]", "green")
     first_line += " "
     first_line += dye("@", "black")
     first_line += dye(users[message['from']]['username'], "yellow")
-    if message['to'] >= 1:
+    if message['to'] >= 0:
         first_line += dye(" -> ", "green")
         first_line += dye("@", "black")
         first_line += dye(users[message['to']]['username'], "yellow")
@@ -213,7 +231,7 @@ def print_message(message):
     prints(first_line)
     prints(message['content'], "white")
 
-def print_info():
+def do_dashboard():
     printf("=" * 70, "black")
     printf("服务端版本：" + server_version, "black")
     printf("您的 UID：" + str(my_uid), "black")
@@ -231,36 +249,30 @@ def print_info():
             printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
     printf("=" * 70, "black")
 
-def do_broadcast(arg, verbose=False):
-    if not users[my_uid]['status'] in ["Admin", "Root"]:
+def do_broadcast(arg, verbose=True, by=my_uid):
+    global history
+    global send_queue
+    global connection
+    if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
     message = enter()
-    if not message:
-        printc(verbose, "操作失败：消息不能为空。")
-        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': False}))
-        return
-    if len(message) > config['message']['max_length']:
-        printc(verbose, "操作失败：消息太长。")
-        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': False}))
-        return
-    for word in config['ban']['words']:
-        if word in message and success:
-            printc(verbose, "操作失败：消息中包含屏蔽词：" + word)
-            log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': False}))
-            return
-    log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': 0, 'content': message, 'to': -1, 'success': True}))
-    history.append({'time': time_str(), 'from': 0, 'content': message, 'to': -1})
-    for i in range(len(users)):
-        if users[i]['status'] in ["Online", "Admin"]:
-            send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': 0, 'content': message, 'to': -1}}))
+    if side == "Server":
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'content': message, 'to': -2}))
+        history.append({'time': time_str(), 'from': by, 'content': message, 'to': -2})
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': -2}}))
+    if side == "Client":
+        connection.put(json.dumps({'type': 'CHAT.SEND', 'from': by, 'content': message, 'to': -2}))
     printc(verbose, "操作成功。")
 
-def do_doorman(arg, verbose=False):
+def do_doorman(arg, verbose=True, by=my_uid):
     global log_queue
     global send_queue
     global online_count
-    if not users[my_uid]['status'] in ["Admin", "Root"]:
+    global connection
+    if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
     arg = arg.split(' ', 1)
@@ -280,39 +292,46 @@ def do_doorman(arg, verbose=False):
         return
     if users[arg[1]]['status'] != "Pending":
         printc(verbose, "只能对状态为 Pending 的用户操作。")
-        if users[arg[1]]['status'] in ["Online", "Admin"] and arg[0] == "reject":
+        if users[arg[1]]['status'] in ["Online", "Admin", "Root"] and arg[0] == "reject":
             printc(verbose, "您似乎想要踢出该用户，请使用以下命令：kick {}".format(arg))
         return
-
+    
     if arg[0] == "accept":
-        send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True, 'operator': {'username': 'root', 'uid': 0}}}))
-        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
-        for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
-        users[arg[1]]['status'] = "Online"
-        users_abstract = []
-        for i in range(len(users)):
-            users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
-        send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': arg[1], 'config': config, 'users': users_abstract, 'chat_history': history}}))
-
+        if side == "Server":
+            send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True, 'operator': {'username': users[by]['username'], 'uid': by}}}))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': by}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin", "Root"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': by}}))
+            users[arg[1]]['status'] = "Online"
+            users_abstract = []
+            for i in range(len(users)):
+                users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
+            send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': arg[1], 'config': config, 'users': users_abstract, 'chat_history': history}}))
+        if side == "Client":
+            connection.put(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'from': by, 'status': 'Online', 'uid': arg[1]}))
+    
     if arg[0] == "reject":
-        users[arg[1]]['status'] = "Rejected"
-        users[arg[1]]['body'].send(bytes(json.dumps({'type': 'GATE.REVIEW_RESULT', 'accepted': False, 'operator': {'username': 'root', 'uid': 0}}) + "\n", encoding="utf-8"))
-        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': arg[1], 'operator': 0}))
-        for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1], 'operator': 0}}))
-        users[arg[1]]['body'].close()
-        online_count -= 1
-
+        if side == "Server":
+            users[arg[1]]['status'] = "Rejected"
+            users[arg[1]]['body'].send(bytes(json.dumps({'type': 'GATE.REVIEW_RESULT', 'accepted': False, 'operator': {'username': users[by]['username'], 'uid': by}}) + "\n", encoding="utf-8"))
+            log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Rejected', 'uid': arg[1], 'operator': by}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin", "Root"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1], 'operator': by}}))
+            users[arg[1]]['body'].close()
+            online_count -= 1
+        if side == "Client":
+            connection.put(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'from': by, 'status': 'Rejected', 'uid': arg[1]}))
+    
     printc(verbose, "操作成功。")
 
-def do_kick(arg, verbose=False):
+def do_kick(arg, verbose=True, by=my_uid):
     global log_queue
     global send_queue
     global online_count
-    if not users[my_uid]['status'] in ["Admin", "Root"]:
+    global connection
+    if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
     if not arg:
@@ -331,18 +350,24 @@ def do_kick(arg, verbose=False):
         if users[arg]['status'] == "Pending":
             printc(verbose, "您似乎想要拒绝该用户的加入申请，请使用以下命令：doorman reject {}".format(arg))
         return
-    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': 0}))
-    for i in range(len(users)):
-        if users[i]['status'] in ["Online", "Admin"]:
-            send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': 0}}))
-    users[arg]['status'] = "Kicked"
-    online_count -= 1
+    if users[by]['status'] == "Admin" and users[arg]['status'] == "Admin":
+        printc(verbose, "状态为 Admin 的用户只能对状态为 Online 的用户操作。")
+        return
+    if side == "Server":
+        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': by}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': by}}))
+        users[arg]['status'] = "Kicked"
+        online_count -= 1
+    if side == "Client":
+        connection.put(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'from': by, 'status': 'Kicked', 'uid': arg}))
     printc(verbose, "操作成功。")
 
-def do_admin(arg, verbose=False):
+def do_admin(arg, verbose=True, by=my_uid):
     global log_queue
     global send_queue
-    if not users[my_uid]['status'] != "Root":
+    if not users[by]['status'] != "Root":
         printc(verbose, "只有处于 Root 状态的用户有权执行该操作。")
         return
     arg = arg.split(' ', 1)
@@ -357,144 +382,111 @@ def do_admin(arg, verbose=False):
     except:
         printc(verbose, "参数错误：UID 必须是整数。")
         return
-
+    if arg[1] <= 0 or arg[1] >= len(users):
+        printc(verbose, "UID 输入错误。")
+        return
+    
     if arg[0] == 'add':
-        if arg[1] <= 0 or arg[1] >= len(users):
-            printc(verbose, "UID 输入错误。")
-            return
         if users[arg[1]]['status'] != "Online":
             printc(verbose, "只能对状态为 Online 的用户操作。")
             return
         users[arg[1]]['status'] = "Admin"
-        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': 0}))
+        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': by}))
         for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Admin', 'uid': arg[1], 'operator': 0}}))
-
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Admin', 'uid': arg[1], 'operator': by}}))
+    
     if arg[0] == 'remove':
-        if arg[1] <= 0 or arg[1] >= len(users):
-            printc(verbose, "UID 输入错误。")
-            return
         if users[arg[1]]['status'] != "Admin":
             printc(verbose, "只能对状态为 Admin 的用户操作。")
             return
         users[arg[1]]['status'] = "Online"
-        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': 0}))
+        log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': by}))
         for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': 0}}))
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Online', 'uid': arg[1], 'operator': by}}))
+    
     printc(verbose, "操作成功。")
 
-def do_config(arg, verbose=False):
+def do_config(arg, verbose=True, by=my_uid):
     global log_queue
     global send_queue
     global config
-    if not users[my_uid]['status'] in ["Admin", "Root"]:
+    global connection
+    if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
-    arg = arg.split(' ', 2)
-    if len(arg) != 1 and len(arg) != 3:
-        printc(verbose, "参数错误：应当给出恰好 1 个或恰好 3 个参数。")
+    arg = arg.split(' ', 1)
+    if len(arg) != 2:
+        printc(verbose, "参数错误：应当给出恰好 2 个参数。")
         return
-    if not arg[0] in ['show', 'set', 'save']:
-        printc(verbose, "参数错误：第一个参数必须是 show、set、save 中的某一项。")
-        return
-
-    if arg[0] == 'show':
-        printc(verbose, CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']))
-        return
-
-    if arg[0] == 'save':
-        try:
-            with open("config.json", "w", encoding="utf-8") as f:
-                json.dump(config, f)
-            printc(verbose, "参数已经成功保存到配置文件 config.json，下次启动时将自动加载配置项。")
-            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.SAVE', 'time': time_str()}))
-        except:
-            printc(verbose, "无法将参数保存到配置文件 config.json，请稍后重试。")
-        return
-
-    if arg[0] == 'set':
-        if not arg[1] in CONFIG_TYPE_CHECK_TABLE:
+        if not arg[0] in CONFIG_TYPE_CHECK_TABLE:
             printc(verbose, "该参数不存在。")
             return
-        if arg[1] == "general.server_ip" or arg[1] == "general.server_port" or arg[1] == "gate.max_connections":
+        if arg[0] == "general.server_ip" or arg[0] == "general.server_port" or arg[0] == "gate.max_connections":
             printc(verbose, "不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
             return
-        if arg[1] == "general.enter_hint":
-            printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
-            printc(verbose, "例如，将进入提示设为英文 Hi there! 并且末尾换行：")
-            printc(verbose, r'  config set general.enter_hint "Hi there!\n"')
-            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                return
-        if arg[1] == "ban.ip" or arg[1] == "ban.words":
-            printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
-            printc(verbose, "例如，将 fuck 和 shit 设置为屏蔽词：")
-            printc(verbose, r'  config set ban.words ["fuck", "shit"]')
-            printc(verbose, "该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
-            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                return
-
+        if verbose:
+            if arg[0] == "general.enter_hint":
+                printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
+                printc(verbose, "例如，将进入提示设为英文 Hi there! 并且末尾换行：")
+                printc(verbose, r'  config set general.enter_hint "Hi there!\n"')
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+            if arg[0] == "ban.ip" or arg[0] == "ban.words":
+                printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
+                printc(verbose, "例如，将 fuck 和 shit 设置为屏蔽词：")
+                printc(verbose, r'  config set ban.words ["fuck", "shit"]')
+                printc(verbose, "该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+    
         try:
-            if not eval("isinstance({}, {})".format(arg[2], CONFIG_TYPE_CHECK_TABLE[arg[1]])):
+            if not eval("isinstance({}, {})".format(arg[1], CONFIG_TYPE_CHECK_TABLE[arg[0]])):
                 printc(verbose, "输入数据的类型与参数不匹配。")
                 raise
-            if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) <= 0 or CONFIG_TYPE_CHECK_TABLE[arg[1]] == "int" and int(arg[2]) >= 4294967297:
+            if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) <= 0 or CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) >= 4294967297:
                 printc(verbose, "输入的数值必须是不大于 4294967296 的正整数。")
                 raise
-            if CONFIG_TYPE_CHECK_TABLE[arg[1]] == "list":
-                for item in eval(arg[2]):
+            if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "list":
+                for item in eval(arg[1]):
                     if not isinstance(item, str):
                         printc(verbose, "列表中的元素必须是 str（字符串）类型。")
                         raise
-                if len(eval(arg[2])) != len(set(eval(arg[2]))):
+                if len(eval(arg[1])) != len(set(eval(arg[1]))):
                     printc(verbose, "列表中不能出现重复元素。")
                     raise
-            if arg[1] == "ban.words":
-                for item in eval(arg[2]):
+            if arg[0] == "ban.words":
+                for item in eval(arg[1]):
                     if '\n' in item or '\r' in item or not item:
                         printc(verbose, "屏蔽词列表中不能出现空串和换行符。")
                         raise
-            if arg[1] == "ban.ip":
-                for item in eval(arg[2]):
+            if arg[0] == "ban.ip":
+                for item in eval(arg[1]):
                     if not check_ip(item):
                         printc(verbose, "IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
                         raise
-            if arg[1] == "file.allow_private" and eval(arg[2]) and not config['file']['allow_any']:
-                printc(verbose, "请注意，仅将 file.allow_private 参数设置为 True 是无效的，")
-                printc(verbose, "因为 file.allow_any 参数被设置为 False。")
-                if not input("是否要同时将 file.allow_any 参数设置为 True？[Y/n] ") in ['n', 'N']:
-                    config['file']['allow_any'] = True
-                    log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'file.allow_any', 'value': True, 'operator': 0}))
-                    for i in range(len(users)):
-                        if users[i]['status'] in ["Online", "Admin"]:
-                            send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'file.allow_any', 'value': True, 'operator': 0}}))
-            if arg[1] == "file.allow_any" and config['file']['allow_private'] and not eval(arg[2]):
-                printc(verbose, "请注意，当前 file.allow_private 参数被设置为 True，")
-                printc(verbose, "它将在 file.allow_any 参数被设置为 False 后失效。")
-                if not input("是否要同时将 file.allow_private 参数设置为 False？[Y/n] ") in ['n', 'N']:
-                    config['file']['allow_private'] = False
-                    log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'file.allow_private', 'value': False, 'operator': 0}))
-                    for i in range(len(users)):
-                        if users[i]['status'] in ["Online", "Admin"]:
-                            send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'file.allow_private', 'value': False, 'operator': 0}}))
-
-            first, second = arg[1].split('.')
-            config[first][second] = eval(arg[2])
-            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': 0}}))
+            
+            first, second = arg[0].split('.')
+            if side == "Server":
+                config[first][second] = eval(arg[2])
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': by}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin", "Root"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': by}}))
             printc(verbose, "操作成功。")
+            if side == "Client":
+                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': first + '.' + second, 'value': eval(arg[2])}))
         except:
             printc(verbose, "命令格式不正确，请重试。")
-        return
+            return
 
-def do_ban(arg, verbose=False):
+def do_ban(arg, verbose=True, by=my_uid):
     global log_queue
     global send_queue
     global config
-    if not users[my_uid]['status'] in ["Admin", "Root"]:
+    global connection
+    if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
     arg = arg.split(' ', 2)
@@ -516,63 +508,139 @@ def do_ban(arg, verbose=False):
         if ips == [""]:
             printc(verbose, "出于性能、安全性和实际使用环境考虑，IPv4 段的 CIDR 不得小于 24。")
             return
+        
         if arg[1] == 'add':
-            ips = [item for item in ips if item not in config['ban']['ip']]
-            config['ban']['ip'] += ips
-            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}}))
+            if side == "Server":
+                ips = [item for item in ips if item not in config['ban']['ip']]
+                config['ban']['ip'] += ips
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': by}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin", "Root"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': by}}))
+            if side == "Client":
+                ips = [item for item in ips if item not in config['ban']['ip']]
+                new_value = config['ban']['ip'] + ips
+                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.ip', 'value': new_value}))
             printc(verbose, "操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
+        
         if arg[1] == 'remove':
-            ips = [item for item in ips if item in config['ban']['ip']]
-            config['ban']['ip'] = [item for item in config['ban']['ip'] if not item in ips]
-            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': 0}}))
+            if side == "Server":
+                ips = [item for item in ips if item in config['ban']['ip']]
+                config['ban']['ip'] = [item for item in config['ban']['ip'] if not item in ips]
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': by}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin", "Root"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.ip', 'value': config['ban']['ip'], 'operator': by}}))
+            if side == "Client":
+                ips = [item for item in ips if item in config['ban']['ip']]
+                new_value = [item for item in config['ban']['ip'] if not item in ips]
+                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.ip', 'value': new_value}))
             printc(verbose, "操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
+    
     if arg[0] == 'words':
         if '\n' in item or '\r' in item or not item:
             printc(verbose, "屏蔽词不能为空串，且不能包含换行符。")
             return
         if ' ' in arg[2]:
-            printc(verbose, "请注意，您输入的屏蔽词包含空格。")
-            printc(verbose, "系统读取到的屏蔽词为（不包含开头的 ^ 符号和结尾的 $ 符号）：")
-            printc(verbose, "^", arg[2], "$", sep="")
-            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                return
+            if verbose:
+                printc(verbose, "请注意，您输入的屏蔽词包含空格。")
+                printc(verbose, "系统读取到的屏蔽词为（不包含开头的 ^ 符号和结尾的 $ 符号）：")
+                printc(verbose, "^", arg[2], "$", sep="")
+                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                    return
+        
         if arg[1] == 'add':
             if arg[2] in config['ban']['words']:
                 printc(verbose, "该屏蔽词已经在列表中出现了。")
                 return
-            config['ban']['words'].append(arg[2])
-            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}}))
+            if side == "Server":
+                config['ban']['words'].append(arg[2])
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.words', 'value': config['ban']['words'], 'operator': by}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin", "Root"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': by}}))
+            if side == "Client":
+                new_value = config['ban']['words']
+                new_value.append(arg[2])
+                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.words', 'value': new_value}))
             printc(verbose, "操作成功。")
+        
         if arg[1] == 'remove':
             if not arg[2] in config['ban']['words']:
                 printc(verbose, "该屏蔽词不在列表中。")
                 return
-            config['ban']['words'].remove(arg[2])
-            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}))
-            for i in range(len(users)):
-                if users[i]['status'] in ["Online", "Admin"]:
-                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': 0}}))
+            if side == "Server":
+                config['ban']['words'].remove(arg[2])
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': 'ban.words', 'value': config['ban']['words'], 'operator': by}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin", "Root"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': by}}))
+            if side == "Client":
+                new_value = config['ban']['words']
+                new_value.remove(arg[2])
+                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.words', 'value': new_value}))
             printc(verbose, "操作成功。")
 
-def do_exit(arg, verbose=False):
+def do_save():
+    global log_queue
+    if not users[by]['status'] != "Root":
+        print("只有处于 Root 状态的用户有权执行该操作。")
+        return
+    try:
+        with open("config.json", "w", encoding="utf-8") as f:
+            json.dump(config, f)
+        print("参数已经成功保存到配置文件 config.json，下次启动时将自动加载配置项。")
+        log_queue.put(json.dumps({'type': 'SERVER.CONFIG.SAVE', 'time': time_str()}))
+    except:
+        print("无法将参数保存到配置文件 config.json，请稍后重试。")
+
+def do_exit():
     global log_queue
     global EXIT_FLAG
+    print("\033[0m\033[1;36m再见！\033[0m")
     if side == "Server":
         log_queue.put(json.dumps({'type': 'SERVER.STOP', 'time': time_str()}))
     EXIT_FLAG = True
     exit()
 
-
-config = DEFAULT_SERVER_CONFIG
+def do_help():
+    print()
+    prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "cyan")
+    prints("聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。", "cyan")
+    prints("按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。", "cyan")
+    prints("输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。", "cyan")
+    prints("输出模式下，输入的指令将被忽略，且不会显示在屏幕上。", "cyan")
+    prints("输入模式下，新的消息将等待到退出输入模式才会显示。", "cyan")
+    prints("可用的命令有：", "cyan")
+    print()
+    prints("        dashboard                  展示聊天室各项数据", "blue")
+    prints("        exit                       退出或关闭聊天室", "blue")
+    prints("        file                       发送文件", "blue")
+    prints("        help                       显示本帮助文本", "blue")
+    prints("        send                       发送消息", "blue")
+    prints("        whisper <uid>              发送私聊消息", "blue")
+    prints("      * ban ip add <ip>            封禁 IP 或 IP 段", "blue")
+    prints("      * ban ip remove <ip>         解除封禁 IP 或 IP 段", "blue")
+    prints("      * ban words add <word>       屏蔽某个词语", "blue")
+    prints("      * ban words remove <word>    解除屏蔽某个词语", "blue")
+    prints("      * broadcast                  向全体用户广播消息", "blue")
+    prints("      * config <key> <value>       修改聊天室配置项", "blue")
+    prints("      * doorman accept <uid>       通过某个用户的加入申请", "blue")
+    prints("      * doorman reject <uid>       拒绝某个用户的加入申请", "blue")
+    prints("      * kick <uid>                 踢出某个用户", "blue")
+    prints("     ** admin add <uid>            添加管理员", "blue")
+    prints("     ** admin remove <uid>         移除管理员", "blue")
+    prints("     ** save                       保存聊天室配置项信息", "blue")
+    print()
+    prints("标注 * 的命令只有状态为 Admin 或 Root 的用户可以使用。", "cyan")
+    prints("标注 ** 的命令只有状态为 Root 的用户可以使用。", "cyan")
+    prints("对于 dashboard 命令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。", "cyan")
+    prints("对于 ban ip 命令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。", "cyan")
+    prints("对于 config 命令，<key> 的格式以 dashboard 命令输出的参数名称为准。", "cyan")
+    prints("对于 config 命令，<value> 的格式以 dashboard 命令输出的修改示例为准。", "cyan")
+    prints("对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。", "cyan")
+    prints("对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。", "cyan")
+    print()
 
 try:
     with open("config.json", "r", encoding="utf-8") as f:
@@ -605,6 +673,8 @@ try:
                     raise
                 if item == "general.server_port" and tmp_object >= 65536:
                     raise
+                if item == "gate.max_connections" and tmp_object >= 257:
+                    raise
             config = tmp_config
         if tmp_config['side'] == "Client":
             if not isinstance(tmp_config['ip'], str):
@@ -622,12 +692,6 @@ try:
             config = tmp_config
 except:
     config = DEFAULT_CLIENT_CONFIG
-
-EXIT_FLAG = False
-blocked = False
-my_uid = 0
-my_socket = None
-users = []
 
 clear_screen()
 prints("欢迎使用 TouchFish 聊天室！", "yellow")
@@ -648,7 +712,7 @@ if tmp_side == "Server":
         tmp_ip = config['general']['server_ip']
     config['general']['server_ip'] = tmp_ip
     if not check_ip(tmp_ip):
-        prints("参数错误。", "red")
+        prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
         input()
         sys.exit(1)
     tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
@@ -659,11 +723,11 @@ if tmp_side == "Server":
         if tmp_port <= 0 or tmp_port >= 65536:
             raise
     except:
-        prints("参数错误。", "red")
+        prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
         input()
         sys.exit(1)
     config['general']['server_port'] = tmp_port
-    tmp_max_connections = input("\033[0m\033[1;37m最大连接数 [{}]：".format(config['gate']['max_connections']))
+    tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
     if not tmp_max_connections:
        tmp_max_connections = config['gate']['max_connections']
     try:
@@ -671,7 +735,7 @@ if tmp_side == "Server":
         if tmp_max_connections <= 0 or tmp_max_connections >= 4294967297:
             raise
     except:
-        prints("参数错误。", "red")
+        prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
         input()
         sys.exit(1)
     config['gate']['max_connections'] = tmp_max_connections
@@ -706,7 +770,7 @@ if tmp_side == "Server":
         users[0]['body'].setblocking(False)
         users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
-    except Exception as e:
+    except:
         prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
         input()
         sys.exit(1)
@@ -715,9 +779,8 @@ if tmp_side == "Server":
         file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
     
     prints("启动成功！", "green")
-    side = "Server"
-    server_version = VERSION
-    print_info()
+    do_help()
+    do_dashboard()
     if config['general']['enter_hint']:
         first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
         first_line += dye(" [您发送的]", "blue")
@@ -733,4 +796,3 @@ if tmp_side == "Server":
 
 if tmp_side == "Client":
     pass # test
-    
