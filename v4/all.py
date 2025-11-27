@@ -12,7 +12,9 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.5"
+# 第一部分：常量和变量定义
+
+VERSION = "v4.0.0-alpha.6"
 
 RESULTS = \
 {
@@ -124,6 +126,8 @@ history = []
 online_count = 1
 first_data = None
 
+# 第二部分：功能性函数
+
 def clear_screen():
     if platform.system() == 'Windows':
         os.system('cls')
@@ -231,6 +235,8 @@ def print_message(message):
     prints(first_line)
     prints(message['content'], "white")
 
+# 第三部分：与命令对应的函数
+
 def do_dashboard():
     printf("=" * 70, "black")
     printf("服务端版本：" + server_version, "black")
@@ -249,14 +255,15 @@ def do_dashboard():
             printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
     printf("=" * 70, "black")
 
-def do_broadcast(arg, verbose=True, by=my_uid):
+def do_broadcast(arg, message=None, verbose=True, by=my_uid):
     global history
     global send_queue
     global connection
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
-    message = enter()
+    if message == None:
+        message = enter()
     if side == "Server":
         log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'content': message, 'to': -2}))
         history.append({'time': time_str(), 'from': by, 'content': message, 'to': -2})
@@ -416,30 +423,31 @@ def do_config(arg, verbose=True, by=my_uid):
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
-    arg = arg.split(' ', 1)
+    if verbose:
+        arg = arg.split(' ', 1)
     if len(arg) != 2:
         printc(verbose, "参数错误：应当给出恰好 2 个参数。")
         return
-        if not arg[0] in CONFIG_TYPE_CHECK_TABLE:
-            printc(verbose, "该参数不存在。")
-            return
-        if arg[0] == "general.server_ip" or arg[0] == "general.server_port" or arg[0] == "gate.max_connections":
-            printc(verbose, "不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
-            return
-        if verbose:
-            if arg[0] == "general.enter_hint":
-                printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
-                printc(verbose, "例如，将进入提示设为英文 Hi there! 并且末尾换行：")
-                printc(verbose, r'  config set general.enter_hint "Hi there!\n"')
-                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                    return
-            if arg[0] == "ban.ip" or arg[0] == "ban.words":
-                printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
-                printc(verbose, "例如，将 fuck 和 shit 设置为屏蔽词：")
-                printc(verbose, r'  config set ban.words ["fuck", "shit"]')
-                printc(verbose, "该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
-                if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
-                    return
+    if not arg[0] in CONFIG_TYPE_CHECK_TABLE:
+        printc(verbose, "该参数不存在。")
+        return
+    if arg[0] == "general.server_ip" or arg[0] == "general.server_port" or arg[0] == "gate.max_connections":
+        printc(verbose, "不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
+        return
+    if verbose:
+        if arg[0] == "general.enter_hint":
+            printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
+            printc(verbose, "例如，将进入提示设为英文 Hi there! 并且末尾换行：")
+            printc(verbose, r'  config set general.enter_hint "Hi there!\n"')
+            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                return
+        if arg[0] == "ban.ip" or arg[0] == "ban.words":
+            printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
+            printc(verbose, "例如，将 fuck 和 shit 设置为屏蔽词：")
+            printc(verbose, r'  config set ban.words ["fuck", "shit"]')
+            printc(verbose, "该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
+            if not input("确定要继续吗？[y/N] ") in ['y', 'Y']:
+                return
     
         try:
             if not eval("isinstance({}, {})".format(arg[1], CONFIG_TYPE_CHECK_TABLE[arg[0]])):
@@ -469,14 +477,14 @@ def do_config(arg, verbose=True, by=my_uid):
             
             first, second = arg[0].split('.')
             if side == "Server":
-                config[first][second] = eval(arg[2])
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': by}))
+                config[first][second] = eval(arg[1])
+                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}))
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin", "Root"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[2]), 'operator': by}}))
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}}))
             printc(verbose, "操作成功。")
             if side == "Client":
-                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': first + '.' + second, 'value': eval(arg[2])}))
+                connection.put(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': first + '.' + second, 'value': eval(arg[1])}))
         except:
             printc(verbose, "命令格式不正确，请重试。")
             return
@@ -618,7 +626,8 @@ def do_help():
     prints("        file                       发送文件", "blue")
     prints("        help                       显示本帮助文本", "blue")
     prints("        send                       发送消息", "blue")
-    prints("        whisper <uid>              发送私聊消息", "blue")
+    prints("        transfer <uid>             向某个用户发送私有文件", "blue")
+    prints("        whisper <uid>              向某个用户发送私聊消息", "blue")
     prints("      * ban ip add <ip>            封禁 IP 或 IP 段", "blue")
     prints("      * ban ip remove <ip>         解除封禁 IP 或 IP 段", "blue")
     prints("      * ban words add <word>       屏蔽某个词语", "blue")
@@ -641,6 +650,236 @@ def do_help():
     prints("对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。", "cyan")
     prints("对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。", "cyan")
     print()
+
+# 第四部分：与线程对应的函数
+
+def thread_gate():
+    global online_count
+    global log_queue
+    global users
+    global send_queue
+    global history
+    conntmp = None
+    addresstmp = None
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        
+        conntmp, addresstmp = None, None
+        try:
+            conntmp, addresstmp = s.accept()
+            conntmp.setblocking(False)
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+        except:
+            continue
+        
+        time.sleep(2)
+        data = ""
+        while True:
+            try:
+                data += conntmp.recv(16384).decode('utf-8')
+            except:
+                break
+        
+        tagged = False
+        for method in ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']:
+            if method in data:
+                try:
+                    conntmp.send(bytes(WEBPAGE_CONTENT, encoding="utf-8"))
+                    conntmp.close()
+                except:
+                    pass
+                tagged = True
+                log_queue.put(json.dumps({'type': 'GATE.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
+                break
+        if tagged:
+            continue
+        
+        try:
+            data = json.loads(data)
+            if not isinstance(data, dict) or set(data.keys()) != {"type", "username"} or data['type'] != "GATE.REQUEST" or not isinstance(data['username'], str) or not data['username']:
+                raise
+        except:
+            log_queue.put(json.dumps({'type': 'GATE.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
+            conntmp.close()
+            continue
+        
+        uid = len(users)
+        users.append({"body": conntmp, "extra": None, "buffer": "", "ip": addresstmp, "username": data['username'], "status": "Pending"})
+        result = "Accepted"
+        if config['gate']['enter_check']:
+            result = "Pending review"
+        if users[uid]['ip'][0] in config['ban']['ip']:
+            result = "IP is banned"
+        if online_count == config['gate']['max_connections']:
+            result = "Room is full"
+        for user in users[:-1]:
+            if user['status'] in ["Online", "Admin", "Root"] and users[uid]['username'] == user['username']:
+                result = "Duplicate usernames"
+        for word in config['ban']['words']:
+            if word in users[uid]['username']:
+                result = "Username consists of banned words"
+        
+        users[uid]['body'].send(bytes(json.dumps({'type': 'GATE.RESPONSE', 'result': result}) + "\n", encoding="utf-8"))
+        log_queue.put(json.dumps({'type': 'GATE.CLIENT_REQUEST.LOG', 'time': time_str(), 'ip': users[uid]['ip'], 'username': users[uid]['username'], 'uid': uid, 'result': result}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.CLIENT_REQUEST.ANNOUNCE', 'username': users[uid]['username'], 'uid': uid, 'result': result}}))
+        
+        if not result in ["Accepted", "Pending review"]:
+            users[uid]['status'] = "Rejected"
+            users[uid]['body'].close()
+            continue
+        if platform.system() != "Windows":
+            users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+            users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+        if platform.system() == "Windows":
+            users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+        online_count += 1
+        
+        if result == "Accepted":
+            users[uid]['status'] = "Online"
+            users_abstract = []
+            for i in range(len(users)):
+                users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
+            users[uid]['body'].send(bytes(json.dumps({'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history}) + "\n", encoding="utf-8"))
+
+def thread_receive():
+    global receive_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                data = ""
+                while True:
+                    try:
+                        users[i]['body'].setblocking(False)
+                        data += users[i]['body'].recv(16384).decode('utf-8')
+                    except:
+                        break
+                users[i]['buffer'] += data
+                while '\n' in users[i]['buffer']:
+                    try:
+                        message, users[i]['buffer'] = users[i]['buffer'].split('\n', 1)
+                    except:
+                        message, users[i]['buffer'] = users[i]['buffer'], ""
+                    try:
+                        message = json.loads(message)
+                        if not message['type']:
+                            raise
+                        if message['from'] != i:
+                            raise
+                    except:
+                        continue
+                    receive_queue.put(json.dumps({'from': i, 'content': message}))
+
+def thread_send():
+    global online_count
+    global send_queue
+    global log_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        while not send_queue.empty():
+            message = json.loads(send_queue.get())
+            if not users[message['to']]['status'] in ["Online", "Admin", "Root"]:
+                continue
+            try:
+                users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
+            except:
+                users[message['to']]['status'] = "Offline"
+                online_count -= 1
+                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': 0}))
+                for i in range(len(users)):
+                    if users[i]['status'] in ["Online", "Admin", "Root"]:
+                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
+
+def thread_process():
+    global online_count
+    global receive_queue
+    global send_queue
+    global log_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        while not receive_queue.empty():
+            message = json.loads(receive_queue.get())
+            sender, content = message['from'], message['content']
+            if content['type'] == "CHAT.SEND":
+                if content['to'] == -2:
+                    do_broadcast(None, content['content'], False, sender)
+                if content['to'] == -1:
+                    do_send(None, content['content'], False, sender)
+                if content['to'] >= 0:
+                    do_whisper(None, content['content'], False, sender)
+            if content['type'] == "GATE.STATUS_CHANGE.REQUEST":
+                if content['to'] == "Kicked":
+                    do_kick(str(content['uid']), False, sender)
+                if content['to'] == "Rejected":
+                    do_doorman("reject " + str(content['uid']), False, sender)
+                if content['to'] == "Online":
+                    do_doorman("accept " + str(content['uid']), False, sender)
+            if content['type'] == "SERVER.CONFIG.POST":
+                do_config([content['key'], repr(content['value'])], False, sender)
+
+def thread_log():
+    global log_queue
+    while True:
+        time.sleep(1)
+        if not log_queue.empty():
+            with open("./log.txt", "a", encoding="utf-8") as file:
+                while not log_queue.empty():
+                    file.write(log_queue.get() + "\n")
+        if EXIT_FLAG:
+            exit()
+            break
+
+def thread_check():
+    global online_count
+    global send_queue
+    global log_queue
+    global users
+    timer = 5
+    while True:
+        time.sleep(1)
+        if EXIT_FLAG:
+            exit()
+            break
+        timer -= 1
+        if timer:
+            continue
+        timer = 5
+        down = []
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                try:
+                    users[i]['body'].send(bytes("\n", encoding="utf-8"))
+                except:
+                    users[i]['status'] = "Offline"
+                    down.append(i)
+                    online_count -= 1
+                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': 0}))
+        for i in down:
+            for j in range(len(users)):
+                if users[j]['status'] in ["Online", "Admin", "Root"]:
+                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': i, 'operator': 0}}))
+
+# 第五部分：主程序
 
 try:
     with open("config.json", "r", encoding="utf-8") as f:
@@ -792,7 +1031,26 @@ if tmp_side == "Server":
         first_line += dye(":", "black")
         prints(first_line)
         prints(config['general']['enter_hint'], "white")
-
+    
+    # THREAD_INPUT = threading.Thread(target=thread_input)
+    # THREAD_OUTPUT = threading.Thread(target=thread_output)
+    THREAD_GATE = threading.Thread(target=thread_gate)
+    THREAD_PROCESS = threading.Thread(target=thread_process)
+    # THREAD_FILE = threading.Thread(target=thread_file)
+    THREAD_RECEIVE = threading.Thread(target=thread_receive)
+    THREAD_SEND = threading.Thread(target=thread_send)
+    THREAD_LOG = threading.Thread(target=thread_log)
+    THREAD_CHECK = threading.Thread(target=thread_check)
+    
+    # THREAD_INPUT.start()
+    # THREAD_OUTPUT.start()
+    THREAD_GATE.start()
+    THREAD_PROCESS.start()
+    # THREAD_FILE.start()
+    THREAD_RECEIVE.start()
+    THREAD_SEND.start()
+    THREAD_LOG.start()
+    THREAD_CHECK.start()
 
 if tmp_side == "Client":
     pass # test
