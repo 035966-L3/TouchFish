@@ -1,7 +1,10 @@
 # TouchFish - 局域网聊天解决方案
 
-[官网 - BOPID](http://bopid.cn/chat)  
-[网站和文档 - ILoveScratch](http://tf.ilovescratch.dpdns.org)  
+[官网 - BOPID](http://bopid.cn/chat)\
+[官方帮助 - 2044-space-elevator & pztsdy](https://github.com/2044-space-elevator/TouchFish/wiki)\
+[官方帮助服务端镜像](https://www.piaoztsdy.cn/2025/10/05/TouchFish-%E5%B8%AE%E5%8A%A9/) ||
+[官方帮助管理员端镜像](https://www.piaoztsdy.cn/2025/10/05/TouchFish-Admin-%E5%B8%AE%E5%8A%A9/) - pztsdy\
+[网站和文档 - ILoveScratch](http://tf.ilovescratch.dpdns.org)\
 [TouchFish 101 文档 - Notion](http://touchfish-dev.notion.site/touchfish-101)
 
 > **重要通知：贡献者须知**
@@ -55,6 +58,7 @@ TouchFish 采用客户端-服务器架构，包含三个核心组件：
 
 - **Server（服务器端）**: 聊天网络的核心，同一网络内只需运行一个实例
 - **Client（客户端）**: 普通用户聊天界面
+  - *ClientCLI （命令行版客户端）*: 专为**无UI界面的Linux**设计的客户端
 - **Admin（管理员端）**: 授予信任用户的管理权限
 
 ## 发行版本生态
@@ -72,7 +76,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 | Astra | - | @ILoveScratch2 | 是 | Dart | 全平台(UI) | 最佳发行版之一，现代化UI |
 | More | More | @xx2860 | 是 | Python | Win*, macOS*, Linux(UI) | 性能优化，镜像站 |
 
-> *注：标注星号的版本可能需要自行编译或缺少预编译包*
+> *注：标注星号的版本可能需要自行编译、直接运行代码或缺少预编译包*
 
 ### 相关项目推荐
 
