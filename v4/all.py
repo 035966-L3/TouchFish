@@ -14,7 +14,7 @@ import time
 
 # 第一部分：常量和变量定义
 
-VERSION = "v4.0.0-alpha.6"
+VERSION = "v4.0.0-alpha.7"
 
 RESULTS = \
 {
@@ -85,7 +85,7 @@ file.max_size          {:<12}16384          最大文件大小（字节）
 {}
 <3>:
 {}
-"""[1:]
+"""[1:-1]
 
 WEBPAGE_CONTENT = \
 """
@@ -125,6 +125,7 @@ send_queue = queue.Queue()
 history = []
 online_count = 1
 first_data = None
+buffer = ""
 
 # 第二部分：功能性函数
 
@@ -234,6 +235,55 @@ def print_message(message):
     first_line += dye(":", "black")
     prints(first_line)
     prints(message['content'], "white")
+
+def process(message):
+    if message['type'] == "CHAT.RECEIVE":
+        message['time'] = str(datetime.datetime.now())
+        print_message(message)
+        return
+    if message['type'] == "GATE.CLIENT_REQUEST.ANNOUNCE":
+        announce(0)
+        prints("用户 {} (UID = {}) 请求加入聊天室，请求结果：".format(message['username'], message['uid']) + message['result'], "cyan")
+        users.append({'username': message['username'], 'status': "Rejected"})
+        if message['result'] == "Pending review":
+            users[message['uid']]['status'] = "Pending"
+        if message['result'] == "Accepted":
+            users[message['uid']]['status'] = "Online"
+        return
+    if message['type'] == "GATE.STATUS_CHANGE.ANNOUNCE":
+        announce(0)
+        prints("用户 {} (UID = {}) 的状态变更为：".format(users[message['uid']]['username'], message['uid']) + message['status'], "cyan")
+        users[message['uid']]['status'] = message['status']
+        return
+    if message['type'] == "SERVER.CONFIG.CHANGE":
+        announce(message['operator'])
+        prints("配置项 {} 变更为：".format(message['key']) + str(message['value']), "cyan")
+        config[message['key'].split('.')[0]][message['key'].split('.')[1]] = message['value']
+        return
+
+def read():
+    global connection
+    global buffer
+    while True:
+        try:
+            connection.setblocking(False)
+            chunk = connection.recv(16384).decode('utf-8')
+            if not chunk:
+                break
+            buffer += chunk
+        except BlockingIOError:
+            break
+    return None
+
+def get_message():
+    global buffer
+    message = ""
+    while not message:
+        try:
+            message, buffer = buffer.split('\n', 1)
+        except:
+            return None
+    return json.loads(message)
 
 # 第三部分：与命令对应的函数
 
@@ -737,7 +787,7 @@ def thread_gate():
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-        if platform.system() == "Windows":
+        else:
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
         online_count += 1
@@ -988,7 +1038,7 @@ if tmp_side == "Server":
         sys.exit(1)
     try:
         with open("log.txt", "w", encoding="utf-8") as f:
-            json.dump(config, f)
+            pass
     except:
         prints("启动时遇到错误：无法向日志文件 log.txt 写入内容。", "red")
         input()
@@ -1053,4 +1103,124 @@ if tmp_side == "Server":
     THREAD_CHECK.start()
 
 if tmp_side == "Client":
-    pass # test
+    if config['side'] == "Server":
+        config = DEFAULT_CLIENT_CONFIG
+    tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
+    if not tmp_ip:
+        tmp_ip = config['ip']
+    config['ip'] = tmp_ip
+    if not check_ip(tmp_ip):
+        prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+        input()
+        sys.exit(1)
+    tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
+    if not tmp_port:
+       tmp_port = config['port']
+    try:
+        tmp_port = int(tmp_port)
+        if tmp_port <= 0 or tmp_port >= 65536:
+            raise
+    except:
+        prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+        input()
+        sys.exit(1)
+    config['port'] = tmp_port
+    tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
+    if not tmp_username:
+       tmp_username = config['username']
+    config['username'] = tmp_username
+    my_username = config['username']
+    
+    try:
+        with open("config.json", "w", encoding="utf-8") as f:
+            json.dump(config, f)
+    except:
+        prints("启动时遇到错误：参数 config.json 保存失败。", "red")
+        input()
+        sys.exit(1)
+    
+    prints("正在连接聊天室...", "yellow")
+    connection = socket.socket()
+    try:
+        connection.connect((config['ip'], config['port']))
+        connection.setblocking(False)
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+        connection.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8"))
+        time.sleep(3)
+    except Exception as e:
+        prints("连接失败：{}".format(e), "red")
+        input()
+        sys.exit(1)
+
+    if platform.system() == "Windows":
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+        connection.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+    else:
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+        connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+        connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+    
+    try:
+        read()
+        message = get_message()
+        if not message['result'] in ["Accepted", "Pending review", "IP is banned", "Room is full", "Duplicate usernames", "Username consists of banned words"]:
+            raise
+    except:
+        prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
+        input()
+        sys.exit(1)
+
+    if not message['result'] in ["Accepted", "Pending review"]:
+        prints("连接失败：{}".format(RESULTS[message['result']]), "red")
+        input()
+        sys.exit(1)
+
+    if message['result'] == "Accepted":
+        prints("连接成功！", "green")
+
+    if message['result'] == "Pending review":
+        prints("服务端需要对连接请求进行人工审核，请等待...", "white")
+        while True:
+            try:
+                read()
+                message = get_message()
+                if not message:
+                    continue
+                if not message['accepted']:
+                    prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
+                    prints("连接失败。", "red")
+                    input()
+                    sys.exit(1)
+                if message['accepted']:
+                    prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
+                    prints("连接成功！", "green")
+                    break
+            except:
+                pass
+    
+    read()
+    first_data = get_message()
+    server_version = first_data['server_version']
+    my_uid = first_data['uid']
+    config = first_data['config']
+    users = first_data['users']
+    do_help()
+    do_dashboard()
+    for i in first_data['chat_history']:
+        print_message(i)
+    if config['general']['enter_hint']:
+        first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
+        first_line += dye(" [加入提示]", "red")
+        first_line += " "
+        first_line += dye("@", "black")
+        first_line += dye("root", "yellow")
+        first_line += dye(":", "black")
+        prints(first_line)
+        prints(config['general']['enter_hint'], "white")
+    
+    # THREAD_INPUT = threading.Thread(target=thread_input)
+    # THREAD_OUTPUT = threading.Thread(target=thread_output)
+    
+    # THREAD_INPUT.start()
+    # THREAD_OUTPUT.start()
