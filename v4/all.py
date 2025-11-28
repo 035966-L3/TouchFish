@@ -14,7 +14,7 @@ import time
 
 # 第一部分：常量和变量定义
 
-VERSION = "v4.0.0-alpha.9"
+VERSION = "v4.0.0-alpha.10"
 
 RESULTS = \
 {
@@ -41,42 +41,43 @@ DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "127.0.0.1", "port": 8080, "use
 DEFAULT_SERVER_CONFIG = \
 {
     "side": "Server",
-    "general": {"server_ip": "127.0.0.1", "server_port": 8080, "enter_hint": ""},
+    "general": {"server_ip": "127.0.0.1", "server_port": 8080, "server_username": "root"},
     "ban": {"ip": [], "words": []},
-    "gate": {"enter_check": False, "max_connections": 256},
+    "gate": {"enter_hint": "", "enter_check": False, "max_connections": 256},
     "message": {"allow_private": True, "max_length": 16384},
     "file": {"allow_any": True, "allow_private": True, "max_size": 4294967296}
 }
 
 CONFIG_TYPE_CHECK_TABLE = \
 {
-    "general.server_ip": "str", "general.server_port": "int", "general.enter_hint": "str",
+    "general.server_ip": "str", "general.server_port": "int", "general.server_username": "str",
     "ban.ip": "list", "ban.words": "list",
-    "gate.enter_check": "bool", "gate.max_connections": "int",
+    "gate.enter_hint": "str", "gate.enter_check": "bool", "gate.max_connections": "int",
     "message.allow_private": "bool", "message.max_length": "int",
     "file.allow_any": "bool", "file.allow_private": "bool", "file.max_size": "int" 
 }
 
 CONFIG_LIST = \
 """
-参数名称               当前值      修改示例       描述
+参数名称                   当前值      修改示例       描述
 
-general.server_ip      {:<12}"192.168.1.1"  服务器 IP
-general.server_port    {:<12}12345          服务器端口
-general.enter_hint     <1>         "Hi there!\\n"  进入提示
+general.server_ip          {:<12}               服务器 IP
+general.server_port        {:<12}               服务器端口
+general.server_username    {:<12}               服务器管理员的用户名
 
-ban.ip                 <2>         ["8.8.8.8"]    IP 黑名单
-ban.words              <3>         ["a", "b"]     屏蔽词列表
+ban.ip                     <1>         ["8.8.8.8"]    IP 黑名单
+ban.words                  <2>         ["a", "b"]     屏蔽词列表
 
-gate.enter_check       {!s:<12}True           加入是否需要人工放行
-gate.max_connections   {:<12}8              最大在线连接数
+gate.enter_hint            <3>         "Hi there!\\n"  进入提示
+gate.enter_check           {!s:<12}True           加入是否需要人工放行
+gate.max_connections       {:<12}               最大在线连接数
 
-message.allow_private  {!s:<12}False          是否允许私聊
-message.max_length     {:<12}256            最大消息长度（字节）
+message.allow_private      {!s:<12}False          是否允许私聊
+message.max_length         {:<12}256            最大消息长度（字节）
 
-file.allow_any         {!s:<12}False          是否允许发送文件
-file.allow_private     {!s:<12}False          是否允许发送私有文件
-file.max_size          {:<12}16384          最大文件大小（字节）
+file.allow_any             {!s:<12}False          是否允许发送文件
+file.allow_private         {!s:<12}False          是否允许发送私有文件
+file.max_size              {:<12}16384          最大文件大小（字节）
 
 为了防止尖括号处的内容写不下，此处单独列出：
 <1>:
@@ -85,6 +86,7 @@ file.max_size          {:<12}16384          最大文件大小（字节）
 {}
 <3>:
 {}
+没有列出修改示例的参数不允许修改。
 """[1:-1]
 
 WEBPAGE_CONTENT = \
@@ -108,15 +110,15 @@ https://github.com/2044-space-elevator/TouchFish
 </pre></body></html>
 """[1:]
 
-config = DEFAULT_SERVER_CONFIG
+config = DEFAULT_CLIENT_CONFIG
 EXIT_FLAG = False
 blocked = False
-my_username = "root"
+my_username = "user"
 my_uid = 0
 my_socket = None
 users = []
 s = socket.socket()
-side = "Server"
+side = "Client"
 server_version = VERSION
 log_queue = queue.Queue()
 receive_queue = queue.Queue()
@@ -491,21 +493,21 @@ def do_config(arg, verbose=True, by=-1):
     if not arg[0] in CONFIG_TYPE_CHECK_TABLE:
         printc(verbose, "该参数不存在。")
         return
-    if arg[0] == "general.server_ip" or arg[0] == "general.server_port" or arg[0] == "gate.max_connections":
+    if arg[0].split('.')[0] == "general" or arg[0] == "gate.max_connections":
         printc(verbose, "不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
         return
     if verbose:
-        if arg[0] == "general.enter_hint":
+        if arg[0] == "gate.enter_hint":
             printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
             printc(verbose, "例如，将进入提示设为英文 Hi there! 并且末尾换行：")
-            printc(verbose, r'  config set general.enter_hint "Hi there!\n"')
+            printc(verbose, r'  config gate.enter_hint "Hi there!\n"')
             if not input("\033[0m\033[1;30m确定要继续吗？[y/N] ") in ['y', 'Y']:
                 return
             print("\033[8;30m", end="")
         if arg[0] == "ban.ip" or arg[0] == "ban.words":
             printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
             printc(verbose, "例如，将 fuck 和 shit 设置为屏蔽词：")
-            printc(verbose, r'  config set ban.words ["fuck", "shit"]')
+            printc(verbose, r'  config ban.words ["fuck", "shit"]')
             printc(verbose, "该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
             if not input("\033[0m\033[1;30m确定要继续吗？[y/N] ") in ['y', 'Y']:
                 return
@@ -738,7 +740,7 @@ def do_dashboard(arg=None):
     printf("您的 UID：" + str(my_uid), "black")
     printf("聊天室参数及具体用户信息详见下表。", "black")
     printf("=" * 70, "black")
-    printf(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['general']['enter_hint'], config['ban']['ip'], config['ban']['words']), "black")
+    printf(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['general']['server_username'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['ban']['ip'], config['ban']['words'], config['gate']['enter_hint']), "black")
     printf("=" * 70, "black")
     if 'ip' in users[0]:
         printf(" UID  IP                        状态      用户名", "black")
@@ -775,7 +777,6 @@ def do_exit(arg=None):
 
 def do_help(arg=None):
     print()
-    printf("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "cyan")
     printf("聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。", "cyan")
     printf("按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。", "cyan")
     printf("输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。", "cyan")
@@ -1113,6 +1114,8 @@ try:
                     raise
                 if item == "general.server_port" and tmp_object > 65535:
                     raise
+                if item == "general.server_username" and not tmp_object:
+                    raise
                 if item == "gate.max_connections" and tmp_object > 256:
                     raise
             config = tmp_config
@@ -1123,9 +1126,9 @@ try:
                 raise
             if not isinstance(tmp_config['username'], str):
                 raise
-            if int(tmp_config['port']) >= 65536:
+            if int(tmp_config['port']) > 65535:
                 raise
-            if tmp_config['username'] in ["", "root"]:
+            if not tmp_config['username']:
                 raise
             if not check_ip(tmp_config['ip']):
                 raise
@@ -1167,6 +1170,11 @@ if tmp_side == "Server":
         input("\033[0m")
         sys.exit(1)
     config['general']['server_port'] = tmp_port
+    tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
+    if not tmp_server_username:
+       tmp_server_username = config['general']['server_username']
+    config['general']['server_username'] = tmp_server_username
+    my_username = config['general']['server_username']
     tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
     if not tmp_max_connections:
        tmp_max_connections = config['gate']['max_connections']
@@ -1183,8 +1191,9 @@ if tmp_side == "Server":
     try:
         with open("config.json", "w", encoding="utf-8") as f:
             json.dump(config, f)
+        prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
     except:
-        prints("启动时遇到错误：参数 config.json 保存失败。", "red")
+        prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
         input("\033[0m")
         sys.exit(1)
     try:
@@ -1200,7 +1209,7 @@ if tmp_side == "Server":
         s.bind((config['general']['server_ip'], config['general']['server_port']))
         s.listen(config['gate']['max_connections'])
         s.setblocking(False)
-        users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": "root", "status": "Root"}]
+        users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root"}]
         root_socket = socket.socket()
         root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
         root_socket.setblocking(False)
@@ -1223,17 +1232,17 @@ if tmp_side == "Server":
     prints("启动成功！", "green")
     do_help()
     do_dashboard()
-    if config['general']['enter_hint']:
+    if config['gate']['enter_hint']:
         first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
         first_line += dye(" [您发送的]", "blue")
         first_line += " "
         first_line += dye(" [加入提示]", "red")
         first_line += " "
         first_line += dye("@", "black")
-        first_line += dye("root", "yellow")
+        first_line += dye(config['general']['server_username'], "yellow")
         first_line += dye(":", "black")
         prints(first_line)
-        prints(config['general']['enter_hint'], "white")
+        prints(config['gate']['enter_hint'], "white")
     
     THREAD_GATE = threading.Thread(target=thread_gate)
     THREAD_PROCESS = threading.Thread(target=thread_process)
@@ -1271,7 +1280,7 @@ if tmp_side == "Client":
        tmp_port = config['port']
     try:
         tmp_port = int(tmp_port)
-        if tmp_port <= 0 or tmp_port >= 65536:
+        if tmp_port < 1 or tmp_port > 65535:
             raise
     except:
         prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
@@ -1287,8 +1296,9 @@ if tmp_side == "Client":
     try:
         with open("config.json", "w", encoding="utf-8") as f:
             json.dump(config, f)
+        prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
     except:
-        prints("启动时遇到错误：参数 config.json 保存失败。", "red")
+        prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
         input("\033[0m")
         sys.exit(1)
     
@@ -1364,15 +1374,15 @@ if tmp_side == "Client":
     do_dashboard()
     for i in first_data['chat_history']:
         print_message(i)
-    if config['general']['enter_hint']:
+    if config['gate']['enter_hint']:
         first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
         first_line += dye(" [加入提示]", "red")
         first_line += " "
         first_line += dye("@", "black")
-        first_line += dye("root", "yellow")
+        first_line += dye(config['general']['server_username'], "yellow")
         first_line += dye(":", "black")
         prints(first_line)
-        prints(config['general']['enter_hint'], "white")
+        prints(config['gate']['enter_hint'], "white")
     
     THREAD_INPUT = threading.Thread(target=thread_input)
     THREAD_OUTPUT = threading.Thread(target=thread_output)
