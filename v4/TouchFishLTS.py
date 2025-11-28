@@ -1,3 +1,15 @@
+# TouchFish LTS Client/Server Unified Program (Version 4)
+
+
+
+
+
+# ============================== 第一部分：常量和变量定义 ==============================
+
+
+
+
+
 import base64
 import cmd
 import datetime
@@ -12,9 +24,7 @@ import sys
 import threading
 import time
 
-# 第一部分：常量和变量定义
-
-VERSION = "v4.0.0-alpha.10"
+VERSION = "v4.0.0-alpha.11"
 
 RESULTS = \
 {
@@ -45,7 +55,7 @@ DEFAULT_SERVER_CONFIG = \
     "ban": {"ip": [], "words": []},
     "gate": {"enter_hint": "", "enter_check": False, "max_connections": 256},
     "message": {"allow_private": True, "max_length": 16384},
-    "file": {"allow_any": True, "allow_private": True, "max_size": 4294967296}
+    "file": {"allow_any": True, "allow_private": True, "max_size": 1073741824}
 }
 
 CONFIG_TYPE_CHECK_TABLE = \
@@ -129,7 +139,15 @@ online_count = 1
 first_data = None
 buffer = ""
 
-# 第二部分：功能性函数
+
+
+
+
+# ================================ 第二部分：功能性函数 ================================
+
+
+
+
 
 def clear_screen():
     if platform.system() == 'Windows':
@@ -281,7 +299,7 @@ def read():
     while True:
         try:
             my_socket.setblocking(False)
-            chunk = my_socket.recv(16384).decode('utf-8')
+            chunk = my_socket.recv(65536).decode('utf-8')
             if not chunk:
                 break
             buffer += chunk
@@ -299,7 +317,15 @@ def get_message():
             return None
     return json.loads(message)
 
-# 第三部分：与命令对应的函数
+
+
+
+
+# ============================= 第三部分：与命令对应的函数 =============================
+
+
+
+
 
 def do_broadcast(arg, message=None, verbose=True, by=-1):
     global history
@@ -517,8 +543,14 @@ def do_config(arg, verbose=True, by=-1):
         if not eval("isinstance({}, {})".format(arg[1], CONFIG_TYPE_CHECK_TABLE[arg[0]])):
             printc(verbose, "输入数据的类型与参数不匹配。")
             raise
-        if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) < 1 or CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) > 4294967296:
-            printc(verbose, "输入的数值必须是不大于 4294967296 的正整数。")
+        if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) < 1:
+            printc(verbose, "输入的数值必须是正整数。")
+            raise
+        if arg[0] == "message.max_length" and int(arg[1]) > 16384:
+            printc(verbose, "允许的消息长度不得大于 16384。")
+            raise
+        if arg[0] == "file.max_size" and int(arg[1]) > 1073741824:
+            printc(verbose, "允许的文件大小不得大于 1073741824。")
             raise
         if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "list":
             for item in eval(arg[1]):
@@ -814,7 +846,15 @@ def do_help(arg=None):
     printf("对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。", "cyan")
     print()
 
-# 第四部分：与线程对应的函数
+
+
+
+
+# ============================= 第四部分：与线程对应的函数 =============================
+
+
+
+
 
 def thread_gate():
     global online_count
@@ -840,7 +880,7 @@ def thread_gate():
         data = ""
         while True:
             try:
-                data += conntmp.recv(16384).decode('utf-8')
+                data += conntmp.recv(65536).decode('utf-8')
             except:
                 break
         
@@ -957,7 +997,7 @@ def thread_receive():
                 while True:
                     try:
                         users[i]['body'].setblocking(False)
-                        data += users[i]['body'].recv(16384).decode('utf-8')
+                        data += users[i]['body'].recv(65536).decode('utf-8')
                     except:
                         break
                 users[i]['buffer'] += data
@@ -1081,311 +1121,333 @@ def thread_output():
             continue
         process(message)
 
-# 第五部分：主程序
 
-try:
-    with open("config.json", "r", encoding="utf-8") as f:
-        tmp_config = json.load(f)
-        if not tmp_config['side'] in ["Server", "Client"]:
-            raise
-        if tmp_config['side'] == "Server":
-            for item, type in CONFIG_TYPE_CHECK_TABLE.items():
-                first, second = item.split('.')
-                tmp_object = tmp_config[first][second]
-                if not eval("isinstance(tmp_object, {})".format(type)):
-                    raise
-                if type == "int" and tmp_object < 1 or type == "int" and tmp_object > 4294967296:
-                    raise
-                if type == "list":
-                    for element in tmp_object:
-                        if not isinstance(element, str):
-                            raise
-                    if len(tmp_object) != len(set(tmp_object)):
+
+
+
+# ================================== 第五部分：主程序 ==================================
+
+
+
+
+
+def main():
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            tmp_config = json.load(f)
+            if not tmp_config['side'] in ["Server", "Client"]:
+                raise
+            if tmp_config['side'] == "Server":
+                for item, type in CONFIG_TYPE_CHECK_TABLE.items():
+                    first, second = item.split('.')
+                    tmp_object = tmp_config[first][second]
+                    if not eval("isinstance(tmp_object, {})".format(type)):
                         raise
-                if item == "ban.words":
-                    for element in tmp_object:
-                        if '\n' in element or '\r' in element or not element:
+                    if type == "int" and tmp_object < 1:
+                        raise
+                    if item == "message.max_length" and tmp_object > 16384:
+                        raise
+                    if item == "file.max_size" and tmp_object > 1073741824:
+                        raise
+                    if type == "list":
+                        for element in tmp_object:
+                            if not isinstance(element, str):
+                                raise
+                        if len(tmp_object) != len(set(tmp_object)):
                             raise
-                if item == "ban.ip":
-                    for element in tmp_object:
-                        if not check_ip(element):
-                            raise
-                if item == "general.server_ip" and not check_ip(tmp_object):
+                    if item == "ban.words":
+                        for element in tmp_object:
+                            if '\n' in element or '\r' in element or not element:
+                                raise
+                    if item == "ban.ip":
+                        for element in tmp_object:
+                            if not check_ip(element):
+                                raise
+                    if item == "general.server_ip" and not check_ip(tmp_object):
+                        raise
+                    if item == "general.server_port" and tmp_object > 65535:
+                        raise
+                    if item == "general.server_username" and not tmp_object:
+                        raise
+                    if item == "gate.max_connections" and tmp_object > 256:
+                        raise
+                config = tmp_config
+            if tmp_config['side'] == "Client":
+                if not isinstance(tmp_config['ip'], str):
                     raise
-                if item == "general.server_port" and tmp_object > 65535:
+                if not isinstance(tmp_config['port'], int):
                     raise
-                if item == "general.server_username" and not tmp_object:
+                if not isinstance(tmp_config['username'], str):
                     raise
-                if item == "gate.max_connections" and tmp_object > 256:
+                if int(tmp_config['port']) > 65535:
                     raise
-            config = tmp_config
-        if tmp_config['side'] == "Client":
-            if not isinstance(tmp_config['ip'], str):
-                raise
-            if not isinstance(tmp_config['port'], int):
-                raise
-            if not isinstance(tmp_config['username'], str):
-                raise
-            if int(tmp_config['port']) > 65535:
-                raise
-            if not tmp_config['username']:
-                raise
-            if not check_ip(tmp_config['ip']):
-                raise
-            config = tmp_config
-except:
-    config = DEFAULT_CLIENT_CONFIG
-
-clear_screen()
-prints("欢迎使用 TouchFish 聊天室！", "yellow")
-prints("当前程序版本：{}".format(VERSION), "yellow")
-tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
-if not tmp_side:
-    tmp_side = config['side']
-if not tmp_side in ["Server", "Client"]:
-    prints("参数错误。", "red")
-    input("\033[0m")
-    sys.exit(1)
-
-if tmp_side == "Server":
-    if config['side'] == "Client":
-        config = DEFAULT_SERVER_CONFIG
-    tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
-    if not tmp_ip:
-        tmp_ip = config['general']['server_ip']
-    config['general']['server_ip'] = tmp_ip
-    if not check_ip(tmp_ip):
-        prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
-    if not tmp_port:
-       tmp_port = config['general']['server_port']
-    try:
-        tmp_port = int(tmp_port)
-        if tmp_port < 1 or tmp_port > 65535:
-            raise
+                if not tmp_config['username']:
+                    raise
+                if not check_ip(tmp_config['ip']):
+                    raise
+                config = tmp_config
     except:
-        prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    config['general']['server_port'] = tmp_port
-    tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
-    if not tmp_server_username:
-       tmp_server_username = config['general']['server_username']
-    config['general']['server_username'] = tmp_server_username
-    my_username = config['general']['server_username']
-    tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
-    if not tmp_max_connections:
-       tmp_max_connections = config['gate']['max_connections']
-    try:
-        tmp_max_connections = int(tmp_max_connections)
-        if tmp_max_connections < 1 or tmp_max_connections > 256:
-            raise
-    except:
-        prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    config['gate']['max_connections'] = tmp_max_connections
-    
-    try:
-        with open("config.json", "w", encoding="utf-8") as f:
-            json.dump(config, f)
-        prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
-    except:
-        prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    try:
-        with open("log.txt", "a", encoding="utf-8") as f:
-            pass
-    except:
-        prints("启动时遇到错误：无法向日志文件 log.txt 写入内容。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    
-    try:
-        s = socket.socket()
-        s.bind((config['general']['server_ip'], config['general']['server_port']))
-        s.listen(config['gate']['max_connections'])
-        s.setblocking(False)
-        users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root"}]
-        root_socket = socket.socket()
-        root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
-        root_socket.setblocking(False)
-        root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-        root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
-        users[0]['body'], users[0]['ip'] = s.accept()
-        users[0]['body'].setblocking(False)
-        users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-        users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
-        my_socket = root_socket
-    except:
-        prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    
-    with open("./log.txt", "a", encoding="utf-8") as file:
-        file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
-    
-    side = "Server"
-    prints("启动成功！", "green")
-    do_help()
-    do_dashboard()
-    if config['gate']['enter_hint']:
-        first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
-        first_line += dye(" [您发送的]", "blue")
-        first_line += " "
-        first_line += dye(" [加入提示]", "red")
-        first_line += " "
-        first_line += dye("@", "black")
-        first_line += dye(config['general']['server_username'], "yellow")
-        first_line += dye(":", "black")
-        prints(first_line)
-        prints(config['gate']['enter_hint'], "white")
-    
-    THREAD_GATE = threading.Thread(target=thread_gate)
-    THREAD_PROCESS = threading.Thread(target=thread_process)
-    THREAD_FILE = threading.Thread(target=thread_file)
-    THREAD_RECEIVE = threading.Thread(target=thread_receive)
-    THREAD_SEND = threading.Thread(target=thread_send)
-    THREAD_LOG = threading.Thread(target=thread_log)
-    THREAD_CHECK = threading.Thread(target=thread_check)
-    THREAD_INPUT = threading.Thread(target=thread_input)
-    THREAD_OUTPUT = threading.Thread(target=thread_output)
-    
-    THREAD_GATE.start()
-    THREAD_PROCESS.start()
-    THREAD_FILE.start()
-    THREAD_RECEIVE.start()
-    THREAD_SEND.start()
-    THREAD_LOG.start()
-    THREAD_CHECK.start()
-    THREAD_INPUT.start()
-    THREAD_OUTPUT.start()
-
-if tmp_side == "Client":
-    if config['side'] == "Server":
         config = DEFAULT_CLIENT_CONFIG
-    tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
-    if not tmp_ip:
-        tmp_ip = config['ip']
-    config['ip'] = tmp_ip
-    if not check_ip(tmp_ip):
-        prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+
+    clear_screen()
+    prints("欢迎使用 TouchFish 聊天室！", "yellow")
+    prints("当前程序版本：{}".format(VERSION), "yellow")
+    tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
+    if not tmp_side:
+        tmp_side = config['side']
+    if not tmp_side in ["Server", "Client"]:
+        prints("参数错误。", "red")
         input("\033[0m")
         sys.exit(1)
-    tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
-    if not tmp_port:
-       tmp_port = config['port']
-    try:
-        tmp_port = int(tmp_port)
-        if tmp_port < 1 or tmp_port > 65535:
-            raise
-    except:
-        prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    config['port'] = tmp_port
-    tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
-    if not tmp_username:
-       tmp_username = config['username']
-    config['username'] = tmp_username
-    my_username = config['username']
-    
-    try:
-        with open("config.json", "w", encoding="utf-8") as f:
-            json.dump(config, f)
-        prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
-    except:
-        prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    
-    prints("正在连接聊天室...", "yellow")
-    my_socket = socket.socket()
-    try:
-        my_socket.connect((config['ip'], config['port']))
-        my_socket.setblocking(False)
-        my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-        my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
-        my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8"))
-        time.sleep(3)
-    except Exception as e:
-        prints("连接失败：{}".format(e), "red")
-        input("\033[0m")
-        sys.exit(1)
-    
-    if platform.system() == "Windows":
-        my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-        my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
-    else:
-        my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-        my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
-        my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-    
-    try:
-        read()
-        message = get_message()
-        if not message['result'] in ["Accepted", "Pending review", "IP is banned", "Room is full", "Duplicate usernames", "Username consists of banned words"]:
-            raise
-    except:
-        prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    
-    if not message['result'] in ["Accepted", "Pending review"]:
-        prints("连接失败：{}".format(RESULTS[message['result']]), "red")
-        input("\033[0m")
-        sys.exit(1)
-    
-    if message['result'] == "Accepted":
-        prints("连接成功！", "green")
-    
-    if message['result'] == "Pending review":
-        prints("服务端需要对连接请求进行人工审核，请等待...", "white")
-        while True:
-            try:
-                read()
-                message = get_message()
-                if not message:
-                    continue
-                if not message['accepted']:
-                    prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
-                    prints("连接失败。", "red")
-                    input("\033[0m")
-                    sys.exit(1)
-                if message['accepted']:
-                    time.sleep(3)
-                    prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
-                    prints("连接成功！", "green")
-                    break
-            except:
+
+    if tmp_side == "Server":
+        if config['side'] == "Client":
+            config = DEFAULT_SERVER_CONFIG
+        tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
+        if not tmp_ip:
+            tmp_ip = config['general']['server_ip']
+        config['general']['server_ip'] = tmp_ip
+        if not check_ip(tmp_ip):
+            prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
+        if not tmp_port:
+           tmp_port = config['general']['server_port']
+        try:
+            tmp_port = int(tmp_port)
+            if tmp_port < 1 or tmp_port > 65535:
+                raise
+        except:
+            prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        config['general']['server_port'] = tmp_port
+        tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
+        if not tmp_server_username:
+           tmp_server_username = config['general']['server_username']
+        config['general']['server_username'] = tmp_server_username
+        my_username = config['general']['server_username']
+        tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
+        if not tmp_max_connections:
+           tmp_max_connections = config['gate']['max_connections']
+        try:
+            tmp_max_connections = int(tmp_max_connections)
+            if tmp_max_connections < 1 or tmp_max_connections > 256:
+                raise
+        except:
+            prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        config['gate']['max_connections'] = tmp_max_connections
+
+        try:
+            with open("config.json", "w", encoding="utf-8") as f:
+                json.dump(config, f)
+            prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
+        except:
+            prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        try:
+            with open("log.txt", "a", encoding="utf-8") as f:
                 pass
-    
-    side = "Client"
-    read()
-    first_data = get_message()
-    server_version = first_data['server_version']
-    my_uid = first_data['uid']
-    config = first_data['config']
-    users = first_data['users']
-    do_help()
-    do_dashboard()
-    for i in first_data['chat_history']:
-        print_message(i)
-    if config['gate']['enter_hint']:
-        first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
-        first_line += dye(" [加入提示]", "red")
-        first_line += " "
-        first_line += dye("@", "black")
-        first_line += dye(config['general']['server_username'], "yellow")
-        first_line += dye(":", "black")
-        prints(first_line)
-        prints(config['gate']['enter_hint'], "white")
-    
-    THREAD_INPUT = threading.Thread(target=thread_input)
-    THREAD_OUTPUT = threading.Thread(target=thread_output)
-    
-    THREAD_INPUT.start()
-    THREAD_OUTPUT.start()
+        except:
+            prints("启动时遇到错误：无法向日志文件 log.txt 写入内容。", "red")
+            input("\033[0m")
+            sys.exit(1)
+
+        try:
+            s = socket.socket()
+            s.bind((config['general']['server_ip'], config['general']['server_port']))
+            s.listen(config['gate']['max_connections'])
+            s.setblocking(False)
+            users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root"}]
+            root_socket = socket.socket()
+            root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
+            root_socket.setblocking(False)
+            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            users[0]['body'], users[0]['ip'] = s.accept()
+            users[0]['body'].setblocking(False)
+            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            my_socket = root_socket
+        except:
+            prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
+            input("\033[0m")
+            sys.exit(1)
+
+        with open("./log.txt", "a", encoding="utf-8") as file:
+            file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
+
+        side = "Server"
+        prints("启动成功！", "green")
+        do_help()
+        do_dashboard()
+        if config['gate']['enter_hint']:
+            first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
+            first_line += dye(" [您发送的]", "blue")
+            first_line += " "
+            first_line += dye(" [加入提示]", "red")
+            first_line += " "
+            first_line += dye("@", "black")
+            first_line += dye(config['general']['server_username'], "yellow")
+            first_line += dye(":", "black")
+            prints(first_line)
+            prints(config['gate']['enter_hint'], "white")
+
+        THREAD_GATE = threading.Thread(target=thread_gate)
+        THREAD_PROCESS = threading.Thread(target=thread_process)
+        THREAD_FILE = threading.Thread(target=thread_file)
+        THREAD_RECEIVE = threading.Thread(target=thread_receive)
+        THREAD_SEND = threading.Thread(target=thread_send)
+        THREAD_LOG = threading.Thread(target=thread_log)
+        THREAD_CHECK = threading.Thread(target=thread_check)
+        THREAD_INPUT = threading.Thread(target=thread_input)
+        THREAD_OUTPUT = threading.Thread(target=thread_output)
+
+        THREAD_GATE.start()
+        THREAD_PROCESS.start()
+        THREAD_FILE.start()
+        THREAD_RECEIVE.start()
+        THREAD_SEND.start()
+        THREAD_LOG.start()
+        THREAD_CHECK.start()
+        THREAD_INPUT.start()
+        THREAD_OUTPUT.start()
+
+    if tmp_side == "Client":
+        if config['side'] == "Server":
+            config = DEFAULT_CLIENT_CONFIG
+        tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
+        if not tmp_ip:
+            tmp_ip = config['ip']
+        config['ip'] = tmp_ip
+        if not check_ip(tmp_ip):
+            prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
+        if not tmp_port:
+           tmp_port = config['port']
+        try:
+            tmp_port = int(tmp_port)
+            if tmp_port < 1 or tmp_port > 65535:
+                raise
+        except:
+            prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        config['port'] = tmp_port
+        tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
+        if not tmp_username:
+           tmp_username = config['username']
+        config['username'] = tmp_username
+        my_username = config['username']
+
+        try:
+            with open("config.json", "w", encoding="utf-8") as f:
+                json.dump(config, f)
+            prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
+        except:
+            prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
+            input("\033[0m")
+            sys.exit(1)
+
+        prints("正在连接聊天室...", "yellow")
+        my_socket = socket.socket()
+        try:
+            my_socket.connect((config['ip'], config['port']))
+            my_socket.setblocking(False)
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8"))
+            time.sleep(3)
+        except Exception as e:
+            prints("连接失败：{}".format(e), "red")
+            input("\033[0m")
+            sys.exit(1)
+
+        if platform.system() == "Windows":
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+        else:
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+            my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+            my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+
+        try:
+            read()
+            message = get_message()
+            if not message['result'] in ["Accepted", "Pending review", "IP is banned", "Room is full", "Duplicate usernames", "Username consists of banned words"]:
+                raise
+        except:
+            prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
+            input("\033[0m")
+            sys.exit(1)
+
+        if not message['result'] in ["Accepted", "Pending review"]:
+            prints("连接失败：{}".format(RESULTS[message['result']]), "red")
+            input("\033[0m")
+            sys.exit(1)
+
+        if message['result'] == "Accepted":
+            prints("连接成功！", "green")
+
+        if message['result'] == "Pending review":
+            prints("服务端需要对连接请求进行人工审核，请等待...", "white")
+            while True:
+                try:
+                    read()
+                    message = get_message()
+                    if not message:
+                        continue
+                    if not message['accepted']:
+                        prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
+                        prints("连接失败。", "red")
+                        input("\033[0m")
+                        sys.exit(1)
+                    if message['accepted']:
+                        time.sleep(3)
+                        prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
+                        prints("连接成功！", "green")
+                        break
+                except:
+                    pass
+
+        side = "Client"
+        read()
+        first_data = get_message()
+        server_version = first_data['server_version']
+        my_uid = first_data['uid']
+        config = first_data['config']
+        users = first_data['users']
+        do_help()
+        do_dashboard()
+        for i in first_data['chat_history']:
+            print_message(i)
+        if config['gate']['enter_hint']:
+            first_line = dye("[" + str(datetime.datetime.now())[11:19] + "]", "black")
+            first_line += dye(" [加入提示]", "red")
+            first_line += " "
+            first_line += dye("@", "black")
+            first_line += dye(config['general']['server_username'], "yellow")
+            first_line += dye(":", "black")
+            prints(first_line)
+            prints(config['gate']['enter_hint'], "white")
+
+        THREAD_INPUT = threading.Thread(target=thread_input)
+        THREAD_OUTPUT = threading.Thread(target=thread_output)
+
+        THREAD_INPUT.start()
+        THREAD_OUTPUT.start()
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+# End of program
