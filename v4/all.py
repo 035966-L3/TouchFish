@@ -14,7 +14,7 @@ import time
 
 # 第一部分：常量和变量定义
 
-VERSION = "v4.0.0-alpha.8"
+VERSION = "v4.0.0-alpha.9"
 
 RESULTS = \
 {
@@ -167,7 +167,7 @@ def printf(text, color_code=None):
     print(dye(text, color_code))
 
 def printc(verbose, text):
-    if verbose:
+    if True:
         print(dye(text, "black"))
 
 def check_ip_segment(element):
@@ -219,7 +219,7 @@ def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
     if message['from'] == my_uid:
         first_line += dye(" [您发送的]", "blue")
-    if message['to'] == my_uid and my_uid:
+    if message['to'] == my_uid:
         first_line += dye(" [发给您的]", "blue")
     if message['to'] == -2:
         first_line += dye(" [广播]", "red")
@@ -238,6 +238,7 @@ def print_message(message):
 
 def process(message):
     global users
+    global EXIT_FLAG
     if message['type'] == "CHAT.RECEIVE":
         message['time'] = str(datetime.datetime.now())
         print_message(message)
@@ -253,11 +254,18 @@ def process(message):
                 users[message['uid']]['status'] = "Online"
         return
     if message['type'] == "GATE.STATUS_CHANGE.ANNOUNCE":
-        announce(0)
+        announce(message['operator'])
         prints("用户 {} (UID = {}) 的状态变更为：".format(users[message['uid']]['username'], message['uid']) + message['status'], "cyan")
         if side == "Client":
             users[message['uid']]['status'] = message['status']
-        return
+        if message['uid'] == my_uid and message['status'] == "Kicked":
+            while blocked:
+                pass
+            prints("您被踢出了聊天室。", "cyan")
+            prints("\033[0m\033[1;36m再见！\033[0m")
+            time.sleep(1)
+            EXIT_FLAG = True
+            exit()
     if message['type'] == "SERVER.CONFIG.CHANGE":
         announce(message['operator'])
         prints("配置项 {} 变更为：".format(message['key']) + str(message['value']), "cyan")
@@ -291,11 +299,13 @@ def get_message():
 
 # 第三部分：与命令对应的函数
 
-def do_broadcast(arg, message=None, verbose=True, by=my_uid):
+def do_broadcast(arg, message=None, verbose=True, by=-1):
     global history
     global log_queue
     global send_queue
     global my_socket
+    if by == -1:
+        by = my_uid
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
@@ -308,14 +318,16 @@ def do_broadcast(arg, message=None, verbose=True, by=my_uid):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': -2}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'from': by, 'content': message, 'to': -2}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': -2}) + "\n", encoding="utf-8"))
     printc(verbose, "操作成功。")
 
-def do_doorman(arg, verbose=True, by=my_uid):
+def do_doorman(arg, verbose=True, by=-1):
     global log_queue
     global send_queue
     global online_count
     global my_socket
+    if by == -1:
+        by = my_uid
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
@@ -353,7 +365,7 @@ def do_doorman(arg, verbose=True, by=my_uid):
                 users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
             send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': arg[1], 'config': config, 'users': users_abstract, 'chat_history': history}}))
         if side == "Client":
-            my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'from': by, 'status': 'Online', 'uid': arg[1]}) + "\n", encoding="utf-8"))
+            my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Online', 'uid': arg[1]}) + "\n", encoding="utf-8"))
     
     if arg[0] == "reject":
         if side == "Server":
@@ -366,15 +378,17 @@ def do_doorman(arg, verbose=True, by=my_uid):
             users[arg[1]]['body'].close()
             online_count -= 1
         if side == "Client":
-            my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'from': by, 'status': 'Rejected', 'uid': arg[1]}) + "\n", encoding="utf-8"))
+            my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Rejected', 'uid': arg[1]}) + "\n", encoding="utf-8"))
     
     printc(verbose, "操作成功。")
 
-def do_kick(arg, verbose=True, by=my_uid):
+def do_kick(arg, verbose=True, by=-1):
     global log_queue
     global send_queue
     global online_count
     global my_socket
+    if by == -1:
+        by = my_uid
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
@@ -399,18 +413,25 @@ def do_kick(arg, verbose=True, by=my_uid):
         return
     if side == "Server":
         log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': by}))
+        users[arg]['status'] = "Kicked"
+        try:
+            users[arg]['body'].send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': by}) + "\n", encoding="utf-8"))
+        except:
+            pass
+        users[arg]['body'].close()
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': by}}))
-        users[arg]['status'] = "Kicked"
         online_count -= 1
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'from': by, 'status': 'Kicked', 'uid': arg}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Kicked', 'uid': arg}) + "\n", encoding="utf-8"))
     printc(verbose, "操作成功。")
 
-def do_admin(arg, verbose=True, by=my_uid):
+def do_admin(arg, verbose=True, by=-1):
     global log_queue
     global send_queue
+    if by == -1:
+        by = my_uid
     if users[by]['status'] != "Root":
         printc(verbose, "只有处于 Root 状态的用户有权执行该操作。")
         return
@@ -452,11 +473,13 @@ def do_admin(arg, verbose=True, by=my_uid):
     
     printc(verbose, "操作成功。")
 
-def do_config(arg, verbose=True, by=my_uid):
+def do_config(arg, verbose=True, by=-1):
     global log_queue
     global send_queue
     global config
     global my_socket
+    if by == -1:
+        by = my_uid
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
@@ -488,51 +511,53 @@ def do_config(arg, verbose=True, by=my_uid):
                 return
             print("\033[8;30m", end="")
     
-        try:
-            if not eval("isinstance({}, {})".format(arg[1], CONFIG_TYPE_CHECK_TABLE[arg[0]])):
-                printc(verbose, "输入数据的类型与参数不匹配。")
-                raise
-            if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) <= 0 or CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) >= 4294967297:
-                printc(verbose, "输入的数值必须是不大于 4294967296 的正整数。")
-                raise
-            if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "list":
-                for item in eval(arg[1]):
-                    if not isinstance(item, str):
-                        printc(verbose, "列表中的元素必须是 str（字符串）类型。")
-                        raise
-                if len(eval(arg[1])) != len(set(eval(arg[1]))):
-                    printc(verbose, "列表中不能出现重复元素。")
+    try:
+        if not eval("isinstance({}, {})".format(arg[1], CONFIG_TYPE_CHECK_TABLE[arg[0]])):
+            printc(verbose, "输入数据的类型与参数不匹配。")
+            raise
+        if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) < 1 or CONFIG_TYPE_CHECK_TABLE[arg[0]] == "int" and int(arg[1]) > 4294967296:
+            printc(verbose, "输入的数值必须是不大于 4294967296 的正整数。")
+            raise
+        if CONFIG_TYPE_CHECK_TABLE[arg[0]] == "list":
+            for item in eval(arg[1]):
+                if not isinstance(item, str):
+                    printc(verbose, "列表中的元素必须是 str（字符串）类型。")
                     raise
-            if arg[0] == "ban.words":
-                for item in eval(arg[1]):
-                    if '\n' in item or '\r' in item or not item:
-                        printc(verbose, "屏蔽词列表中不能出现空串和换行符。")
-                        raise
-            if arg[0] == "ban.ip":
-                for item in eval(arg[1]):
-                    if not check_ip(item):
-                        printc(verbose, "IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
-                        raise
-            
-            first, second = arg[0].split('.')
-            if side == "Server":
-                config[first][second] = eval(arg[1])
-                log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}))
-                for i in range(len(users)):
-                    if users[i]['status'] in ["Online", "Admin", "Root"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}}))
-            printc(verbose, "操作成功。")
-            if side == "Client":
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': first + '.' + second, 'value': eval(arg[1])}) + "\n", encoding="utf-8"))
-        except:
-            printc(verbose, "命令格式不正确，请重试。")
-            return
+            if len(eval(arg[1])) != len(set(eval(arg[1]))):
+                printc(verbose, "列表中不能出现重复元素。")
+                raise
+        if arg[0] == "ban.words":
+            for item in eval(arg[1]):
+                if '\n' in item or '\r' in item or not item:
+                    printc(verbose, "屏蔽词列表中不能出现空串和换行符。")
+                    raise
+        if arg[0] == "ban.ip":
+            for item in eval(arg[1]):
+                if not check_ip(item):
+                    printc(verbose, "IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
+                    raise
 
-def do_ban(arg, verbose=True, by=my_uid):
+        first, second = arg[0].split('.')
+        if side == "Server":
+            config[first][second] = eval(arg[1])
+            log_queue.put(json.dumps({'type': 'SERVER.CONFIG.LOG', 'time': time_str(), 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}))
+            for i in range(len(users)):
+                if users[i]['status'] in ["Online", "Admin", "Root"]:
+                    send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}}))
+        printc(verbose, "操作成功。")
+        if side == "Client":
+            my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': first + '.' + second, 'value': eval(arg[1])}) + "\n", encoding="utf-8"))
+    except:
+        printc(verbose, "命令格式不正确，请重试。")
+        return
+
+def do_ban(arg, verbose=True, by=-1):
     global log_queue
     global send_queue
     global config
     global my_socket
+    if by == -1:
+        by = my_uid
     if not users[by]['status'] in ["Admin", "Root"]:
         printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
         return
@@ -567,7 +592,7 @@ def do_ban(arg, verbose=True, by=my_uid):
             if side == "Client":
                 ips = [item for item in ips if item not in config['ban']['ip']]
                 new_value = config['ban']['ip'] + ips
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.ip', 'value': new_value}) + "\n", encoding="utf-8"))
+                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.ip', 'value': new_value}) + "\n", encoding="utf-8"))
             printc(verbose, "操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
         
         if arg[1] == 'remove':
@@ -581,7 +606,7 @@ def do_ban(arg, verbose=True, by=my_uid):
             if side == "Client":
                 ips = [item for item in ips if item in config['ban']['ip']]
                 new_value = [item for item in config['ban']['ip'] if not item in ips]
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.ip', 'value': new_value}) + "\n", encoding="utf-8"))
+                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.ip', 'value': new_value}) + "\n", encoding="utf-8"))
             printc(verbose, "操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
     
     if arg[0] == 'words':
@@ -610,7 +635,7 @@ def do_ban(arg, verbose=True, by=my_uid):
             if side == "Client":
                 new_value = config['ban']['words']
                 new_value.append(arg[2])
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8"))
+                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8"))
             printc(verbose, "操作成功。")
         
         if arg[1] == 'remove':
@@ -626,14 +651,16 @@ def do_ban(arg, verbose=True, by=my_uid):
             if side == "Client":
                 new_value = config['ban']['words']
                 new_value.remove(arg[2])
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'from': by, 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8"))
+                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8"))
             printc(verbose, "操作成功。")
 
-def do_send(arg, message=None, verbose=True, by=my_uid):
+def do_send(arg, message=None, verbose=True, by=-1):
     global history
     global log_queue
     global send_queue
     global my_socket
+    if by == -1:
+        by = my_uid
     if message == None:
         message = enter()
     if not message:
@@ -653,13 +680,15 @@ def do_send(arg, message=None, verbose=True, by=my_uid):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': -1}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'from': by, 'content': message, 'to': -1}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': -1}) + "\n", encoding="utf-8"))
     printc(verbose, "发送成功。")
 
-def do_whisper(arg, message=None, verbose=True, by=my_uid):
+def do_whisper(arg, message=None, verbose=True, by=-1):
     global log_queue
     global send_queue
     global my_socket
+    if by == -1:
+        by = my_uid
     if not config['message']['allow_private']:
         printc(verbose, "此聊天室目前不允许发送私聊消息。")
         return
@@ -694,10 +723,16 @@ def do_whisper(arg, message=None, verbose=True, by=my_uid):
             if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': arg}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'from': by, 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
     printc(verbose, "发送成功。")
 
-def do_dashboard():
+def do_deliver(arg, verbose=True, my_uid=-1):
+    pass
+
+def do_transfer(arg, verbose=True, my_uid=-1):
+    pass
+
+def do_dashboard(arg=None):
     printf("=" * 70, "black")
     printf("服务端版本：" + server_version, "black")
     printf("您的 UID：" + str(my_uid), "black")
@@ -715,7 +750,7 @@ def do_dashboard():
             printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
     printf("=" * 70, "black")
 
-def do_save():
+def do_save(arg=None):
     global log_queue
     if users[my_uid]['status'] != "Root":
         print(users[my_uid]['status'])
@@ -729,7 +764,7 @@ def do_save():
     except:
         print("无法将参数保存到配置文件 config.json，请稍后重试。")
 
-def do_exit():
+def do_exit(arg=None):
     global log_queue
     global EXIT_FLAG
     print("\033[0m\033[1;36m再见！\033[0m")
@@ -738,44 +773,44 @@ def do_exit():
     EXIT_FLAG = True
     exit()
 
-def do_help():
+def do_help(arg=None):
     print()
-    prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "cyan")
-    prints("聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。", "cyan")
-    prints("按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。", "cyan")
-    prints("输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。", "cyan")
-    prints("输出模式下，输入的指令将被忽略，且不会显示在屏幕上。", "cyan")
-    prints("输入模式下，新的消息将等待到退出输入模式才会显示。", "cyan")
-    prints("可用的命令有：", "cyan")
+    printf("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "cyan")
+    printf("聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。", "cyan")
+    printf("按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。", "cyan")
+    printf("输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。", "cyan")
+    printf("输出模式下，输入的指令将被忽略，且不会显示在屏幕上。", "cyan")
+    printf("输入模式下，新的消息将等待到退出输入模式才会显示。", "cyan")
+    printf("可用的命令有：", "cyan")
     print()
-    prints("        dashboard                  展示聊天室各项数据", "blue")
-    prints("        exit                       退出或关闭聊天室", "blue")
-    prints("        file                       发送文件", "blue")
-    prints("        help                       显示本帮助文本", "blue")
-    prints("        send                       发送消息", "blue")
-    prints("        transfer <uid>             向某个用户发送私有文件", "blue")
-    prints("        whisper <uid>              向某个用户发送私聊消息", "blue")
-    prints("      * ban ip add <ip>            封禁 IP 或 IP 段", "blue")
-    prints("      * ban ip remove <ip>         解除封禁 IP 或 IP 段", "blue")
-    prints("      * ban words add <word>       屏蔽某个词语", "blue")
-    prints("      * ban words remove <word>    解除屏蔽某个词语", "blue")
-    prints("      * broadcast                  向全体用户广播消息", "blue")
-    prints("      * config <key> <value>       修改聊天室配置项", "blue")
-    prints("      * doorman accept <uid>       通过某个用户的加入申请", "blue")
-    prints("      * doorman reject <uid>       拒绝某个用户的加入申请", "blue")
-    prints("      * kick <uid>                 踢出某个用户", "blue")
-    prints("     ** admin add <uid>            添加管理员", "blue")
-    prints("     ** admin remove <uid>         移除管理员", "blue")
-    prints("     ** save                       保存聊天室配置项信息", "blue")
+    printf("        dashboard                    展示聊天室各项数据", "blue")
+    printf("        deliver <filename>           发送文件", "blue")
+    printf("        exit                         退出或关闭聊天室", "blue")
+    printf("        help                         显示本帮助文本", "blue")
+    printf("        send                         发送消息", "blue")
+    printf("        transfer <filename> <uid>    向某个用户发送私有文件", "blue")
+    printf("        whisper <uid>                向某个用户发送私聊消息", "blue")
+    printf("      * ban ip add <ip>              封禁 IP 或 IP 段", "blue")
+    printf("      * ban ip remove <ip>           解除封禁 IP 或 IP 段", "blue")
+    printf("      * ban words add <word>         屏蔽某个词语", "blue")
+    printf("      * ban words remove <word>      解除屏蔽某个词语", "blue")
+    printf("      * broadcast                    向全体用户广播消息", "blue")
+    printf("      * config <key> <value>         修改聊天室配置项", "blue")
+    printf("      * doorman accept <uid>         通过某个用户的加入申请", "blue")
+    printf("      * doorman reject <uid>         拒绝某个用户的加入申请", "blue")
+    printf("      * kick <uid>                   踢出某个用户", "blue")
+    printf("     ** admin add <uid>              添加管理员", "blue")
+    printf("     ** admin remove <uid>           移除管理员", "blue")
+    printf("     ** save                         保存聊天室配置项信息", "blue")
     print()
-    prints("标注 * 的命令只有状态为 Admin 或 Root 的用户可以使用。", "cyan")
-    prints("标注 ** 的命令只有状态为 Root 的用户可以使用。", "cyan")
-    prints("对于 dashboard 命令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。", "cyan")
-    prints("对于 ban ip 命令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。", "cyan")
-    prints("对于 config 命令，<key> 的格式以 dashboard 命令输出的参数名称为准。", "cyan")
-    prints("对于 config 命令，<value> 的格式以 dashboard 命令输出的修改示例为准。", "cyan")
-    prints("对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。", "cyan")
-    prints("对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。", "cyan")
+    printf("标注 * 的命令只有状态为 Admin 或 Root 的用户可以使用。", "cyan")
+    printf("标注 ** 的命令只有状态为 Root 的用户可以使用。", "cyan")
+    printf("对于 dashboard 命令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。", "cyan")
+    printf("对于 ban ip 命令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。", "cyan")
+    printf("对于 config 命令，<key> 的格式以 dashboard 命令输出的参数名称为准。", "cyan")
+    printf("对于 config 命令，<value> 的格式以 dashboard 命令输出的修改示例为准。", "cyan")
+    printf("对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。", "cyan")
+    printf("对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。", "cyan")
     print()
 
 # 第四部分：与线程对应的函数
@@ -873,6 +908,40 @@ def thread_gate():
                 users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
             users[uid]['body'].send(bytes(json.dumps({'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history}) + "\n", encoding="utf-8"))
 
+def thread_process():
+    global online_count
+    global receive_queue
+    global send_queue
+    global log_queue
+    global users
+    while True:
+        time.sleep(0.1)
+        if EXIT_FLAG:
+            exit()
+            break
+        while not receive_queue.empty():
+            message = json.loads(receive_queue.get())
+            sender, content = message['from'], message['content']
+            if content['type'] == "CHAT.SEND":
+                if content['to'] == -2:
+                    do_broadcast(None, content['content'], False, sender)
+                if content['to'] == -1:
+                    do_send(None, content['content'], False, sender)
+                if content['to'] >= 0:
+                    do_whisper(str(content['to']), content['content'], False, sender)
+            if content['type'] == "GATE.STATUS_CHANGE.REQUEST":
+                if content['status'] == "Kicked":
+                    do_kick(str(content['uid']), False, sender)
+                if content['status'] == "Rejected":
+                    do_doorman("reject " + str(content['uid']), False, sender)
+                if content['status'] == "Online":
+                    do_doorman("accept " + str(content['uid']), False, sender)
+            if content['type'] == "SERVER.CONFIG.POST":
+                do_config([content['key'], repr(content['value'])], False, sender)
+
+def thread_file():
+    pass
+
 def thread_receive():
     global receive_queue
     global users
@@ -899,8 +968,6 @@ def thread_receive():
                     try:
                         message = json.loads(message)
                         if not message['type']:
-                            raise
-                        if message['from'] != i:
                             raise
                     except:
                         continue
@@ -929,37 +996,6 @@ def thread_send():
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin", "Root"]:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
-
-def thread_process():
-    global online_count
-    global receive_queue
-    global send_queue
-    global log_queue
-    global users
-    while True:
-        time.sleep(0.1)
-        if EXIT_FLAG:
-            exit()
-            break
-        while not receive_queue.empty():
-            message = json.loads(receive_queue.get())
-            sender, content = message['from'], message['content']
-            if content['type'] == "CHAT.SEND":
-                if content['to'] == -2:
-                    do_broadcast(None, content['content'], False, sender)
-                if content['to'] == -1:
-                    do_send(None, content['content'], False, sender)
-                if content['to'] >= 0:
-                    do_whisper(None, content['content'], False, sender)
-            if content['type'] == "GATE.STATUS_CHANGE.REQUEST":
-                if content['to'] == "Kicked":
-                    do_kick(str(content['uid']), False, sender)
-                if content['to'] == "Rejected":
-                    do_doorman("reject " + str(content['uid']), False, sender)
-                if content['to'] == "Online":
-                    do_doorman("accept " + str(content['uid']), False, sender)
-            if content['type'] == "SERVER.CONFIG.POST":
-                do_config([content['key'], repr(content['value'])], False, sender)
 
 def thread_log():
     global log_queue
@@ -1021,14 +1057,12 @@ def thread_input():
         command = command.split(' ', 1)
         if len(command) == 1:
             command = [command[0], ""]
-        if not command[0] in ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'doorman', 'exit', 'file', 'help', 'kick', 'save', 'send', 'transfer', 'whisper']:
+        if not command[0] in ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'deliver', 'doorman', 'exit', 'help', 'kick', 'save', 'send', 'transfer', 'whisper']:
             print("命令输入错误。\n\033[8;30m", end="")
             blocked = False
             continue
-        if command[0] in ['dashboard', 'exit', 'help', 'save']:
-            exec("do_{}()".format(command[0]))
-        else:
-            exec("do_{}(command[1])".format(command[0]))
+        now = eval("do_{}".format(command[0]))
+        now(command[1])
         print("\033[8;30m", end="")
         blocked = False
 
@@ -1059,7 +1093,7 @@ try:
                 tmp_object = tmp_config[first][second]
                 if not eval("isinstance(tmp_object, {})".format(type)):
                     raise
-                if type == "int" and tmp_object <= 0 or type == "int" and tmp_object >= 4294967297:
+                if type == "int" and tmp_object < 1 or type == "int" and tmp_object > 4294967296:
                     raise
                 if type == "list":
                     for element in tmp_object:
@@ -1077,9 +1111,9 @@ try:
                             raise
                 if item == "general.server_ip" and not check_ip(tmp_object):
                     raise
-                if item == "general.server_port" and tmp_object >= 65536:
+                if item == "general.server_port" and tmp_object > 65535:
                     raise
-                if item == "gate.max_connections" and tmp_object >= 257:
+                if item == "gate.max_connections" and tmp_object > 256:
                     raise
             config = tmp_config
         if tmp_config['side'] == "Client":
@@ -1126,7 +1160,7 @@ if tmp_side == "Server":
        tmp_port = config['general']['server_port']
     try:
         tmp_port = int(tmp_port)
-        if tmp_port <= 0 or tmp_port >= 65536:
+        if tmp_port < 1 or tmp_port > 65535:
             raise
     except:
         prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
@@ -1138,7 +1172,7 @@ if tmp_side == "Server":
        tmp_max_connections = config['gate']['max_connections']
     try:
         tmp_max_connections = int(tmp_max_connections)
-        if tmp_max_connections <= 0 or tmp_max_connections >= 4294967297:
+        if tmp_max_connections < 1 or tmp_max_connections > 256:
             raise
     except:
         prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
@@ -1201,25 +1235,25 @@ if tmp_side == "Server":
         prints(first_line)
         prints(config['general']['enter_hint'], "white")
     
-    THREAD_INPUT = threading.Thread(target=thread_input)
-    THREAD_OUTPUT = threading.Thread(target=thread_output)
     THREAD_GATE = threading.Thread(target=thread_gate)
     THREAD_PROCESS = threading.Thread(target=thread_process)
-    # THREAD_FILE = threading.Thread(target=thread_file)
+    THREAD_FILE = threading.Thread(target=thread_file)
     THREAD_RECEIVE = threading.Thread(target=thread_receive)
     THREAD_SEND = threading.Thread(target=thread_send)
     THREAD_LOG = threading.Thread(target=thread_log)
     THREAD_CHECK = threading.Thread(target=thread_check)
+    THREAD_INPUT = threading.Thread(target=thread_input)
+    THREAD_OUTPUT = threading.Thread(target=thread_output)
     
-    THREAD_INPUT.start()
-    THREAD_OUTPUT.start()
     THREAD_GATE.start()
     THREAD_PROCESS.start()
-    # THREAD_FILE.start()
+    THREAD_FILE.start()
     THREAD_RECEIVE.start()
     THREAD_SEND.start()
     THREAD_LOG.start()
     THREAD_CHECK.start()
+    THREAD_INPUT.start()
+    THREAD_OUTPUT.start()
 
 if tmp_side == "Client":
     if config['side'] == "Server":
@@ -1312,6 +1346,7 @@ if tmp_side == "Client":
                     input("\033[0m")
                     sys.exit(1)
                 if message['accepted']:
+                    time.sleep(3)
                     prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
                     prints("连接成功！", "green")
                     break

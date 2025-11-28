@@ -14,7 +14,7 @@
       { type: "GATE.CLIENT_REQUEST.LOG", time: time, ip: ip, username: string, uid: number }
   1.6 Status Change
     1.6.1 Request
-      { type: "GATE.STATUS_CHANGE.REQUEST", from: number, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
+      { type: "GATE.STATUS_CHANGE.REQUEST", status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
     1.6.2 Announce
       { type: "GATE.STATUS_CHANGE.ANNOUNCE", status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number }
     1.6.3 Log
@@ -23,7 +23,7 @@
 
 2 Chat
   2.1 Send
-    { type: "CHAT.SEND", from: number, content: string, to: number | -1 | -2 } // to = -2 for broadcasting, to = -1 for public messages, to = UID for private messages for specific users
+    { type: "CHAT.SEND", content: string, to: number | -1 | -2 } // to = -2 for broadcasting, to = -1 for public messages, to = UID for private messages for specific users
   2.2 Receive
     { type: "CHAT.RECEIVE", from: number, content: string, to: number | -1 | -2 }
   2.3 Log
@@ -32,7 +32,7 @@
 
 3 File Transfer
   3.1 Request
-    { type: "FILE_TRANSFER.REQUEST", from: number, filename: string, size: number, to: number | -1 }
+    { type: "FILE_TRANSFER.REQUEST", filename: string, size: number, to: number | -1 }
   3.2 Announce
     { type: "FILE_TRANSFER.ANNOUNCE", from: number, filename: string, size: number, to: number | -1 }
   3.3 New Sockets
@@ -56,7 +56,7 @@
     { type: "SERVER.DATA", server_version: string, uid: number, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] } // users: { username: string, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root" }, chat_history: { time: time, from: number, content: string, to: number | -1 | -2 }, public messages only
   4.4 Config
     4.4.1 Post
-      { type: "SERVER.CONFIG.POST", from: number, key: string, value: any }
+      { type: "SERVER.CONFIG.POST", key: string, value: any }
     4.4.2 Change
       { type: "SERVER.CONFIG.CHANGE", key: string, value: any, operator: number }
     4.4.3 Save
