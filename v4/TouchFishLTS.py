@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.11"
+VERSION = "v4.0.0-alpha.12"
 
 RESULTS = \
 {
@@ -99,6 +99,51 @@ file.max_size              {:<12}16384          最大文件大小（字节）
 没有列出修改示例的参数不允许修改。
 """[1:-1]
 
+HELP_HINT_1 = \
+"""
+聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。
+按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。
+输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。
+输出模式下，输入的指令将被忽略，且不会显示在屏幕上。
+输入模式下，新的消息将等待到退出输入模式才会显示。
+可用的命令有：
+"""[1:-1]
+
+HELP_HINT_2 = \
+"""
+        dashboard                    展示聊天室各项数据
+        deliver <filename>           发送文件
+        exit                         退出或关闭聊天室
+        help                         显示本帮助文本
+        send                         发送消息
+        transfer <filename> <uid>    向某个用户发送私有文件
+        whisper <uid>                向某个用户发送私聊消息
+      * ban ip add <ip>              封禁 IP 或 IP 段
+      * ban ip remove <ip>           解除封禁 IP 或 IP 段
+      * ban words add <word>         屏蔽某个词语
+      * ban words remove <word>      解除屏蔽某个词语
+      * broadcast                    向全体用户广播消息
+      * config <key> <value>         修改聊天室配置项
+      * doorman accept <uid>         通过某个用户的加入申请
+      * doorman reject <uid>         拒绝某个用户的加入申请
+      * kick <uid>                   踢出某个用户
+     ** admin add <uid>              添加管理员
+     ** admin remove <uid>           移除管理员
+     ** save                         保存聊天室配置项信息
+"""[1:-1]
+
+HELP_HINT_3 = \
+"""
+标注 * 的命令只有状态为 Admin 或 Root 的用户可以使用。
+标注 ** 的命令只有状态为 Root 的用户可以使用。
+对于 dashboard 命令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。
+对于 ban ip 命令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。
+对于 config 命令，<key> 的格式以 dashboard 命令输出的参数名称为准。
+对于 config 命令，<value> 的格式以 dashboard 命令输出的修改示例为准。
+对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。
+对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。
+"""[1:-1]
+
 WEBPAGE_CONTENT = \
 """
 HTTP/1.1 405 Method Not Allowed
@@ -121,7 +166,6 @@ https://github.com/2044-space-elevator/TouchFish
 """[1:]
 
 config = DEFAULT_CLIENT_CONFIG
-EXIT_FLAG = False
 blocked = False
 my_username = "user"
 my_uid = 0
@@ -138,6 +182,7 @@ history = []
 online_count = 1
 first_data = None
 buffer = ""
+EXIT_FLAG = False
 
 
 
@@ -809,41 +854,11 @@ def do_exit(arg=None):
 
 def do_help(arg=None):
     print()
-    printf("聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。", "cyan")
-    printf("按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。", "cyan")
-    printf("输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。", "cyan")
-    printf("输出模式下，输入的指令将被忽略，且不会显示在屏幕上。", "cyan")
-    printf("输入模式下，新的消息将等待到退出输入模式才会显示。", "cyan")
-    printf("可用的命令有：", "cyan")
+    printf(HELP_HINT_1, "cyan")
     print()
-    printf("        dashboard                    展示聊天室各项数据", "blue")
-    printf("        deliver <filename>           发送文件", "blue")
-    printf("        exit                         退出或关闭聊天室", "blue")
-    printf("        help                         显示本帮助文本", "blue")
-    printf("        send                         发送消息", "blue")
-    printf("        transfer <filename> <uid>    向某个用户发送私有文件", "blue")
-    printf("        whisper <uid>                向某个用户发送私聊消息", "blue")
-    printf("      * ban ip add <ip>              封禁 IP 或 IP 段", "blue")
-    printf("      * ban ip remove <ip>           解除封禁 IP 或 IP 段", "blue")
-    printf("      * ban words add <word>         屏蔽某个词语", "blue")
-    printf("      * ban words remove <word>      解除屏蔽某个词语", "blue")
-    printf("      * broadcast                    向全体用户广播消息", "blue")
-    printf("      * config <key> <value>         修改聊天室配置项", "blue")
-    printf("      * doorman accept <uid>         通过某个用户的加入申请", "blue")
-    printf("      * doorman reject <uid>         拒绝某个用户的加入申请", "blue")
-    printf("      * kick <uid>                   踢出某个用户", "blue")
-    printf("     ** admin add <uid>              添加管理员", "blue")
-    printf("     ** admin remove <uid>           移除管理员", "blue")
-    printf("     ** save                         保存聊天室配置项信息", "blue")
+    printf(HELP_HINT_2, "blue")
     print()
-    printf("标注 * 的命令只有状态为 Admin 或 Root 的用户可以使用。", "cyan")
-    printf("标注 ** 的命令只有状态为 Root 的用户可以使用。", "cyan")
-    printf("对于 dashboard 命令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。", "cyan")
-    printf("对于 ban ip 命令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。", "cyan")
-    printf("对于 config 命令，<key> 的格式以 dashboard 命令输出的参数名称为准。", "cyan")
-    printf("对于 config 命令，<value> 的格式以 dashboard 命令输出的修改示例为准。", "cyan")
-    printf("对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。", "cyan")
-    printf("对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。", "cyan")
+    printf(HELP_HINT_3, "cyan")
     print()
 
 
@@ -871,8 +886,8 @@ def thread_gate():
         try:
             conntmp, addresstmp = s.accept()
             conntmp.setblocking(False)
-            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
         except:
             continue
         
@@ -1132,6 +1147,25 @@ def thread_output():
 
 
 def main():
+    global config
+    global blocked
+    global my_username
+    global my_uid
+    global my_socket
+    global users
+    global s
+    global side
+    global server_version
+    global log_queue
+    global receive_queue
+    global send_queue
+    global print_queue
+    global history
+    global online_count
+    global first_data
+    global buffer
+    global EXIT_FLAG
+    
     try:
         with open("config.json", "r", encoding="utf-8") as f:
             tmp_config = json.load(f)
@@ -1266,12 +1300,12 @@ def main():
             root_socket = socket.socket()
             root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
             root_socket.setblocking(False)
-            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
             users[0]['body'], users[0]['ip'] = s.accept()
             users[0]['body'].setblocking(False)
-            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
             my_socket = root_socket
         except:
             prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
@@ -1360,8 +1394,8 @@ def main():
         try:
             my_socket.connect((config['ip'], config['port']))
             my_socket.setblocking(False)
-            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
             my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8"))
             time.sleep(3)
         except Exception as e:
