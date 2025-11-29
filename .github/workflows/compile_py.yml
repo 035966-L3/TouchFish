@@ -16,7 +16,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'  # Linux 保持原版本
-          cache: 'pip'
 
       - name: Install PyInstaller for Linux
         run: pip install pyinstaller
@@ -44,7 +43,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.6'  # 适配 Windows 7 的 Python 3.6
-          cache: 'pip'
 
       - name: Install PyInstaller for Windows
         run: pip install pyinstaller
