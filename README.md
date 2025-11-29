@@ -1,6 +1,7 @@
-**这是 TouchFish V4 版本，自 V4 后不再向后兼容**
-
-[返回 V3](https://github.com/2044-space-elevator/TouchFish) 
+> [!WARNING]
+> **这是 TouchFish v4 版本，自 v4 后不再向后兼容。**
+> **以下所有文档尚未更新。**
+> [返回 v3](https://github.com/2044-space-elevator/TouchFish) 
 
 # TouchFish - 局域网聊天解决方案
 
