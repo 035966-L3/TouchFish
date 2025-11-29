@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.12"
+VERSION = "v4.0.0-alpha.13"
 
 RESULTS = \
 {
@@ -360,7 +360,10 @@ def get_message():
             message, buffer = buffer.split('\n', 1)
         except:
             return None
-    return json.loads(message)
+    try:
+        return json.loads(message)
+    except:
+        return None
 
 
 
@@ -753,13 +756,13 @@ def do_send(arg, message=None, verbose=True, by=-1):
             printc(verbose, "发送失败：消息中包含屏蔽词：" + word)
             return
     if side == "Server":
-        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'content': message, 'to': -1}))
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -1}))
         history.append({'time': time_str(), 'from': by, 'content': message, 'to': -1})
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': -1}}))
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -1}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': -1}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -1}) + "\n", encoding="utf-8"))
     printc(verbose, "发送成功。")
 
 def do_whisper(arg, message=None, verbose=True, by=-1):
@@ -797,12 +800,12 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
             printc(verbose, "发送失败：消息中包含屏蔽词：" + word)
             return
     if side == "Server":
-        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'content': message, 'to': arg}))
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': arg}))
         for i in range(len(users)):
             if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': arg}}))
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': arg}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
     printc(verbose, "发送成功。")
 
 def do_deliver(arg, verbose=True, my_uid=-1):
@@ -923,7 +926,7 @@ def thread_gate():
             continue
         
         uid = len(users)
-        users.append({"body": conntmp, "extra": None, "buffer": "", "ip": addresstmp, "username": data['username'], "status": "Pending"})
+        users.append({"body": conntmp, "buffer": "", "ip": addresstmp, "username": data['username'], "status": "Pending", 'busy': False})
         result = "Accepted"
         if config['gate']['enter_check']:
             result = "Pending review"
@@ -979,12 +982,18 @@ def thread_process():
             message = json.loads(receive_queue.get())
             sender, content = message['from'], message['content']
             if content['type'] == "CHAT.SEND":
-                if content['to'] == -2:
-                    do_broadcast(None, content['content'], False, sender)
-                if content['to'] == -1:
-                    do_send(None, content['content'], False, sender)
-                if content['to'] >= 0:
-                    do_whisper(str(content['to']), content['content'], False, sender)
+                if not content['filename']:
+                    if content['to'] == -2:
+                        do_broadcast(None, content['content'], False, sender)
+                    if content['to'] == -1:
+                        do_send(None, content['content'], False, sender)
+                    if content['to'] >= 0:
+                        do_whisper(str(content['to']), content['content'], False, sender)
+                else:
+                    if content['to'] == -1:
+                        do_deliver(None, content['content'], False, sender)
+                    else:
+                        do_transfer(str(content['to']), content['content'], False, sender)
             if content['type'] == "GATE.STATUS_CHANGE.REQUEST":
                 if content['status'] == "Kicked":
                     do_kick(str(content['uid']), False, sender)
@@ -994,9 +1003,6 @@ def thread_process():
                     do_doorman("accept " + str(content['uid']), False, sender)
             if content['type'] == "SERVER.CONFIG.POST":
                 do_config([content['key'], repr(content['value'])], False, sender)
-
-def thread_file():
-    pass
 
 def thread_receive():
     global receive_queue
@@ -1044,7 +1050,7 @@ def thread_send():
             if not users[message['to']]['status'] in ["Online", "Admin", "Root"]:
                 continue
             try:
-                users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
+                users[message['to']]['body'].send(bytes("\n", encoding="utf-8"))
             except:
                 users[message['to']]['status'] = "Offline"
                 online_count -= 1
@@ -1052,6 +1058,31 @@ def thread_send():
                 for i in range(len(users)):
                     if users[i]['status'] in ["Online", "Admin", "Root"]:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
+            try:
+                if not content['filename']:
+                    raise
+                with open(content['content'], 'rb') as f:
+                    file_data = f.read()
+                content['content'] = base64.b64encode(file_data).decode('utf-8')
+                token = json.dumps(message['content']) + "\n"
+                chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
+                users[message['to']]['busy'] = True
+                time.sleep(0.1)
+                for chunk in chunks:
+                    while True:
+                        try:
+                            users[message['to']]['body'].send(bytes(chunk, encoding="utf-8"))
+                        except BlockingIOError:
+                            continue
+                        except:
+                            break
+                users[message['to']]['busy'] = False
+            except:
+                users[message['to']]['busy'] = False
+                try:
+                    users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
+                except:
+                    pass
 
 def thread_log():
     global log_queue
@@ -1082,7 +1113,7 @@ def thread_check():
         timer = 5
         down = []
         for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin", "Root"]:
+            if users[i]['status'] in ["Online", "Admin", "Root"] and not users[i]['busy']:
                 try:
                     users[i]['body'].send(bytes("\n", encoding="utf-8"))
                 except:
@@ -1296,7 +1327,7 @@ def main():
             s.bind((config['general']['server_ip'], config['general']['server_port']))
             s.listen(config['gate']['max_connections'])
             s.setblocking(False)
-            users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root"}]
+            users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}]
             root_socket = socket.socket()
             root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
             root_socket.setblocking(False)
@@ -1333,7 +1364,6 @@ def main():
 
         THREAD_GATE = threading.Thread(target=thread_gate)
         THREAD_PROCESS = threading.Thread(target=thread_process)
-        THREAD_FILE = threading.Thread(target=thread_file)
         THREAD_RECEIVE = threading.Thread(target=thread_receive)
         THREAD_SEND = threading.Thread(target=thread_send)
         THREAD_LOG = threading.Thread(target=thread_log)
@@ -1343,7 +1373,6 @@ def main():
 
         THREAD_GATE.start()
         THREAD_PROCESS.start()
-        THREAD_FILE.start()
         THREAD_RECEIVE.start()
         THREAD_SEND.start()
         THREAD_LOG.start()
