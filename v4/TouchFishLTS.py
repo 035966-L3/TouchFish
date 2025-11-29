@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.13"
+VERSION = "v4.0.0-alpha.14"
 
 RESULTS = \
 {
@@ -116,7 +116,7 @@ HELP_HINT_2 = \
         exit                         退出或关闭聊天室
         help                         显示本帮助文本
         send                         发送消息
-        transfer <filename> <uid>    向某个用户发送私有文件
+        transfer <uid> <filename>    向某个用户发送私有文件
         whisper <uid>                向某个用户发送私聊消息
       * ban ip add <ip>              封禁 IP 或 IP 段
       * ban ip remove <ip>           解除封禁 IP 或 IP 段
@@ -169,6 +169,7 @@ config = DEFAULT_CLIENT_CONFIG
 blocked = False
 my_username = "user"
 my_uid = 0
+file_order = 0
 my_socket = None
 users = []
 s = socket.socket()
@@ -286,6 +287,8 @@ def print_message(message):
         first_line += dye(" [您发送的]", "blue")
     if message['to'] == my_uid:
         first_line += dye(" [发给您的]", "blue")
+    if message['filename']:
+        first_line += dye(" [文件]", "red")
     if message['to'] == -2:
         first_line += dye(" [广播]", "red")
     if message['to'] >= 0:
@@ -299,7 +302,20 @@ def print_message(message):
         first_line += dye(users[message['to']]['username'], "yellow")
     first_line += dye(":", "black")
     prints(first_line)
-    prints(message['content'], "white")
+    if message['filename']:
+        if side == "Client":
+            try:
+                if platform.system() == "Windows":
+                    with open("TouchFishFiles\\{}.file".format(message['order']), 'wb') as f:
+                        f.write(base64.b64decode(message['content']))
+                else:
+                    with open("TouchFishFiles/{}.file".format(message['order']), 'wb') as f:
+                        f.write(base64.b64decode(message['content']))
+            except:
+                pass
+        prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
+    else:
+        prints(message['content'], "white")
 
 def process(message):
     global users
@@ -808,11 +824,144 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
         my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
     printc(verbose, "发送成功。")
 
-def do_deliver(arg, verbose=True, my_uid=-1):
-    pass
+def do_deliver(arg, message=None, verbose=True, by=-1):
+    global log_queue
+    global send_queue
+    global my_socket
+    global file_order
+    if by == -1:
+        by = my_uid
+    if not config['file']['allow_any']:
+        printc(verbose, "此聊天室目前不允许发送文件。")
+        return
+    for word in config['ban']['words']:
+        if word in arg:
+            printc(verbose, "发送失败：文件名中包含屏蔽词：" + word)
+            return
+    if not message:
+        try:
+            with open(arg, 'rb') as f:
+                file_data = f.read()
+            message = base64.b64encode(file_data).decode('utf-8')
+        except:
+            printc(verbose, "无法读取对应文件。")
+            return
+    if len(message) * 3 // 4 > config['file']['max_size']:
+        printc(verbose, "发送失败：文件太大。")
+        return
+    if side == "Server":
+        file_order += 1
+        try:
+            if platform.system() == "Windows":
+                with open("TouchFishFiles\\{}.file".format(file_order), 'wb') as f:
+                    f.write(base64.b64decode(message))
+            else:
+                with open("TouchFishFiles/{}.file".format(file_order), 'wb') as f:
+                    f.write(base64.b64decode(message))
+        except:
+            pass
+        if platform.system() == "Windows":
+            tmp_filename = "TouchFishFiles\\{}.file".format(file_order)
+        else:
+            tmp_filename = "TouchFishFiles/{}.file".format(file_order)
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': file_order, 'filename': arg, 'content': "", 'to': -1}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Online", "Admin", "Root"]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': file_order, 'filename': arg, 'content': tmp_filename, 'to': -1}}))
+    if side == "Client":
+        token = json.dumps({'type': 'CHAT.SEND', 'filename': arg, 'content': message, 'to': -1}) + "\n"
+        chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
+        for chunk in chunks:
+            while True:
+                try:
+                    my_socket.send(bytes(chunk, encoding="utf-8"))
+                    break
+                except BlockingIOError:
+                    continue
+                except Exception as e:
+                    printc(verbose, "发送失败：{}".format(e))
+                    return
+    printc(verbose, "发送成功。")
 
-def do_transfer(arg, verbose=True, my_uid=-1):
-    pass
+def do_transfer(arg, message=None, verbose=True, by=-1):
+    global log_queue
+    global send_queue
+    global my_socket
+    global file_order
+    if by == -1:
+        by = my_uid
+    arg = arg.split(' ', 1)
+    if len(arg) != 2:
+        printc(verbose, "参数错误：应当给出恰好 2 个参数。")
+        return
+    if not config['file']['allow_any']:
+        printc(verbose, "此聊天室目前不允许发送文件。")
+        return
+    if not config['file']['allow_private']:
+        printc(verbose, "此聊天室目前不允许发送私有文件。")
+        return
+    try:
+        arg[0] = int(arg[0])
+        if arg[0] <= -1 or arg[0] >= len(users):
+            raise
+    except:
+        printc(verbose, "UID 输入错误。")
+        return
+    if not users[arg[0]]['status'] in ["Online", "Admin", "Root"]:
+        printc(verbose, "只能向状态处于 Online、Admin、Root 中的某一项的用户发送私有文件。")
+        return
+    if arg[0] == by:
+        printc(verbose, "不能向自己发送私有文件。")
+        return
+    for word in config['ban']['words']:
+        if word in arg[1]:
+            printc(verbose, "发送失败：文件名中包含屏蔽词：" + word)
+            return
+    print(arg[1])
+    if not message:
+        try:
+            with open(arg[1], 'rb') as f:
+                file_data = f.read()
+            message = base64.b64encode(file_data).decode('utf-8')
+        except:
+            printc(verbose, "无法读取对应文件。")
+            return
+    if len(message) * 3 // 4 > config['file']['max_size']:
+        printc(verbose, "发送失败：文件太大。")
+        return
+    if side == "Server":
+        file_order += 1
+        try:
+            if platform.system() == "Windows":
+                with open("TouchFishFiles\\{}.file".format(file_order), 'wb') as f:
+                    f.write(base64.b64decode(message))
+            else:
+                with open("TouchFishFiles/{}.file".format(file_order), 'wb') as f:
+                    f.write(base64.b64decode(message))
+        except:
+            pass
+        if platform.system() == "Windows":
+            tmp_filename = "TouchFishFiles\\{}.file".format(file_order)
+        else:
+            tmp_filename = "TouchFishFiles/{}.file".format(file_order)
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': file_order, 'filename': arg[1], 'content': "", 'to': arg[0]}))
+        for i in range(len(users)):
+            if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg[0]:
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': file_order, 'filename': arg[1], 'content': tmp_filename, 'to': arg[0]}}))
+    if side == "Client":
+        token = json.dumps({'type': 'CHAT.SEND', 'filename': arg[1], 'content': message, 'to': arg[0]}) + "\n"
+        chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
+        for chunk in chunks:
+            while True:
+                try:
+                    my_socket.send(bytes(chunk, encoding="utf-8"))
+                    break
+                except BlockingIOError:
+                    continue
+                except Exception as e:
+                    printc(verbose, "发送失败：{}".format(e))
+                    return
+    printc(verbose, "发送成功。")
 
 def do_dashboard(arg=None):
     printf("=" * 70, "black")
@@ -991,9 +1140,9 @@ def thread_process():
                         do_whisper(str(content['to']), content['content'], False, sender)
                 else:
                     if content['to'] == -1:
-                        do_deliver(None, content['content'], False, sender)
+                        do_deliver(content['filename'], content['content'], False, sender)
                     else:
-                        do_transfer(str(content['to']), content['content'], False, sender)
+                        do_transfer(str(content['to']) + ' ' + content['filename'], content['content'], False, sender)
             if content['type'] == "GATE.STATUS_CHANGE.REQUEST":
                 if content['status'] == "Kicked":
                     do_kick(str(content['uid']), False, sender)
@@ -1059,11 +1208,11 @@ def thread_send():
                     if users[i]['status'] in ["Online", "Admin", "Root"]:
                         send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
             try:
-                if not content['filename']:
-                    raise
-                with open(content['content'], 'rb') as f:
+                if not message['content']['filename']:
+                    impossible_value = message['content']['impossible_key']
+                with open(message['content']['content'], 'rb') as f:
                     file_data = f.read()
-                content['content'] = base64.b64encode(file_data).decode('utf-8')
+                message['content']['content'] = base64.b64encode(file_data).decode('utf-8')
                 token = json.dumps(message['content']) + "\n"
                 chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
                 users[message['to']]['busy'] = True
@@ -1072,12 +1221,14 @@ def thread_send():
                     while True:
                         try:
                             users[message['to']]['body'].send(bytes(chunk, encoding="utf-8"))
+                            break
                         except BlockingIOError:
                             continue
                         except:
                             break
+                time.sleep(0.1)
                 users[message['to']]['busy'] = False
-            except:
+            except KeyError:
                 users[message['to']]['busy'] = False
                 try:
                     users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
@@ -1182,6 +1333,7 @@ def main():
     global blocked
     global my_username
     global my_uid
+    global file_order
     global my_socket
     global users
     global s
@@ -1253,7 +1405,7 @@ def main():
                 config = tmp_config
     except:
         config = DEFAULT_CLIENT_CONFIG
-
+    
     clear_screen()
     prints("欢迎使用 TouchFish 聊天室！", "yellow")
     prints("当前程序版本：{}".format(VERSION), "yellow")
@@ -1264,7 +1416,7 @@ def main():
         prints("参数错误。", "red")
         input("\033[0m")
         sys.exit(1)
-
+    
     if tmp_side == "Server":
         if config['side'] == "Client":
             config = DEFAULT_SERVER_CONFIG
@@ -1305,7 +1457,8 @@ def main():
             input("\033[0m")
             sys.exit(1)
         config['gate']['max_connections'] = tmp_max_connections
-
+        
+        os.system('mkdir TouchFishFiles')
         try:
             with open("config.json", "w", encoding="utf-8") as f:
                 json.dump(config, f)
@@ -1321,7 +1474,7 @@ def main():
             prints("启动时遇到错误：无法向日志文件 log.txt 写入内容。", "red")
             input("\033[0m")
             sys.exit(1)
-
+        
         try:
             s = socket.socket()
             s.bind((config['general']['server_ip'], config['general']['server_port']))
@@ -1342,10 +1495,10 @@ def main():
             prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
             input("\033[0m")
             sys.exit(1)
-
+        
         with open("./log.txt", "a", encoding="utf-8") as file:
             file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
-
+        
         side = "Server"
         prints("启动成功！", "green")
         do_help()
@@ -1361,7 +1514,7 @@ def main():
             first_line += dye(":", "black")
             prints(first_line)
             prints(config['gate']['enter_hint'], "white")
-
+        
         THREAD_GATE = threading.Thread(target=thread_gate)
         THREAD_PROCESS = threading.Thread(target=thread_process)
         THREAD_RECEIVE = threading.Thread(target=thread_receive)
@@ -1370,7 +1523,7 @@ def main():
         THREAD_CHECK = threading.Thread(target=thread_check)
         THREAD_INPUT = threading.Thread(target=thread_input)
         THREAD_OUTPUT = threading.Thread(target=thread_output)
-
+        
         THREAD_GATE.start()
         THREAD_PROCESS.start()
         THREAD_RECEIVE.start()
@@ -1379,7 +1532,7 @@ def main():
         THREAD_CHECK.start()
         THREAD_INPUT.start()
         THREAD_OUTPUT.start()
-
+    
     if tmp_side == "Client":
         if config['side'] == "Server":
             config = DEFAULT_CLIENT_CONFIG
@@ -1408,7 +1561,8 @@ def main():
            tmp_username = config['username']
         config['username'] = tmp_username
         my_username = config['username']
-
+        
+        os.system('mkdir TouchFishFiles')
         try:
             with open("config.json", "w", encoding="utf-8") as f:
                 json.dump(config, f)
@@ -1417,7 +1571,7 @@ def main():
             prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
             input("\033[0m")
             sys.exit(1)
-
+        
         prints("正在连接聊天室...", "yellow")
         my_socket = socket.socket()
         try:
@@ -1431,7 +1585,7 @@ def main():
             prints("连接失败：{}".format(e), "red")
             input("\033[0m")
             sys.exit(1)
-
+        
         if platform.system() == "Windows":
             my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
@@ -1439,7 +1593,7 @@ def main():
             my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
             my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
             my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-
+        
         try:
             read()
             message = get_message()
@@ -1449,15 +1603,15 @@ def main():
             prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
             input("\033[0m")
             sys.exit(1)
-
+        
         if not message['result'] in ["Accepted", "Pending review"]:
             prints("连接失败：{}".format(RESULTS[message['result']]), "red")
             input("\033[0m")
             sys.exit(1)
-
+        
         if message['result'] == "Accepted":
             prints("连接成功！", "green")
-
+        
         if message['result'] == "Pending review":
             prints("服务端需要对连接请求进行人工审核，请等待...", "white")
             while True:
@@ -1478,7 +1632,7 @@ def main():
                         break
                 except:
                     pass
-
+        
         side = "Client"
         read()
         first_data = get_message()
@@ -1499,10 +1653,10 @@ def main():
             first_line += dye(":", "black")
             prints(first_line)
             prints(config['gate']['enter_hint'], "white")
-
+        
         THREAD_INPUT = threading.Thread(target=thread_input)
         THREAD_OUTPUT = threading.Thread(target=thread_output)
-
+        
         THREAD_INPUT.start()
         THREAD_OUTPUT.start()
 

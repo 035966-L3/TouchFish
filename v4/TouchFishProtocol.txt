@@ -21,6 +21,7 @@
       { type: "GATE.STATUS_CHANGE.LOG", time: time, status: "Rejected" | "Kicked" | "Offline" | "Pending" | "Online" | "Admin" | "Root", uid: number, operator: number }
 
 
+
 2 Chat
   2.1 Send
     { type: "CHAT.SEND", filename: string, content: string, to: number | -1 | -2 } // to = -2 for broadcasting, to = -1 for public messages, to = UID for private messages for specific users, filename = "" for messages, content = base64(file_content) for files
@@ -28,6 +29,7 @@
     { type: "CHAT.RECEIVE", from: number, order: number, filename: string, content: string, to: number | -1 | -2 } // order = 0 for messages
   2.3 Log
     { type: "CHAT.LOG", time: time, from: number, order: number, filename: string, content: string, to: number | -1 | -2 } // content = "" for files
+
 
 
 3 Server
