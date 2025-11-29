@@ -1,5 +1,3 @@
-# 贡献者注意： 
-# 下面的 hook-win10toast.py 迁移不要删
 name: Build and Push Python Binaries
 
 on:
@@ -17,18 +15,17 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'  # Linux保持原版本
+          python-version: '3.13'  # Linux 保持原版本
           cache: 'pip'
+
+      - name: Install PyInstaller for Linux
+        run: pip install pyinstaller
 
       - name: Compile Python scripts for Linux
         run: |
-          pip install -r requirements_linux.txt
           mkdir -p bin/linux
-          pyinstaller --onefile --distpath bin/linux chat.py
-          pyinstaller --onefile --distpath bin/linux admin.py
-          pyinstaller --onefile --noconsole --distpath bin/linux client.py
-          pyinstaller --onefile --distpath bin/linux clientcli.py  # 新增clientcli.py编译
-          rm chat.spec client.spec clientcli.spec  # 删除新增的spec文件
+          pyinstaller --onefile --distpath bin/linux LTS.py
+          rm LTS.spec
           rm -rf build/
 
       - name: Upload Linux binaries
@@ -46,21 +43,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.6'  # 适配Windows 7的Python 3.6
+          python-version: '3.6'  # 适配 Windows 7 的 Python 3.6
           cache: 'pip'
+
+      - name: Install PyInstaller for Windows
+        run: pip install pyinstaller
 
       - name: Compile Python scripts for Windows
         run: |
-          pip install -r requirements.txt
-          # 动态获取Python安装路径（适配3.6版本）
+          # 动态获取 Python 安装路径（适配 3.6 版本）
           $site_packages = python -c "import site; print(site.getsitepackages()[0])"
-          Copy-Item -Path hook-win10toast.py "$site_packages\lib\site-packages\PyInstaller\hooks\"
           mkdir -Force bin/windows
-          pyinstaller --onefile --distpath bin/windows admin.py
-          pyinstaller --onefile --distpath bin/windows chat.py
-          pyinstaller --onefile --noconsole --distpath bin/windows client.py
-          pyinstaller --onefile --distpath bin/windows clientcli.py  # 新增clientcli.py编译
-          Remove-Item -Path "chat.spec", "client.spec", "clientcli.spec" -Force  # 删除新增的spec文件
+          pyinstaller --onefile --distpath bin/windows LTS.py
+          Remove-Item -Path "LTS.spec" -Force
           Remove-Item -Path ".\build" -Recurse -Force
           
       - name: Upload Windows binaries

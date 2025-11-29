@@ -11,20 +11,18 @@
 
 
 import base64
-import cmd
 import datetime
 import json
 import os
 import platform
 import queue
 import re
-import requests
 import socket
 import sys
 import threading
 import time
 
-VERSION = "v4.0.0-alpha.14"
+VERSION = "v4.0.0b"
 
 RESULTS = \
 {
@@ -1102,11 +1100,11 @@ def thread_gate():
             continue
         if platform.system() != "Windows":
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+            users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10800)
             users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
         else:
             users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+            users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180000, 30000))
         online_count += 1
         
         if result == "Accepted":
@@ -1588,10 +1586,10 @@ def main():
         
         if platform.system() == "Windows":
             my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180 * 1000, 30 * 1000))
+            my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180000, 30000))
         else:
             my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180 * 60)
+            my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10800)
             my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
         
         try:
