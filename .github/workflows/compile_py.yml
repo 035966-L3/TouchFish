@@ -7,15 +7,13 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-20.04
+  build-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.6-buster # 适配 NOI Linux 2.0 的 Python 3.6
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.6'  # Linux 保持原版本
 
       - name: Install PyInstaller for Linux
         run: pip install pyinstaller
