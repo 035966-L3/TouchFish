@@ -21,6 +21,7 @@ import socket
 import sys
 import threading
 import time
+import argparse
 
 VERSION = "v4.0.0b"
 
@@ -1327,7 +1328,17 @@ def thread_output():
 
 
 
-
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='TouchFish LTS Client/Server Unified Program (v4)',
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        '-l', '--load-config',
+        action='store_true',
+        help='从config.json读取配置并自动校验，跳过手动输入步骤直接启动（校验失败则退出）'
+    )
+    return parser.parse_args()
 
 def main():
     global config
@@ -1349,6 +1360,9 @@ def main():
     global first_data
     global buffer
     global EXIT_FLAG
+    
+    args = parse_args()
+    load_config_auto = args.load_config
     
     try:
         with open("config.json", "r", encoding="utf-8") as f:
@@ -1410,55 +1424,57 @@ def main():
     clear_screen()
     prints("欢迎使用 TouchFish 聊天室！", "yellow")
     prints("当前程序版本：{}".format(VERSION), "yellow")
-    tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
-    if not tmp_side:
-        tmp_side = config['side']
-    if not tmp_side in ["Server", "Client"]:
-        prints("参数错误。", "red")
-        input("\033[0m")
-        sys.exit(1)
-    
+    if not load_config_auto:
+        tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
+        if not tmp_side:
+            tmp_side = config['side']
+        if not tmp_side in ["Server", "Client"]:
+            prints("参数错误。", "red")
+            input("\033[0m")
+            sys.exit(1)
+        
     if tmp_side == "Server":
         if config['side'] == "Client":
             config = DEFAULT_SERVER_CONFIG
-        tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
-        if not tmp_ip:
-            tmp_ip = config['general']['server_ip']
-        config['general']['server_ip'] = tmp_ip
-        if not check_ip(tmp_ip):
-            prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
-            input("\033[0m")
-            sys.exit(1)
-        tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
-        if not tmp_port:
-           tmp_port = config['general']['server_port']
-        try:
-            tmp_port = int(tmp_port)
-            if tmp_port < 1 or tmp_port > 65535:
-                raise
-        except:
-            prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
-            input("\033[0m")
-            sys.exit(1)
-        config['general']['server_port'] = tmp_port
-        tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
-        if not tmp_server_username:
-           tmp_server_username = config['general']['server_username']
-        config['general']['server_username'] = tmp_server_username
-        my_username = config['general']['server_username']
-        tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
-        if not tmp_max_connections:
-           tmp_max_connections = config['gate']['max_connections']
-        try:
-            tmp_max_connections = int(tmp_max_connections)
-            if tmp_max_connections < 1 or tmp_max_connections > 256:
-                raise
-        except:
-            prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
-            input("\033[0m")
-            sys.exit(1)
-        config['gate']['max_connections'] = tmp_max_connections
-        
+        if not load_config_auto:
+            tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
+            if not tmp_ip:
+                tmp_ip = config['general']['server_ip']
+            config['general']['server_ip'] = tmp_ip
+            if not check_ip(tmp_ip):
+                prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+                input("\033[0m")
+                sys.exit(1)
+            tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
+            if not tmp_port:
+               tmp_port = config['general']['server_port']
+            try:
+                tmp_port = int(tmp_port)
+                if tmp_port < 1 or tmp_port > 65535:
+                    raise
+            except:
+                prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+                input("\033[0m")
+                sys.exit(1)
+            config['general']['server_port'] = tmp_port
+            tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
+            if not tmp_server_username:
+               tmp_server_username = config['general']['server_username']
+            config['general']['server_username'] = tmp_server_username
+            my_username = config['general']['server_username']
+            tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
+            if not tmp_max_connections:
+               tmp_max_connections = config['gate']['max_connections']
+            try:
+                tmp_max_connections = int(tmp_max_connections)
+                if tmp_max_connections < 1 or tmp_max_connections > 256:
+                    raise
+            except:
+                prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
+                input("\033[0m")
+                sys.exit(1)
+            config['gate']['max_connections'] = tmp_max_connections
+    
         os.system('mkdir TouchFishFiles')
         try:
             with open("config.json", "w", encoding="utf-8") as f:
@@ -1537,31 +1553,32 @@ def main():
     if tmp_side == "Client":
         if config['side'] == "Server":
             config = DEFAULT_CLIENT_CONFIG
-        tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
-        if not tmp_ip:
-            tmp_ip = config['ip']
-        config['ip'] = tmp_ip
-        if not check_ip(tmp_ip):
-            prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
-            input("\033[0m")
-            sys.exit(1)
-        tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
-        if not tmp_port:
-           tmp_port = config['port']
-        try:
-            tmp_port = int(tmp_port)
-            if tmp_port < 1 or tmp_port > 65535:
-                raise
-        except:
-            prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
-            input("\033[0m")
-            sys.exit(1)
-        config['port'] = tmp_port
-        tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
-        if not tmp_username:
-           tmp_username = config['username']
-        config['username'] = tmp_username
-        my_username = config['username']
+        if not load_config_auto:
+            tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
+            if not tmp_ip:
+                tmp_ip = config['ip']
+            config['ip'] = tmp_ip
+            if not check_ip(tmp_ip):
+                prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+                input("\033[0m")
+                sys.exit(1)
+            tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
+            if not tmp_port:
+               tmp_port = config['port']
+            try:
+                tmp_port = int(tmp_port)
+                if tmp_port < 1 or tmp_port > 65535:
+                    raise
+            except:
+                prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+                input("\033[0m")
+                sys.exit(1)
+            config['port'] = tmp_port
+            tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
+            if not tmp_username:
+               tmp_username = config['username']
+            config['username'] = tmp_username
+            my_username = config['username']
         
         os.system('mkdir TouchFishFiles')
         try:
