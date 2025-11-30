@@ -285,39 +285,39 @@ def announce(uid):
 
 def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
-    if message['from'] == my_uid:
+    if message.get('from',-1) == my_uid:
         first_line += dye(" [您发送的]", "blue")
-    if message['to'] == my_uid:
+    if message.get('to',-1) == my_uid:
         first_line += dye(" [发给您的]", "blue")
-    if message['filename']:
+    if message.get('filename',''):
         first_line += dye(" [文件]", "red")
-    if message['to'] == -2:
+    if message.get('to',-1) == -2:
         first_line += dye(" [广播]", "red")
-    if message['to'] >= 0:
+    if message.get('to',-1) >= 0:
         first_line += dye(" [私聊]", "green")
     first_line += " "
     first_line += dye("@", "black")
-    first_line += dye(users[message['from']]['username'], "yellow")
-    if message['to'] >= 0:
+    first_line += dye(users[message.get('from',-1)]['username'], "yellow")
+    if message.get('to',-1) >= 0:
         first_line += dye(" -> ", "green")
         first_line += dye("@", "black")
-        first_line += dye(users[message['to']]['username'], "yellow")
+        first_line += dye(users[message.get('to',-1)]['username'], "yellow")
     first_line += dye(":", "black")
     prints(first_line)
-    if message['filename']:
+    if message.get('filename',''):
         if side == "Client":
             try:
                 if platform.system() == "Windows":
-                    with open("TouchFishFiles\\{}.file".format(message['order']), 'wb') as f:
-                        f.write(base64.b64decode(message['content']))
+                    with open("TouchFishFiles\\{}.file".format(message.get('order','')), 'wb') as f:
+                        f.write(base64.b64decode(message.get('content','')))
                 else:
-                    with open("TouchFishFiles/{}.file".format(message['order']), 'wb') as f:
-                        f.write(base64.b64decode(message['content']))
+                    with open("TouchFishFiles/{}.file".format(message.get('order','')), 'wb') as f:
+                        f.write(base64.b64decode(message.get('content','')))    
             except:
                 pass
-        prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
+        prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message.get('filename',''), message.get('order','')), "cyan")
     else:
-        prints(message['content'], "white")
+        prints(message.get('content',''), "white")
 
 def process(message):
     global users
@@ -1432,7 +1432,9 @@ def main():
             prints("参数错误。", "red")
             input("\033[0m")
             sys.exit(1)
-        
+    else:
+        tmp_side = config['side']
+    
     if tmp_side == "Server":
         if config['side'] == "Client":
             config = DEFAULT_SERVER_CONFIG
