@@ -7,7 +7,6 @@ on:
 
 jobs:
   build-linux:
-  build-linux:
     runs-on: ubuntu-latest
     container:
       image: python:3.6-buster # 适配 NOI Linux 2.0 的 Python 3.6
