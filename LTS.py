@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0b"
+VERSION = "v4.0.0rc"
 
 RESULTS = \
 {
