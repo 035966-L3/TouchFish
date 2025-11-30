@@ -7,7 +7,7 @@
 
 ## 演示
 
-请观看[此仓库](https://github.com/035966-L3/TouchFish-Presentation)中的 `TouchFish-Presentation.mp4` 以查看 v4 版本的用法。
+请观看[此视频](https://www.bilibili.com/video/BV1qqSqB4E6x)以查看 v4 版本的用法。
 
 ## 相比于 v3 的变化
 
