@@ -1,5 +1,10 @@
 # TouchFish - 局域网聊天解决方案
 
+> [!WARNING]
+> **TouchFish 正在更新到 V4 版本，自 V4 后不再向后兼容**
+> [前往 v4](https://github.com/035966-L3/TouchFish) 
+
+
 [官网 - BOPID](http://bopid.cn/chat)\
 [官方帮助 - 2044-space-elevator & pztsdy](https://github.com/2044-space-elevator/TouchFish/wiki)\
 [官方帮助服务端镜像](https://www.piaoztsdy.cn/2025/10/05/TouchFish-%E5%B8%AE%E5%8A%A9/) ||
