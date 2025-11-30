@@ -288,8 +288,11 @@ def print_message(message):
         first_line += dye(" [您发送的]", "blue")
     if message['to'] == my_uid:
         first_line += dye(" [发给您的]", "blue")
-    if message['filename']:
-        first_line += dye(" [文件]", "red")
+    try:
+        if message['filename']:
+            first_line += dye(" [文件]", "red")
+    except KeyError:
+        pass
     if message['to'] == -2:
         first_line += dye(" [广播]", "red")
     if message['to'] >= 0:
