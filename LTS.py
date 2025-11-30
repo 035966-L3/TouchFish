@@ -200,13 +200,16 @@ def clear_screen():
         os.system('clear')
 
 def enter():
-    print("请输入消息，按 Ctrl + C 结束。")
+    print("请输入要发送的消息。")
+    print("输入结束后，先按下 Enter，然后按下 Ctrl + C。")
     message = ""
     while True:
         try:
             message += input() + "\n"
         except EOFError:
             break
+    if message:
+        message = message[:-1]
     return message
 
 def dye(text, color_code):
@@ -224,14 +227,14 @@ def prints(text, color_code=None):
     global print_queue
     if not blocked:
         print(dye(text, color_code))
-    if blocked:
+    else:
         print_queue.put(dye(text, color_code))
 
 def printf(text, color_code=None):
     print(dye(text, color_code))
 
 def printc(verbose, text):
-    if True:
+    if verbose:
         print(dye(text, "black"))
 
 def check_ip_segment(element):
