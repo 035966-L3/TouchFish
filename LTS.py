@@ -285,39 +285,45 @@ def announce(uid):
 
 def print_message(message):
     first_line = dye("[" + message['time'][11:19] + "]", "black")
-    if message.get('from',-1) == my_uid:
+    if message['from'] == my_uid:
         first_line += dye(" [您发送的]", "blue")
-    if message.get('to',-1) == my_uid:
+    if message['to'] == my_uid:
         first_line += dye(" [发给您的]", "blue")
-    if message.get('filename',''):
-        first_line += dye(" [文件]", "red")
-    if message.get('to',-1) == -2:
+    try:
+        if message['filename']:
+            first_line += dye(" [文件]", "red")
+    except KeyError:
+        pass
+    if message['to'] == -2:
         first_line += dye(" [广播]", "red")
-    if message.get('to',-1) >= 0:
+    if message['to'] >= 0:
         first_line += dye(" [私聊]", "green")
     first_line += " "
     first_line += dye("@", "black")
-    first_line += dye(users[message.get('from',-1)]['username'], "yellow")
-    if message.get('to',-1) >= 0:
+    first_line += dye(users[message['from']]['username'], "yellow")
+    if message['to'] >= 0:
         first_line += dye(" -> ", "green")
         first_line += dye("@", "black")
-        first_line += dye(users[message.get('to',-1)]['username'], "yellow")
+        first_line += dye(users[message['to']]['username'], "yellow")
     first_line += dye(":", "black")
     prints(first_line)
-    if message.get('filename',''):
-        if side == "Client":
-            try:
-                if platform.system() == "Windows":
-                    with open("TouchFishFiles\\{}.file".format(message.get('order','')), 'wb') as f:
-                        f.write(base64.b64decode(message.get('content','')))
-                else:
-                    with open("TouchFishFiles/{}.file".format(message.get('order','')), 'wb') as f:
-                        f.write(base64.b64decode(message.get('content','')))    
-            except:
-                pass
-        prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message.get('filename',''), message.get('order','')), "cyan")
-    else:
-        prints(message.get('content',''), "white")
+    try:
+        if message['filename']:
+            if side == "Client":
+                try:
+                    if platform.system() == "Windows":
+                        with open("TouchFishFiles\\{}.file".format(message['order']), 'wb') as f:
+                            f.write(base64.b64decode(message['content']))
+                    else:
+                        with open("TouchFishFiles/{}.file".format(message['order']), 'wb') as f:
+                            f.write(base64.b64decode(message['content']))
+                except:
+                    pass
+            prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
+        else:
+            prints(message['content'], "white")
+    except KeyError:
+        prints(message['content'], "white")
 
 def process(message):
     global users
