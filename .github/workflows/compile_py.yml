@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'  # Linux 保持原版本
+          python-version: '3.6'  # Linux 保持原版本
 
       - name: Install PyInstaller for Linux
         run: pip install pyinstaller
