@@ -163,7 +163,7 @@ https://github.com/2044-space-elevator/TouchFish
 </pre></body></html>
 """[1:]
 
-config = DEFAULT_CLIENT_CONFIG
+config = DEFAULT_SERVER_CONFIG
 blocked = False
 my_username = "user"
 my_uid = 0
@@ -171,7 +171,7 @@ file_order = 0
 my_socket = None
 users = []
 s = socket.socket()
-side = "Client"
+side = "Server"
 server_version = VERSION
 log_queue = queue.Queue()
 receive_queue = queue.Queue()
@@ -1411,12 +1411,23 @@ def main():
                     raise
                 config = tmp_config
     except:
-        config = DEFAULT_CLIENT_CONFIG
+        config = DEFAULT_SERVER_CONFIG
     
     clear_screen()
     prints("欢迎使用 TouchFish 聊天室！", "yellow")
     prints("当前程序版本：{}".format(VERSION), "yellow")
-    tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
+    prints("15 秒后将根据配置文件 config.json 中的配置自动启动。", "yellow")
+    prints("按下 Ctrl + C 以切换到手动启动模式。", "yellow")
+    auto_start = True
+    try:
+        time.sleep(15)
+    except KeyboardInterrupt:
+        auto_start = False
+    except:
+        pass
+    tmp_side = None
+    if not auto_start:
+        tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
     if not tmp_side:
         tmp_side = config['side']
     if not tmp_side in ["Server", "Client"]:
@@ -1427,7 +1438,9 @@ def main():
     if tmp_side == "Server":
         if config['side'] == "Client":
             config = DEFAULT_SERVER_CONFIG
-        tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
+        tmp_ip = None
+        if not auto_start:
+            tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['general']['server_ip']))
         if not tmp_ip:
             tmp_ip = config['general']['server_ip']
         config['general']['server_ip'] = tmp_ip
@@ -1435,7 +1448,9 @@ def main():
             prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
             input("\033[0m")
             sys.exit(1)
-        tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
+        tmp_port = None
+        if not auto_start:
+            tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
         if not tmp_port:
            tmp_port = config['general']['server_port']
         try:
@@ -1447,12 +1462,16 @@ def main():
             input("\033[0m")
             sys.exit(1)
         config['general']['server_port'] = tmp_port
-        tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
+        tmp_server_username = None
+        if not auto_start:
+            tmp_server_username = input("\033[0m\033[1;37m服务器管理员的用户名 [{}]：".format(config['general']['server_username']))
         if not tmp_server_username:
            tmp_server_username = config['general']['server_username']
         config['general']['server_username'] = tmp_server_username
         my_username = config['general']['server_username']
-        tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
+        tmp_max_connections = None
+        if not auto_start:
+            tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
         if not tmp_max_connections:
            tmp_max_connections = config['gate']['max_connections']
         try:
@@ -1543,7 +1562,9 @@ def main():
     if tmp_side == "Client":
         if config['side'] == "Server":
             config = DEFAULT_CLIENT_CONFIG
-        tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
+        tmp_ip = None
+        if not auto_start:
+            tmp_ip = input("\033[0m\033[1;37m服务器 IP [{}]：".format(config['ip']))
         if not tmp_ip:
             tmp_ip = config['ip']
         config['ip'] = tmp_ip
@@ -1551,7 +1572,9 @@ def main():
             prints("参数错误：输入的服务器 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
             input("\033[0m")
             sys.exit(1)
-        tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
+        tmp_port = None
+        if not auto_start:
+            tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
         if not tmp_port:
            tmp_port = config['port']
         try:
@@ -1563,7 +1586,9 @@ def main():
             input("\033[0m")
             sys.exit(1)
         config['port'] = tmp_port
-        tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
+        tmp_username = None
+        if not auto_start:
+            tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
         if not tmp_username:
            tmp_username = config['username']
         config['username'] = tmp_username
