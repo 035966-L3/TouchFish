@@ -405,13 +405,13 @@ def do_broadcast(arg, message=None, verbose=True, by=-1):
     if message == None:
         message = enter()
     if side == "Server":
-        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'content': message, 'to': -2}))
+        log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2}))
         history.append({'time': time_str(), 'from': by, 'content': message, 'to': -2})
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
-                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'content': message, 'to': -2}}))
+                send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'content': message, 'to': -2}) + "\n", encoding="utf-8"))
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -2}) + "\n", encoding="utf-8"))
     printc(verbose, "操作成功。")
 
 def do_doorman(arg, verbose=True, by=-1):
