@@ -49,18 +49,18 @@ DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "127.0.0.1", "port": 8080, "use
 DEFAULT_SERVER_CONFIG = \
 {
     "side": "Server",
-    "general": {"server_ip": "127.0.0.1", "server_port": 8080, "server_username": "root"},
+    "general": {"server_ip": "127.0.0.1", "server_port": 8080, "server_username": "root", "max_connections": 128},
     "ban": {"ip": [], "words": []},
-    "gate": {"enter_hint": "", "enter_check": False, "max_connections": 256},
+    "gate": {"enter_hint": "", "enter_check": False},
     "message": {"allow_private": True, "max_length": 16384},
     "file": {"allow_any": True, "allow_private": True, "max_size": 1073741824}
 }
 
 CONFIG_TYPE_CHECK_TABLE = \
 {
-    "general.server_ip": "str", "general.server_port": "int", "general.server_username": "str",
+    "general.server_ip": "str", "general.server_port": "int", "general.server_username": "str", "general.max_connections": "int",
     "ban.ip": "list", "ban.words": "list",
-    "gate.enter_hint": "str", "gate.enter_check": "bool", "gate.max_connections": "int",
+    "gate.enter_hint": "str", "gate.enter_check": "bool",
     "message.allow_private": "bool", "message.max_length": "int",
     "file.allow_any": "bool", "file.allow_private": "bool", "file.max_size": "int" 
 }
@@ -69,16 +69,11 @@ CONFIG_LIST = \
 """
 参数名称                   当前值      修改示例       描述
 
-general.server_ip          {:<12}               服务器 IP
-general.server_port        {:<12}               服务器端口
-general.server_username    {:<12}               服务器管理员的用户名
-
 ban.ip                     <1>         ["8.8.8.8"]    IP 黑名单
 ban.words                  <2>         ["a", "b"]     屏蔽词列表
 
 gate.enter_hint            <3>         "Hi there!\\n"  进入提示
 gate.enter_check           {!s:<12}True           加入是否需要人工放行
-gate.max_connections       {:<12}               最大在线连接数
 
 message.allow_private      {!s:<12}False          是否允许私聊
 message.max_length         {:<12}256            最大消息长度（字节）
@@ -94,7 +89,6 @@ file.max_size              {:<12}16384          最大文件大小（字节）
 {}
 <3>:
 {}
-没有列出修改示例的参数不允许修改。
 """[1:-1]
 
 HELP_HINT_1 = \
@@ -104,7 +98,7 @@ HELP_HINT_1 = \
 输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。
 输出模式下，输入的指令将被忽略，且不会显示在屏幕上。
 输入模式下，新的消息将等待到退出输入模式才会显示。
-可用的命令有：
+聊天室内可用的命令有：
 """[1:-1]
 
 HELP_HINT_2 = \
@@ -590,7 +584,7 @@ def do_config(arg, verbose=True, by=-1):
     if not arg[0] in CONFIG_TYPE_CHECK_TABLE:
         printc(verbose, "该参数不存在。")
         return
-    if arg[0].split('.')[0] == "general" or arg[0] == "gate.max_connections":
+    if arg[0].split('.')[0] == "general":
         printc(verbose, "不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
         return
     if verbose:
@@ -971,13 +965,13 @@ def do_transfer(arg, message=None, verbose=True, by=-1):
     printc(verbose, "发送成功。")
 
 def do_dashboard(arg=None):
-    printf("=" * 70, "black")
+    printf("=" * 76, "black")
     printf("服务端版本：" + server_version, "black")
     printf("您的 UID：" + str(my_uid), "black")
     printf("聊天室参数及具体用户信息详见下表。", "black")
-    printf("=" * 70, "black")
-    printf(CONFIG_LIST.format(config['general']['server_ip'], config['general']['server_port'], config['general']['server_username'], config['gate']['enter_check'], config['gate']['max_connections'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['ban']['ip'], config['ban']['words'], config['gate']['enter_hint']), "black")
-    printf("=" * 70, "black")
+    printf("=" * 76, "black")
+    printf(CONFIG_LIST.format(config['gate']['enter_check'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['ban']['ip'], config['ban']['words'], config['gate']['enter_hint']), "black")
+    printf("=" * 76, "black")
     if 'ip' in users[0]:
         printf(" UID  IP                        状态      用户名", "black")
         for i in range(len(users)):
@@ -986,7 +980,7 @@ def do_dashboard(arg=None):
         printf(" UID  状态      用户名", "black")
         for i in range(len(users)):
             printf("{:>4}  {:<10}{}".format(i, users[i]['status'], users[i]['username']), "black")
-    printf("=" * 70, "black")
+    printf("=" * 76, "black")
 
 def do_save(arg=None):
     global log_queue
@@ -1088,7 +1082,7 @@ def thread_gate():
             result = "Pending review"
         if users[uid]['ip'][0] in config['ban']['ip']:
             result = "IP is banned"
-        if online_count == config['gate']['max_connections']:
+        if online_count == config['general']['max_connections']:
             result = "Room is full"
         for user in users[:-1]:
             if user['status'] in ["Online", "Admin", "Root"] and users[uid]['username'] == user['username']:
@@ -1393,7 +1387,7 @@ def main():
                         raise
                     if item == "general.server_username" and not tmp_object:
                         raise
-                    if item == "gate.max_connections" and tmp_object > 256:
+                    if item == "general.max_connections" and tmp_object > 128:
                         raise
                 config = tmp_config
             if tmp_config['side'] == "Client":
@@ -1471,18 +1465,18 @@ def main():
         my_username = config['general']['server_username']
         tmp_max_connections = None
         if not auto_start:
-            tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['gate']['max_connections']))
+            tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['general']['max_connections']))
         if not tmp_max_connections:
-           tmp_max_connections = config['gate']['max_connections']
+           tmp_max_connections = config['general']['max_connections']
         try:
             tmp_max_connections = int(tmp_max_connections)
-            if tmp_max_connections < 1 or tmp_max_connections > 256:
+            if tmp_max_connections < 1 or tmp_max_connections > 128:
                 raise
         except:
-            prints("参数错误：最大在线连接数应为不大于 256 的正整数。", "red")
+            prints("参数错误：最大在线连接数应为不大于 128 的正整数。", "red")
             input("\033[0m")
             sys.exit(1)
-        config['gate']['max_connections'] = tmp_max_connections
+        config['general']['max_connections'] = tmp_max_connections
         
         os.system('mkdir TouchFishFiles')
         try:
@@ -1504,7 +1498,7 @@ def main():
         try:
             s = socket.socket()
             s.bind((config['general']['server_ip'], config['general']['server_port']))
-            s.listen(config['gate']['max_connections'])
+            s.listen(config['general']['max_connections'])
             s.setblocking(False)
             users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}]
             root_socket = socket.socket()
