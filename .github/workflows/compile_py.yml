@@ -1,4 +1,4 @@
-name: Build and Push Python Binaries
+name: Build and Release Python Binaries
 
 on:
   push:
@@ -59,38 +59,40 @@ jobs:
           name: windows-binaries
           path: bin/windows/
 
-  push-binaries:
-    needs: [build-windows, build-linux]
+  prerelease-upload:
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
-    if: success()
+    if: github.event_name == 'push'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Download Windows binaries
         uses: actions/download-artifact@v4
         with:
           name: windows-binaries
           path: bin/windows/
-
       - name: Download Linux binaries
         uses: actions/download-artifact@v4
         with:
           name: linux-binaries
           path: bin/linux/
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-
-      - name: Add and commit binaries
-        run: |
-          git add bin/windows/
-          git add bin/linux/
-          git commit -m "[skip ci] [Bot] Add compiled binaries" || echo "No changes to commit"
-
-      - name: Push changes
-        run: git push
+      - name: Create Development Build Pre-release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: dev-build
+          name: Development Build
+          body: |
+            这是一个基于 `main` 分支最新代码的自动版本。
+            Commit SHA: ${{ github.sha }}
+            
+            提示：
+             - 此版本为开发测试版，可能包含不稳定的功能或未知的错误。
+             - 不建议用于生产环境或正式用途。
+          prerelease: true
+          allowUpdates: true
+          artifacts: |
+            bin/windows/*
+            bin/linux/*
+            LTS.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
