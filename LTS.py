@@ -303,19 +303,22 @@ def print_message(message):
         first_line += dye(users[message['to']]['username'], "yellow")
     first_line += dye(":", "black")
     prints(first_line)
-    if message['filename']:
-        if side == "Client":
-            try:
-                if platform.system() == "Windows":
-                    with open("TouchFishFiles\\{}.file".format(message['order']), 'wb') as f:
-                        f.write(base64.b64decode(message['content']))
-                else:
-                    with open("TouchFishFiles/{}.file".format(message['order']), 'wb') as f:
-                        f.write(base64.b64decode(message['content']))
-            except:
-                pass
-        prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
-    else:
+    try:
+        if message['filename']:
+            if side == "Client":
+                try:
+                    if platform.system() == "Windows":
+                        with open("TouchFishFiles\\{}.file".format(message['order']), 'wb') as f:
+                            f.write(base64.b64decode(message['content']))
+                    else:
+                        with open("TouchFishFiles/{}.file".format(message['order']), 'wb') as f:
+                            f.write(base64.b64decode(message['content']))
+                except:
+                    pass
+            prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
+        else:
+            prints(message['content'], "white")
+    except KeyError:
         prints(message['content'], "white")
 
 def process(message):
