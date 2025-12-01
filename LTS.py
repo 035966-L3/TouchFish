@@ -9,7 +9,7 @@
 
 
 
-
+import asyncio
 import base64
 import datetime
 import json
@@ -17,10 +17,10 @@ import os
 import platform
 import queue
 import re
-import socket
 import sys
 import threading
 import time
+import websockets
 
 VERSION = "v4.0.0rc"
 
@@ -136,35 +136,14 @@ HELP_HINT_3 = \
 对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。
 """[1:-1]
 
-WEBPAGE_CONTENT = \
-"""
-HTTP/1.1 405 Method Not Allowed
-Content-Type: text/html; charset=utf-8
-my_socket: close
-
-<html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;">
-您似乎正在使用浏览器或类似方法向 TouchFish Server 发送请求。
-此类请求可能会危害 TouchFish Server 的正常运行，因此请不要继续使用此访问方法，否则我们可能会封禁您的 IP。
-正确的访问方法是，使用 TouchFish 生态下任意兼容的 TouchFish Client 登录 TouchFish Server。
-欲了解更多有关 TouchFish 聊天室的信息，请访问 TouchFish 聊天室的官方 Github 仓库：
-https://github.com/2044-space-elevator/TouchFish
-
-Seemingly you are sending requests to TouchFish Server via something like Web browsers.
-Such requests are HAZARDOUS to the server and will result in a BAN if you insist on this access method.
-To use the TouchFish chatroom service correctly, you might need a dedicated TouchFish Client.
-For more information, please visit the official Github repository of this project:
-https://github.com/2044-space-elevator/TouchFish
-</pre></body></html>
-"""[1:]
-
 config = DEFAULT_SERVER_CONFIG
 blocked = False
 my_username = "user"
 my_uid = 0
 file_order = 0
-my_socket = None
+my_websocket = None
 users = []
-s = socket.socket()
+server_websocket = None
 side = "Server"
 server_version = VERSION
 log_queue = queue.Queue()
@@ -174,8 +153,8 @@ print_queue = queue.Queue()
 history = []
 online_count = 1
 first_data = None
-buffer = ""
 EXIT_FLAG = False
+event_loop = None
 
 
 
@@ -355,32 +334,18 @@ def process(message):
             config[message['key'].split('.')[0]][message['key'].split('.')[1]] = message['value']
         return
 
-def read():
-    global my_socket
-    global buffer
-    while True:
-        try:
-            my_socket.setblocking(False)
-            chunk = my_socket.recv(65536).decode('utf-8')
-            if not chunk:
-                break
-            buffer += chunk
-        except BlockingIOError:
-            break
-    return None
-
-def get_message():
-    global buffer
-    message = ""
-    while not message:
-        try:
-            message, buffer = buffer.split('\n', 1)
-        except:
-            return None
+async def ws_recv(ws):
     try:
-        return json.loads(message)
+        data = await ws.recv()
+        return json.loads(data)
     except:
         return None
+
+async def ws_send(ws, data):
+    try:
+        await ws.send(json.dumps(data))
+    except:
+        pass
 
 
 
@@ -411,7 +376,7 @@ def do_broadcast(arg, message=None, verbose=True, by=-1):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -2}) + "\n", encoding="utf-8"))
+        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -2}), event_loop)
     printc(verbose, "操作成功。")
 
 def do_doorman(arg, verbose=True, by=-1):
@@ -458,7 +423,7 @@ def do_doorman(arg, verbose=True, by=-1):
                 users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
             send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': arg[1], 'config': config, 'users': users_abstract, 'chat_history': history}}))
         if side == "Client":
-            my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Online', 'uid': arg[1]}) + "\n", encoding="utf-8"))
+            asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Online', 'uid': arg[1]}), event_loop)
     
     if arg[0] == "reject":
         if side == "Server":
@@ -468,10 +433,10 @@ def do_doorman(arg, verbose=True, by=-1):
             for i in range(len(users)):
                 if users[i]['status'] in ["Online", "Admin", "Root"]:
                     send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Rejected', 'uid': arg[1], 'operator': by}}))
-            users[arg[1]]['body'].close()
+            asyncio.run_coroutine_threadsafe(users[arg[1]]['body'].close(), event_loop)
             online_count -= 1
         if side == "Client":
-            my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Rejected', 'uid': arg[1]}) + "\n", encoding="utf-8"))
+            asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Rejected', 'uid': arg[1]}), event_loop)
     
     printc(verbose, "操作成功。")
 
@@ -507,17 +472,14 @@ def do_kick(arg, verbose=True, by=-1):
     if side == "Server":
         log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Kicked', 'uid': arg, 'operator': by}))
         users[arg]['status'] = "Kicked"
-        try:
-            users[arg]['body'].send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': by}) + "\n", encoding="utf-8"))
-        except:
-            pass
-        users[arg]['body'].close()
+        asyncio.run_coroutine_threadsafe(ws_send(users[arg]['body'], {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': by}), event_loop)
+        asyncio.run_coroutine_threadsafe(users[arg]['body'].close(), event_loop)
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Kicked', 'uid': arg, 'operator': by}}))
         online_count -= 1
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Kicked', 'uid': arg}) + "\n", encoding="utf-8"))
+        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Kicked', 'uid': arg}), event_loop)
     printc(verbose, "操作成功。")
 
 def do_admin(arg, verbose=True, by=-1):
@@ -645,7 +607,7 @@ def do_config(arg, verbose=True, by=-1):
                     send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': first + '.' + second, 'value': eval(arg[1]), 'operator': by}}))
         printc(verbose, "操作成功。")
         if side == "Client":
-            my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': first + '.' + second, 'value': eval(arg[1])}) + "\n", encoding="utf-8"))
+            asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'SERVER.CONFIG.POST', 'key': first + '.' + second, 'value': eval(arg[1])}), event_loop)
     except:
         printc(verbose, "命令格式不正确，请重试。")
         return
@@ -691,7 +653,7 @@ def do_ban(arg, verbose=True, by=-1):
             if side == "Client":
                 ips = [item for item in ips if item not in config['ban']['ip']]
                 new_value = config['ban']['ip'] + ips
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.ip', 'value': new_value}) + "\n", encoding="utf-8"))
+                asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'SERVER.CONFIG.POST', 'key': 'ban.ip', 'value': new_value}), event_loop)
             printc(verbose, "操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
         
         if arg[1] == 'remove':
@@ -705,7 +667,7 @@ def do_ban(arg, verbose=True, by=-1):
             if side == "Client":
                 ips = [item for item in ips if item in config['ban']['ip']]
                 new_value = [item for item in config['ban']['ip'] if not item in ips]
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.ip', 'value': new_value}) + "\n", encoding="utf-8"))
+                asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'SERVER.CONFIG.POST', 'key': 'ban.ip', 'value': new_value}), event_loop)
             printc(verbose, "操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
     
     if arg[0] == 'words':
@@ -734,7 +696,7 @@ def do_ban(arg, verbose=True, by=-1):
             if side == "Client":
                 new_value = config['ban']['words']
                 new_value.append(arg[2])
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8"))
+                asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}), event_loop)
             printc(verbose, "操作成功。")
         
         if arg[1] == 'remove':
@@ -750,7 +712,7 @@ def do_ban(arg, verbose=True, by=-1):
             if side == "Client":
                 new_value = config['ban']['words']
                 new_value.remove(arg[2])
-                my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8"))
+                asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}), event_loop)
             printc(verbose, "操作成功。")
 
 def do_send(arg, message=None, verbose=True, by=-1):
@@ -779,7 +741,7 @@ def do_send(arg, message=None, verbose=True, by=-1):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -1}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -1}) + "\n", encoding="utf-8"))
+        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -1}), event_loop)
     printc(verbose, "发送成功。")
 
 def do_whisper(arg, message=None, verbose=True, by=-1):
@@ -822,7 +784,7 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
             if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': arg}}))
     if side == "Client":
-        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
+        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': arg}), event_loop)
     printc(verbose, "发送成功。")
 
 def do_deliver(arg, message=None, verbose=True, by=-1):
@@ -870,24 +832,12 @@ def do_deliver(arg, message=None, verbose=True, by=-1):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': file_order, 'filename': arg, 'content': tmp_filename, 'to': -1}}))
     if side == "Client":
-        token = json.dumps({'type': 'CHAT.SEND', 'filename': arg, 'content': message, 'to': -1}) + "\n"
-        chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
-        for chunk in chunks:
-            while True:
-                try:
-                    my_socket.send(bytes(chunk, encoding="utf-8"))
-                    break
-                except BlockingIOError:
-                    continue
-                except Exception as e:
-                    printc(verbose, "发送失败：{}".format(e))
-                    return
+        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'CHAT.SEND', 'filename': arg, 'content': message, 'to': -1}), event_loop)
     printc(verbose, "发送成功。")
 
 def do_transfer(arg, message=None, verbose=True, by=-1):
     global log_queue
     global send_queue
-    global my_socket
     global file_order
     if by == -1:
         by = my_uid
@@ -950,18 +900,7 @@ def do_transfer(arg, message=None, verbose=True, by=-1):
             if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg[0]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': file_order, 'filename': arg[1], 'content': tmp_filename, 'to': arg[0]}}))
     if side == "Client":
-        token = json.dumps({'type': 'CHAT.SEND', 'filename': arg[1], 'content': message, 'to': arg[0]}) + "\n"
-        chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
-        for chunk in chunks:
-            while True:
-                try:
-                    my_socket.send(bytes(chunk, encoding="utf-8"))
-                    break
-                except BlockingIOError:
-                    continue
-                except Exception as e:
-                    printc(verbose, "发送失败：{}".format(e))
-                    return
+        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'CHAT.SEND', 'filename': arg[1], 'content': message, 'to': arg[0]}), event_loop)
     printc(verbose, "发送成功。")
 
 def do_dashboard(arg=None):
@@ -1024,63 +963,25 @@ def do_help(arg=None):
 
 
 
-def thread_gate():
+async def handle_client(websocket, path):
     global online_count
     global log_queue
     global send_queue
     global users
-    while True:
-        time.sleep(0.1)
-        if EXIT_FLAG:
-            exit()
-            break
-        
-        conntmp, addresstmp = None, None
-        try:
-            conntmp, addresstmp = s.accept()
-            conntmp.setblocking(False)
-            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-            conntmp.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-        except:
-            continue
-        
-        time.sleep(2)
-        data = ""
-        while True:
-            try:
-                data += conntmp.recv(65536).decode('utf-8')
-            except:
-                break
-        
-        tagged = False
-        for method in ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']:
-            if method in data:
-                try:
-                    conntmp.send(bytes(WEBPAGE_CONTENT, encoding="utf-8"))
-                    conntmp.close()
-                except:
-                    pass
-                tagged = True
-                log_queue.put(json.dumps({'type': 'GATE.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
-                break
-        if tagged:
-            continue
-        
-        try:
-            data = json.loads(data)
-            if not isinstance(data, dict) or set(data.keys()) != {"type", "username"} or data['type'] != "GATE.REQUEST" or not isinstance(data['username'], str) or not data['username']:
-                raise
-        except:
-            log_queue.put(json.dumps({'type': 'GATE.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
-            conntmp.close()
-            continue
+    
+    try:
+        data = await ws_recv(websocket)
+        if not data or data.get('type') != 'GATE.REQUEST' or not data.get('username'):
+            return
         
         uid = len(users)
-        users.append({"body": conntmp, "buffer": "", "ip": addresstmp, "username": data['username'], "status": "Pending", 'busy': False})
+        remote_addr = websocket.remote_address
+        users.append({"body": websocket, "ip": remote_addr, "username": data['username'], "status": "Pending", 'busy': False})
+        
         result = "Accepted"
         if config['gate']['enter_check']:
             result = "Pending review"
-        if users[uid]['ip'][0] in config['ban']['ip']:
+        if remote_addr[0] in config['ban']['ip']:
             result = "IP is banned"
         if online_count == config['general']['max_connections']:
             result = "Room is full"
@@ -1091,31 +992,44 @@ def thread_gate():
             if word in users[uid]['username']:
                 result = "Username consists of banned words"
         
-        users[uid]['body'].send(bytes(json.dumps({'type': 'GATE.RESPONSE', 'result': result}) + "\n", encoding="utf-8"))
+        await ws_send(websocket, {'type': 'GATE.RESPONSE', 'result': result})
         log_queue.put(json.dumps({'type': 'GATE.CLIENT_REQUEST.LOG', 'time': time_str(), 'ip': users[uid]['ip'], 'username': users[uid]['username'], 'uid': uid, 'result': result}))
+        
         for i in range(len(users)):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.CLIENT_REQUEST.ANNOUNCE', 'username': users[uid]['username'], 'uid': uid, 'result': result}}))
         
-        if not result in ["Accepted", "Pending review"]:
+        if result not in ["Accepted", "Pending review"]:
             users[uid]['status'] = "Rejected"
-            users[uid]['body'].close()
-            continue
-        if platform.system() != "Windows":
-            users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10800)
-            users[uid]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-        else:
-            users[uid]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            users[uid]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180000, 30000))
+            await websocket.close()
+            return
+        
         online_count += 1
         
         if result == "Accepted":
             users[uid]['status'] = "Online"
-            users_abstract = []
-            for i in range(len(users)):
-                users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
-            users[uid]['body'].send(bytes(json.dumps({'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history}) + "\n", encoding="utf-8"))
+            users_abstract = [{"username": users[i]['username'], "status": users[i]['status']} for i in range(len(users))]
+            await ws_send(websocket, {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history})
+        
+        async for message in websocket:
+            try:
+                data = json.loads(message)
+                if data.get('type'):
+                    receive_queue.put(json.dumps({'from': uid, 'content': data}))
+            except:
+                pass
+    except:
+        pass
+    finally:
+        if uid < len(users) and users[uid]['status'] in ["Online", "Admin", "Root", "Pending"]:
+            users[uid]['status'] = "Offline"
+            online_count -= 1
+
+def thread_gate():
+    asyncio.set_event_loop(event_loop)
+    start_server = websockets.serve(handle_client, config['general']['server_ip'], config['general']['server_port'], ping_interval=30, ping_timeout=10)
+    event_loop.run_until_complete(start_server)
+    event_loop.run_forever()
 
 def thread_process():
     global online_count
@@ -1155,35 +1069,7 @@ def thread_process():
                 do_config([content['key'], repr(content['value'])], False, sender)
 
 def thread_receive():
-    global receive_queue
-    global users
-    while True:
-        time.sleep(0.1)
-        if EXIT_FLAG:
-            exit()
-            break
-        for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin", "Root"]:
-                data = ""
-                while True:
-                    try:
-                        users[i]['body'].setblocking(False)
-                        data += users[i]['body'].recv(65536).decode('utf-8')
-                    except:
-                        break
-                users[i]['buffer'] += data
-                while '\n' in users[i]['buffer']:
-                    try:
-                        message, users[i]['buffer'] = users[i]['buffer'].split('\n', 1)
-                    except:
-                        message, users[i]['buffer'] = users[i]['buffer'], ""
-                    try:
-                        message = json.loads(message)
-                        if not message['type']:
-                            raise
-                    except:
-                        continue
-                    receive_queue.put(json.dumps({'from': i, 'content': message}))
+    pass
 
 def thread_send():
     global online_count
@@ -1200,41 +1086,13 @@ def thread_send():
             if not users[message['to']]['status'] in ["Online", "Admin", "Root"]:
                 continue
             try:
-                users[message['to']]['body'].send(bytes("\n", encoding="utf-8"))
+                if message['content'].get('filename'):
+                    with open(message['content']['content'], 'rb') as f:
+                        file_data = f.read()
+                    message['content']['content'] = base64.b64encode(file_data).decode('utf-8')
+                asyncio.run_coroutine_threadsafe(ws_send(users[message['to']]['body'], message['content']), event_loop)
             except:
-                users[message['to']]['status'] = "Offline"
-                online_count -= 1
-                log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': message['to'], 'operator': 0}))
-                for i in range(len(users)):
-                    if users[i]['status'] in ["Online", "Admin", "Root"]:
-                        send_queue.put(json.dumps({'to': i, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': message['to'], 'operator': 0}}))
-            try:
-                if not message['content']['filename']:
-                    impossible_value = message['content']['impossible_key']
-                with open(message['content']['content'], 'rb') as f:
-                    file_data = f.read()
-                message['content']['content'] = base64.b64encode(file_data).decode('utf-8')
-                token = json.dumps(message['content']) + "\n"
-                chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
-                users[message['to']]['busy'] = True
-                time.sleep(0.1)
-                for chunk in chunks:
-                    while True:
-                        try:
-                            users[message['to']]['body'].send(bytes(chunk, encoding="utf-8"))
-                            break
-                        except BlockingIOError:
-                            continue
-                        except:
-                            break
-                time.sleep(0.1)
-                users[message['to']]['busy'] = False
-            except KeyError:
-                users[message['to']]['busy'] = False
-                try:
-                    users[message['to']]['body'].send(bytes(json.dumps(message['content']) + "\n", encoding="utf-8"))
-                except:
-                    pass
+                pass
 
 def thread_log():
     global log_queue
@@ -1249,34 +1107,7 @@ def thread_log():
             break
 
 def thread_check():
-    global online_count
-    global send_queue
-    global log_queue
-    global users
-    timer = 5
-    while True:
-        time.sleep(1)
-        if EXIT_FLAG:
-            exit()
-            break
-        timer -= 1
-        if timer:
-            continue
-        timer = 5
-        down = []
-        for i in range(len(users)):
-            if users[i]['status'] in ["Online", "Admin", "Root"] and not users[i]['busy']:
-                try:
-                    users[i]['body'].send(bytes("\n", encoding="utf-8"))
-                except:
-                    users[i]['status'] = "Offline"
-                    down.append(i)
-                    online_count -= 1
-                    log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Offline', 'uid': i, 'operator': 0}))
-        for i in down:
-            for j in range(len(users)):
-                if users[j]['status'] in ["Online", "Admin", "Root"]:
-                    send_queue.put(json.dumps({'to': j, 'content': {'type': 'GATE.STATUS_CHANGE.ANNOUNCE', 'status': 'Offline', 'uid': i, 'operator': 0}}))
+    pass
 
 def thread_input():
     global blocked
@@ -1305,19 +1136,24 @@ def thread_input():
         print("\033[8;30m", end="")
         blocked = False
 
-def thread_output():
+async def client_receive_loop():
     global EXIT_FLAG
-    while True:
-        time.sleep(0.1)
-        if EXIT_FLAG:
-            exit()
-            break
-        read()
-        message = get_message()
-        flush()
-        if not message:
-            continue
-        process(message)
+    try:
+        async for message in my_websocket:
+            if EXIT_FLAG:
+                break
+            try:
+                data = json.loads(message)
+                flush()
+                process(data)
+            except:
+                pass
+    except:
+        pass
+
+def thread_output():
+    asyncio.set_event_loop(event_loop)
+    event_loop.run_until_complete(client_receive_loop())
 
 
 
@@ -1495,26 +1331,8 @@ def main():
             input("\033[0m")
             sys.exit(1)
         
-        try:
-            s = socket.socket()
-            s.bind((config['general']['server_ip'], config['general']['server_port']))
-            s.listen(config['general']['max_connections'])
-            s.setblocking(False)
-            users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}]
-            root_socket = socket.socket()
-            root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
-            root_socket.setblocking(False)
-            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-            users[0]['body'], users[0]['ip'] = s.accept()
-            users[0]['body'].setblocking(False)
-            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-            my_socket = root_socket
-        except:
-            prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
-            input("\033[0m")
-            sys.exit(1)
+        users = [{"body": None, "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}]
+        event_loop = asyncio.new_event_loop()
         
         with open("./log.txt", "a", encoding="utf-8") as file:
             file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
@@ -1535,23 +1353,20 @@ def main():
             prints(first_line)
             prints(config['gate']['enter_hint'], "white")
         
-        THREAD_GATE = threading.Thread(target=thread_gate)
-        THREAD_PROCESS = threading.Thread(target=thread_process)
-        THREAD_RECEIVE = threading.Thread(target=thread_receive)
-        THREAD_SEND = threading.Thread(target=thread_send)
-        THREAD_LOG = threading.Thread(target=thread_log)
-        THREAD_CHECK = threading.Thread(target=thread_check)
-        THREAD_INPUT = threading.Thread(target=thread_input)
-        THREAD_OUTPUT = threading.Thread(target=thread_output)
+        THREAD_GATE = threading.Thread(target=thread_gate, daemon=True)
+        THREAD_PROCESS = threading.Thread(target=thread_process, daemon=True)
+        THREAD_SEND = threading.Thread(target=thread_send, daemon=True)
+        THREAD_LOG = threading.Thread(target=thread_log, daemon=True)
+        THREAD_INPUT = threading.Thread(target=thread_input, daemon=True)
         
         THREAD_GATE.start()
         THREAD_PROCESS.start()
-        THREAD_RECEIVE.start()
         THREAD_SEND.start()
         THREAD_LOG.start()
-        THREAD_CHECK.start()
         THREAD_INPUT.start()
-        THREAD_OUTPUT.start()
+        
+        while not EXIT_FLAG:
+            time.sleep(0.1)
     
     if tmp_side == "Client":
         if config['side'] == "Server":
@@ -1599,69 +1414,46 @@ def main():
             sys.exit(1)
         
         prints("正在连接聊天室...", "yellow")
-        my_socket = socket.socket()
-        try:
-            my_socket.connect((config['ip'], config['port']))
-            my_socket.setblocking(False)
-            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-            my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8"))
-            time.sleep(3)
-        except Exception as e:
-            prints("连接失败：{}".format(e), "red")
-            input("\033[0m")
-            sys.exit(1)
+        event_loop = asyncio.new_event_loop()
         
-        if platform.system() == "Windows":
-            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 180000, 30000))
-        else:
-            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-            my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10800)
-            my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+        async def connect_client():
+            global my_websocket, first_data
+            uri = "ws://{}:{}".format(config['ip'], config['port'])
+            try:
+                my_websocket = await websockets.connect(uri, ping_interval=30, ping_timeout=10)
+                await ws_send(my_websocket, {'type': 'GATE.REQUEST', 'username': my_username})
+                message = await ws_recv(my_websocket)
+                
+                if not message or message.get('result') not in ["Accepted", "Pending review", "IP is banned", "Room is full", "Duplicate usernames", "Username consists of banned words"]:
+                    raise Exception("对方似乎不是 v4 及以上的 TouchFish 服务端")
+                
+                if message['result'] not in ["Accepted", "Pending review"]:
+                    raise Exception(RESULTS[message['result']])
+                
+                if message['result'] == "Accepted":
+                    prints("连接成功！", "green")
+                
+                if message['result'] == "Pending review":
+                    prints("服务端需要对连接请求进行人工审核，请等待...", "white")
+                    while True:
+                        review_msg = await ws_recv(my_websocket)
+                        if not review_msg:
+                            continue
+                        if not review_msg.get('accepted'):
+                            raise Exception("服务端管理员 {} (UID = {}) 拒绝了您的连接请求".format(review_msg['operator']['username'], review_msg['operator']['uid']))
+                        if review_msg.get('accepted'):
+                            prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(review_msg['operator']['username'], review_msg['operator']['uid']), "green")
+                            prints("连接成功！", "green")
+                            break
+                
+                first_data = await ws_recv(my_websocket)
+            except Exception as e:
+                prints("连接失败：{}".format(e), "red")
+                input("\033[0m")
+                sys.exit(1)
         
-        try:
-            read()
-            message = get_message()
-            if not message['result'] in ["Accepted", "Pending review", "IP is banned", "Room is full", "Duplicate usernames", "Username consists of banned words"]:
-                raise
-        except:
-            prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
-            input("\033[0m")
-            sys.exit(1)
-        
-        if not message['result'] in ["Accepted", "Pending review"]:
-            prints("连接失败：{}".format(RESULTS[message['result']]), "red")
-            input("\033[0m")
-            sys.exit(1)
-        
-        if message['result'] == "Accepted":
-            prints("连接成功！", "green")
-        
-        if message['result'] == "Pending review":
-            prints("服务端需要对连接请求进行人工审核，请等待...", "white")
-            while True:
-                try:
-                    read()
-                    message = get_message()
-                    if not message:
-                        continue
-                    if not message['accepted']:
-                        prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
-                        prints("连接失败。", "red")
-                        input("\033[0m")
-                        sys.exit(1)
-                    if message['accepted']:
-                        time.sleep(3)
-                        prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
-                        prints("连接成功！", "green")
-                        break
-                except:
-                    pass
-        
+        event_loop.run_until_complete(connect_client())
         side = "Client"
-        read()
-        first_data = get_message()
         server_version = first_data['server_version']
         my_uid = first_data['uid']
         config = first_data['config']
@@ -1680,11 +1472,14 @@ def main():
             prints(first_line)
             prints(config['gate']['enter_hint'], "white")
         
-        THREAD_INPUT = threading.Thread(target=thread_input)
-        THREAD_OUTPUT = threading.Thread(target=thread_output)
+        THREAD_INPUT = threading.Thread(target=thread_input, daemon=True)
+        THREAD_OUTPUT = threading.Thread(target=thread_output, daemon=True)
         
         THREAD_INPUT.start()
         THREAD_OUTPUT.start()
+        
+        while not EXIT_FLAG:
+            time.sleep(0.1)
 
 if __name__ == "__main__":
     main()
