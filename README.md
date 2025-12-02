@@ -54,8 +54,9 @@ TouchFish 是一款专为局域网环境设计的聊天软件，支持文字和�
 
 ### Linux
 > [!WARNING]
-> 仅支持带有图形界面的 Linux 发行版。
-> 无界面用户请使用 [CLI 版本](clientcli.py)
+> **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
+>
+> [返回 v3](https://github.com/2044-space-elevator/TouchFish) 
 
 ## 软件架构
 
@@ -70,54 +71,55 @@ TouchFish 采用客户端-服务器架构，包含三个核心组件：
 
 TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 
-| 版本名称 | 简称 | 主要作者 | 兼容性 | 语言 | 平台支持 | 特色 |
-|---------|------|----------|--------|------|----------|------|
-| LTS | TF | @2044-space-elevator | 是 | Python | Win, macOS, Linux(UI) | 根版本，长期支持 |
-| CLI | cli | @JohnChiao75 | 是 | Python | Win, macOS, Linux | 命令行界面 |
-| UI Remake | TFUR | @pztsdy | 是 | Node.JS | Win, macOS*, Linux* | 现代化 UI，Markdown，代码高亮 |
-| Plus | Plus | @ayf2192538031 | 否 | Python | Win*, macOS*, Linux* | 增强功能集 |
-| Pro | Pro | @BoXueDuoCai | 是 | Python | Win*, macOS*, Linux* | Markdown，LaTeX，用户高亮 |
-| Android | mobile | @pztsdy | 是 | Kotlin | Android | 移动端（有使用限制） |
-| Astra | - | @ILoveScratch2 | 是 | Dart | 全平台(UI) | 最佳发行版之一，现代化UI |
-| More | More | @xx2860 | 是 | Python | Win*, macOS*, Linux(UI) | 性能优化，镜像站 |
+## 演示
 
 > *注：标注星号的版本可能需要自行编译、直接运行代码或缺少预编译包*
 
-### 相关项目推荐
+## 相比于 v3 的变化
 
-**Cloud Studio Chat** by @pztsdy: [项目链接](https://github.com/pztsdy/Cloud-Studio-Chat)  
-基于 C++ 开发，具有优异的性能和兼容性，支持 32 位 XP 系统，提供与 TouchFish 相似的功能体验。
+- 合并 Client 和 Server 为一个程序
+- 仅提供命令行（GUI 等发行版）
+- 更换协议
 
 ## 快速开始
 
-### 服务器端配置
+### 作为服务端
 
 1. **获取内网 IP 地址**：
-   - **Windows**: 命令提示符执行 `ipconfig`，查找"无线局域网适配器 WLAN"下的"IPv4 地址"
+   - **Windows**: 命令提示符执行 `ipconfig`，查找 "无线局域网适配器 WLAN" 下的 "IPv4 地址"
    - **Linux**: 终端执行 `ip a`
 
 2. **检查端口可用性**：
-   - **Windows**: `netstat -an | findstr 端口号`（无输出表示端口空闲）
+   - **Windows**: `netstat -an | findstr <portid>`（无输出表示端口空闲）
 
-3. **启动服务器**：
-   - 运行 server 程序
+3. **第一次启动服务器**：
+   - 运行程序
+   - 在 15 秒内按下 `Ctrl + C`
+   - 指定启动方式
    - 输入内网 IP 地址
-   - 设置最大用户数（正整数）
    - 指定可用端口
+   - 设置服务端昵称（将在聊天室中显示）
+   - 设置最大用户数（不超过正整数）
    - 将 IP 地址和端口信息分享给客户端用户
 
-> 详细的多控制功能请参阅 Wiki 或在命令行输入 `help`
+4. **后续启动服务器**：
+   - 运行程序
+   - 等待 15 秒
+   - 程序将自动以上次的配置启动
 
-### 客户端使用
+### 作为客户端
 
-1. 启动 Client 程序
-2. 输入服务器 IP 地址
-3. 设置个人昵称（将在聊天室中显示）
-4. 输入服务器端口
-5. 在文本框中输入消息，点击确认发送
+1. **第一次启动程序**：
+   - 运行程序
+   - 在 15 秒内按下 `Ctrl + C`
+   - 指定启动方式
+   - 输入服务器 IP 地址
+   - 输入服务器端口
+   - 设置个人昵称（将在聊天室中显示）
 
-### 管理员功能
+2. **后续启动程序**：
+   - 运行程序
+   - 等待 15 秒
+   - 程序将自动以上次的配置启动
 
-通过控制台窗口连接服务器开放的控制端口，支持大部分服务器管理功能。详细使用方法请参阅 Wiki。
 
-在服务器端使用 `admin on` 开启控制口，`admin add` 添加管理员。
