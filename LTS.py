@@ -136,6 +136,27 @@ HELP_HINT_3 = \
 对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。
 """[1:-1]
 
+WEBPAGE_CONTENT = \
+"""
+HTTP/1.1 405 Method Not Allowed
+Content-Type: text/html; charset=utf-8
+my_socket: close
+
+<html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;">
+您似乎正在使用浏览器或类似方法向 TouchFish Server 发送请求。
+此类请求可能会危害 TouchFish Server 的正常运行，因此请不要继续使用此访问方法，否则我们可能会封禁您的 IP。
+正确的访问方法是，使用 TouchFish 生态下任意兼容的 TouchFish Client 登录 TouchFish Server。
+欲了解更多有关 TouchFish 聊天室的信息，请访问 TouchFish 聊天室的官方 Github 仓库：
+https://github.com/2044-space-elevator/TouchFish
+
+Seemingly you are sending requests to TouchFish Server via something like Web browsers.
+Such requests are HAZARDOUS to the server and will result in a BAN if you insist on this access method.
+To use the TouchFish chatroom service correctly, you might need a dedicated TouchFish Client.
+For more information, please visit the official Github repository of this project:
+https://github.com/2044-space-elevator/TouchFish
+</pre></body></html>
+"""[1:]
+
 config = DEFAULT_SERVER_CONFIG
 blocked = False
 my_username = "user"
@@ -143,7 +164,7 @@ my_uid = 0
 file_order = 0
 my_websocket = None
 users = []
-server_websocket = None
+s = socket.socket()
 side = "Server"
 server_version = VERSION
 log_queue = queue.Queue()
@@ -376,7 +397,7 @@ def do_broadcast(arg, message=None, verbose=True, by=-1):
             if users[i]['status'] in ["Online", "Admin", "Root"]:
                 send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2}}))
     if side == "Client":
-        asyncio.run_coroutine_threadsafe(ws_send(my_websocket, {'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -2}), event_loop)
+        my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -2}) + "\n", encoding="utf-8"))
     printc(verbose, "操作成功。")
 
 def do_doorman(arg, verbose=True, by=-1):
@@ -1331,8 +1352,26 @@ def main():
             input("\033[0m")
             sys.exit(1)
         
-        users = [{"body": None, "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}]
-        event_loop = asyncio.new_event_loop()
+        try:
+            s = socket.socket()
+            s.bind((config['general']['server_ip'], config['general']['server_port']))
+            s.listen(config['general']['max_connections'])
+            s.setblocking(False)
+            users = [{"body": None, "extra": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}]
+            root_socket = socket.socket()
+            root_socket.connect((config['general']['server_ip'], config['general']['server_port']))
+            root_socket.setblocking(False)
+            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+            root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+            users[0]['body'], users[0]['ip'] = s.accept()
+            users[0]['body'].setblocking(False)
+            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+            users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+            my_socket = root_socket
+        except:
+            prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
+            input("\033[0m")
+            sys.exit(1)
         
         with open("./log.txt", "a", encoding="utf-8") as file:
             file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n")
