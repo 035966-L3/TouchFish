@@ -9,11 +9,13 @@
 
 请观看[此视频](https://www.bilibili.com/video/BV1qqSqB4E6x)以查看 v4 版本的用法。
 
+该视频演示的程序为 beta 版本，与正式发行版有若干出入，尽情谅解。
+
 ## 相比于 v3 的变化
 
-- 合并 Client 和 Server 为一个程序
-- 仅提供命令行（GUI 等发行版）
-- 更换协议
+- 合并 Client 和 Server 为一个程序（`LTS.py`）
+- 目前仅提供命令行（GUI 版本即将跟进）
+- 更换协议（见 `protocol.txt`）
 
 ## 快速开始
 
