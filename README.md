@@ -1,7 +1,5 @@
 > [!WARNING]
 > **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
->
-> [返回 v3](https://github.com/2044-space-elevator/TouchFish) 
 
 # TouchFish - 局域网聊天解决方案
 
