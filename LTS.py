@@ -53,7 +53,7 @@ DEFAULT_SERVER_CONFIG = \
     "ban": {"ip": [], "words": []},
     "gate": {"enter_hint": "", "enter_check": False},
     "message": {"allow_private": True, "max_length": 16384},
-    "file": {"allow_any": True, "allow_private": True, "max_size": 1073741824}
+    "file": {"allow_any": True, "allow_private": True, "max_size": 1048576}
 }
 
 CONFIG_TYPE_CHECK_TABLE = \
@@ -320,6 +320,7 @@ def print_message(message):
 
 def process(message):
     global users
+    global online_count
     global EXIT_FLAG
     if message['type'] == "CHAT.RECEIVE":
         message['time'] = str(datetime.datetime.now())
@@ -334,12 +335,16 @@ def process(message):
                 users[message['uid']]['status'] = "Pending"
             if message['result'] == "Accepted":
                 users[message['uid']]['status'] = "Online"
+                if side == "Client":
+                    online_count += 1
         return
     if message['type'] == "GATE.STATUS_CHANGE.ANNOUNCE":
         announce(message['operator'])
         prints("用户 {} (UID = {}) 的状态变更为：".format(users[message['uid']]['username'], message['uid']) + message['status'], "cyan")
         if side == "Client":
             users[message['uid']]['status'] = message['status']
+            if message['status'] in ["Offline", "Kicked"]:
+                online_count -= 1
         if message['uid'] == my_uid and message['status'] == "Kicked":
             while blocked:
                 pass
@@ -968,6 +973,7 @@ def do_dashboard(arg=None):
     printf("=" * 76, "black")
     printf("服务端版本：" + server_version, "black")
     printf("您的 UID：" + str(my_uid), "black")
+    printf("在线人数：{} / {}".format(online_count, config['general']['max_connections']), "black")
     printf("聊天室参数及具体用户信息详见下表。", "black")
     printf("=" * 76, "black")
     printf(CONFIG_LIST.format(config['gate']['enter_check'], config['message']['allow_private'], config['message']['max_length'], config['file']['allow_any'], config['file']['allow_private'], config['file']['max_size'], config['ban']['ip'], config['ban']['words'], config['gate']['enter_hint']), "black")
@@ -1666,6 +1672,10 @@ def main():
         my_uid = first_data['uid']
         config = first_data['config']
         users = first_data['users']
+        online_count = 0
+        for user in users:
+            if user['status'] in ["Online", "Admin", "Root"]:
+                online_count += 1
         do_help()
         do_dashboard()
         for i in first_data['chat_history']:
