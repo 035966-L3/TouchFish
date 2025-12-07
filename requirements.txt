@@ -1,5 +1,0 @@
-pyinstaller
-keyboard
-requests
-tabulate
-win10toast
