@@ -1416,11 +1416,13 @@ def main():
     clear_screen()
     prints("欢迎使用 TouchFish 聊天室！", "yellow")
     prints("当前程序版本：{}".format(VERSION), "yellow")
-    prints("15 秒后将根据配置文件 config.json 中的配置自动启动。", "yellow")
-    prints("按下 Ctrl + C 以切换到手动启动模式。", "yellow")
+    prints("5 秒后将会自动按上次的配置启动。", "yellow")
+    prints("按下 Ctrl + C 以指定启动配置。", "yellow")
     auto_start = True
     try:
-        time.sleep(15)
+        for i in range(5, 0, -1):
+            prints("剩余 "+str(i)+" 秒...", "yellow")
+            time.sleep(1)
     except KeyboardInterrupt:
         auto_start = False
     except:
