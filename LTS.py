@@ -62,7 +62,7 @@ CONFIG_TYPE_CHECK_TABLE = \
     "ban.ip": "list", "ban.words": "list",
     "gate.enter_hint": "str", "gate.enter_check": "bool",
     "message.allow_private": "bool", "message.max_length": "int",
-    "file.allow_any": "bool", "file.allow_private": "bool", "file.max_size": "int" 
+    "file.allow_any": "bool", "file.allow_private": "bool", "file.max_size": "int"
 }
 
 CONFIG_LIST = \
@@ -640,7 +640,7 @@ def do_config(arg, verbose=True, by=-1):
                 if not check_ip(item):
                     printc(verbose, "IP 黑名单中的元素 {} 不是有效的点分十进制格式 IPv4 地址。".format(item))
                     raise
-
+        
         first, second = arg[0].split('.')
         if side == "Server":
             config[first][second] = eval(arg[1])
@@ -675,7 +675,7 @@ def do_ban(arg, verbose=True, by=-1):
     if not arg[1] in ['add', 'remove']:
         printc(verbose, "参数错误：第二个参数必须是 add 和 remove 中的某一项。")
         return
-
+    
     if arg[0] == 'ip':
         ips = check_ip_segment(arg[2])
         if ips == []:
