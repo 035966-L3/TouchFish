@@ -1288,6 +1288,7 @@ def thread_input():
 	global blocked
 	global EXIT_FLAG
 	while True:
+		time.sleep(0.1)
 		if EXIT_FLAG:
 			exit()
 			break
