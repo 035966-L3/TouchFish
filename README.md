@@ -82,7 +82,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 
 **这里的大部分发行版都暂不支持 v4 版本，如需使用请前往 [Release](https://github.com/2044-space-elevator/TouchFish/releases) 页面下载旧版本**
 
-| 版本名称 | 简称 | 主要作者 | 对v1-3支持 | 语言 | 平台支持 | 特色 | 对v4支持
+| 版本名称 | 简称 | 主要作者 | 对 v1 - v3 支持 | 语言 | 平台支持 | 特色 | 对 v4 支持 |
 |---------|------|----------|--|------|----------|------|--|
 | LTS | TF | @2044-space-elevator, @035966-L3 | ✅ | Python | Win, macOS, Linux | 根版本，长期支持 | ✅ |
 | UI Remake | TFUR | @pztsdy | ✅ | Node.JS | Win, macOS*, Linux* | 现代化 UI，Markdown，代码高亮（可能会停更） | ❌ |
