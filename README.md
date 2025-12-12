@@ -89,7 +89,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 | Plus | Plus | @ayf2192538031 | ❌ | Python | Win*, macOS*, Linux* | 增强功能集 | ❌ |
 | Pro | Pro | @BoXueDuoCai | ✅ | Python | Win*, macOS*, Linux* | Markdown，LaTeX，用户高亮 | ❌ |
 | Android | (已废除) | @pztsdy | ✅ | Kotlin | Android | 移动端（有使用限制）（已停更） | ❌ |
-| Astra | TFA | @ILoveScratch2 | ✅ | Dart | 全平台(UI) | 最佳发行版之一，现代化UI | ✅ |
+| Astra | TFA | @ILoveScratch2 | ✅ | Dart | 全平台(UI) | 最佳发行版之一，现代化 UI | ✅ |
 | More | More | @xx2860 | ✅ | Python | Win*, macOS*, Linux(UI) | 性能优化，镜像站 | ❌^ |
 
 > *注：*  
