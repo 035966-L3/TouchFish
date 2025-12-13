@@ -10,27 +10,27 @@
 
 ## 1.1 Request
 
-客户端连接时向服务器发送此消息，用于申请加入。
+客户端连接时向服务端发送此消息，用于申请加入。
 
 - `type`: `"GATE.REQUEST"`（所有协议的 `type` 字段均为固定值，下同）
 - `username`: 字符串，表示用户希望使用的用户名。（所有 `username` 字段必须非空，下同）
 
 ## 1.2 Response
 
-服务器对 `1.1 Request` 的直接响应，告知客户端其请求的处理结果。
+服务端对 `1.1 Request` 的直接响应，告知客户端其请求的处理结果。
 
 - `type`: `"GATE.RESPONSE"`
 - `result`: 字符串，可能取值包括：（下同）
   - `"Accepted"`：立即允许加入；
   - `"Pending review"`：需人工审核；
   - `"IP is banned"`：当前 IP 被封禁；
-  - `"Room is full"`：服务器用户数已达上限；
+  - `"Room is full"`：服务端用户数已达上限；
   - `"Duplicate usernames"`：用户名已被使用；
   - `"Username consists of banned words"`：用户名包含违禁词。
 
 ## 1.3 Review Result
 
-当请求状态为 `"Pending review"` 时，管理员审核完成后，服务器向该客户端发送此消息。
+当请求状态为 `"Pending review"` 时，管理员审核完成后，服务端向该客户端发送此消息。
 
 - `type`: `"GATE.REVIEW_RESULT"`
 - `accepted`: 布尔值，`true` 表示通过，`false` 表示拒绝。
@@ -40,7 +40,7 @@
 
 ## 1.4 Incorrect Protocol
 
-当出现通信不符合协议规范的连接时，服务器向日志写入记录。
+当出现通信不符合协议规范的连接时，服务端向日志写入记录。
 
 - `type`: `"GATE.INCORRECT_PROTOCOL"`
 - `time`: 表示事件发生的时间。（精确到微秒，下同）
@@ -48,20 +48,20 @@
 
 ## 1.5 Client Request
 
-服务器对客户端连接请求的响应。
+服务端对客户端连接请求的响应。
 
 ### 1.5.1 Announce
 
-服务器向所有已连接的客户端广播该客户端的连接请求。
+服务端向所有已连接的客户端广播该客户端的连接请求。
 
 - `type`: `"GATE.CLIENT_REQUEST.ANNOUNCE"`
 - `username`: 用户名。
-- `uid`: 服务器为该用户分配的用户 ID。
-- `result`: 服务器对该请求的处理结果。
+- `uid`: 服务端为该用户分配的用户 ID。
+- `result`: 服务端对该请求的处理结果。
 
 ### 1.5.2 Log
 
-服务器向接收到的连接请求写入日志。
+服务端向接收到的连接请求写入日志。
 
 - `type`: `"GATE.CLIENT_REQUEST.LOG"`
 - `time`: 同上。
@@ -139,7 +139,7 @@
 
 ## 2.3 Log
 
-服务器将收到的聊天记录写入日志。
+服务端将收到的聊天记录写入日志。
 
 - `type`: `"CHAT.LOG"`
 - `time`: 同上。
@@ -157,25 +157,35 @@
 
 ## 3.1 Start
 
-服务器将启动时的启动参数写入日志。
+服务端将启动时的启动参数写入日志。
 
 - `type`: `"SERVER.START"`
 - `time`: 同上。 
-- `server_version`: 字符串，表示服务器程序版本。（下同） 
+- `server_version`: 字符串，表示服务端程序版本。（下同） 
 - `config`: JSON 对象，表示启动参数。（具体格式详见代码，下同）
 
 ## 3.2 Stop
 
-服务器正常关闭时将事件写入日志。
+服务端正常关闭时的协议。
 
-- `type`: `"SERVER.STOP"`  
+### 3.2.1 Announce
+
+服务端正常关闭时，向全体客户端进行广播。
+
+- `type`: `"SERVER.STOP.ANNOUNCE"`
+
+### 3.2.2 Log
+
+服务端正常关闭时将事件写入日志。
+
+- `type`: `"SERVER.STOP.LOG"`
 - `time`: 同上。
 
 ## 3.3 Data
 
 用于向新连接的客户端提供完整上下文。
 
-- `type`: `"SERVER.DATA"` 
+- `type`: `"SERVER.DATA"`
 - `server_version`: 同上。
 - `uid`: 表示服务端分配给该用户的用户 ID。
 - `config`: 同上。
@@ -203,8 +213,8 @@
 服务端向客户端广播配置修改事件。
 
 - `type`: `"SERVER.CONFIG.CHANGE"`
-- `key`: 同上。  
-- `value`: 同上。  
+- `key`: 同上。
+- `value`: 同上。
 - `operator`: 执行修改操作的用户 ID。
 
 ### 3.4.3 Save

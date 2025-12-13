@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.0.0"
+VERSION = "v4.1.0-alpha"
 
 RESULTS = \
 {
@@ -95,16 +95,16 @@ HELP_HINT_1 = \
 """
 聊天室界面分为输出模式和输入模式，默认为输出模式，此时行首没有符号。
 按下回车键即可从输出模式转为输入模式，此时行首有一个 > 符号。
-输入任意一条指令（包括非法指令）即可输入模式转换回输出模式。
+按下 Enter（或输入任意指令）即可从输入模式转换回输出模式。
 输出模式下，输入的指令将被忽略，且不会显示在屏幕上。
 输入模式下，新的消息将等待到退出输入模式才会显示。
-聊天室内可用的命令有：
+聊天室内可用的指令有：
 """[1:-1]
 
 HELP_HINT_2 = \
 """
         dashboard                    展示聊天室各项数据
-        deliver <filename>           发送文件
+        distribute <filename>        发送文件
         exit                         退出或关闭聊天室
         help                         显示本帮助文本
         send                         发送消息
@@ -126,14 +126,15 @@ HELP_HINT_2 = \
 
 HELP_HINT_3 = \
 """
-标注 * 的命令只有状态为 Admin 或 Root 的用户可以使用。
-标注 ** 的命令只有状态为 Root 的用户可以使用。
-对于 dashboard 命令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。
-对于 ban ip 命令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。
-对于 config 命令，<key> 的格式以 dashboard 命令输出的参数名称为准。
-对于 config 命令，<value> 的格式以 dashboard 命令输出的修改示例为准。
-对于 kick 命令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。
-对于 kick 命令，状态为 Admin 的用户只能踢出状态为 Online 的用户。
+标注 * 的指令只有状态为 Admin 或 Root 的用户可以使用。
+标注 ** 的指令只有状态为 Root 的用户可以使用。
+对于 dashboard 指令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。
+对于 ban ip 指令，支持输入形如 a.b.c.d/e 的 IP 段，但 CIDR (e 值) 不得小于 24。
+对于 config 指令，<key> 的格式以 dashboard 指令输出的参数名称为准。
+对于 config 指令，<value> 的格式以 dashboard 指令输出的修改示例为准。
+对于 kick 指令，状态为 Root 的用户可以踢出状态为 Admin 或 Online 的用户。
+对于 kick 指令，状态为 Admin 的用户只能踢出状态为 Online 的用户。
+对于 kick 指令，状态为 Admin 的用户只能踢出状态为 Online 的用户。
 """[1:-1]
 
 WEBPAGE_CONTENT = \
@@ -312,7 +313,7 @@ def print_message(message):
 							f.write(base64.b64decode(message['content']))
 				except:
 					pass
-			prints("我发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
+			prints("发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message['filename'], message['order']), "cyan")
 		else:
 			prints(message['content'], "white")
 	except KeyError:
@@ -359,6 +360,14 @@ def process(message):
 		if side == "Client":
 			config[message['key'].split('.')[0]][message['key'].split('.')[1]] = message['value']
 		return
+	if message['type'] == "SERVER.STOP.ANNOUNCE":
+		if side == "Client":
+			announce(0)
+			prints("聊天室服务端已经关闭。", "cyan")
+			prints("\033[0m\033[1;36m再见！\033[0m")
+			time.sleep(1)
+			EXIT_FLAG = True
+			exit()
 
 def read():
 	global my_socket
@@ -391,7 +400,7 @@ def get_message():
 
 
 
-# ============================= 第三部分：与命令对应的函数 =============================
+# ============================= 第三部分：与指令对应的函数 =============================
 
 
 
@@ -447,7 +456,7 @@ def do_doorman(arg, verbose=True, by=-1):
 	if users[arg[1]]['status'] != "Pending":
 		printc(verbose, "只能对状态为 Pending 的用户操作。")
 		if users[arg[1]]['status'] in ["Online", "Admin", "Root"] and arg[0] == "reject":
-			printc(verbose, "您似乎想要踢出该用户，请使用以下命令：kick {}".format(arg))
+			printc(verbose, "您似乎想要踢出该用户，请使用以下指令：kick {}".format(arg))
 		return
 	
 	if arg[0] == "accept":
@@ -504,7 +513,7 @@ def do_kick(arg, verbose=True, by=-1):
 	if not users[arg]['status'] in ["Online", "Admin"]:
 		printc(verbose, "只能对状态为 Online 或 Admin 的用户操作。")
 		if users[arg]['status'] == "Pending":
-			printc(verbose, "您似乎想要拒绝该用户的加入申请，请使用以下命令：doorman reject {}".format(arg))
+			printc(verbose, "您似乎想要拒绝该用户的加入申请，请使用以下指令：doorman reject {}".format(arg))
 		return
 	if users[by]['status'] == "Admin" and users[arg]['status'] == "Admin":
 		printc(verbose, "状态为 Admin 的用户只能对状态为 Online 的用户操作。")
@@ -590,7 +599,7 @@ def do_config(arg, verbose=True, by=-1):
 		printc(verbose, "该参数不存在。")
 		return
 	if arg[0].split('.')[0] == "general":
-		printc(verbose, "不允许在命令行内修改该参数，请退出聊天室后重新打开以修改。")
+		printc(verbose, "不允许在指令行内修改该参数，请退出聊天室后重新打开以修改。")
 		return
 	if verbose:
 		if arg[0] == "gate.enter_hint":
@@ -652,7 +661,7 @@ def do_config(arg, verbose=True, by=-1):
 		if side == "Client":
 			my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': first + '.' + second, 'value': eval(arg[1])}) + "\n", encoding="utf-8"))
 	except:
-		printc(verbose, "命令格式不正确，请重试。")
+		printc(verbose, "指令格式不正确，请重试。")
 		return
 
 def do_ban(arg, verbose=True, by=-1):
@@ -830,7 +839,7 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
 		my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': arg}) + "\n", encoding="utf-8"))
 	printc(verbose, "发送成功。")
 
-def do_deliver(arg, message=None, verbose=True, by=-1):
+def do_distribute(arg, message=None, verbose=True, by=-1):
 	global log_queue
 	global send_queue
 	global my_socket
@@ -1004,10 +1013,15 @@ def do_save(arg=None):
 
 def do_exit(arg=None):
 	global log_queue
+	global send_queue
 	global EXIT_FLAG
 	print("\033[0m\033[1;36m再见！\033[0m")
 	if side == "Server":
-		log_queue.put(json.dumps({'type': 'SERVER.STOP', 'time': time_str()}))
+		log_queue.put(json.dumps({'type': 'SERVER.STOP.LOG', 'time': time_str()}))
+		for i in range(len(users)):
+			if users[i]['status'] in ["Online", "Admin", "Root"]:
+				send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.STOP.ANNOUNCE'}}))
+		time.sleep(1)
 	EXIT_FLAG = True
 	exit()
 
@@ -1074,7 +1088,7 @@ def thread_gate():
 		
 		try:
 			data = json.loads(data)
-			if not isinstance(data, dict) or set(data.keys()) != {"type", "username"} or data['type'] != "GATE.REQUEST" or not isinstance(data['username'], str) or not data['username']:
+			if data['type'] != "GATE.REQUEST" or not isinstance(data['username'], str) or not data['username']:
 				raise
 		except:
 			log_queue.put(json.dumps({'type': 'GATE.INCORRECT_PROTOCOL', 'time': time_str(), 'ip': addresstmp}))
@@ -1147,7 +1161,7 @@ def thread_process():
 						do_whisper(str(content['to']), content['content'], False, sender)
 				else:
 					if content['to'] == -1:
-						do_deliver(content['filename'], content['content'], False, sender)
+						do_distribute(content['filename'], content['content'], False, sender)
 					else:
 						do_transfer(str(content['to']) + ' ' + content['filename'], content['content'], False, sender)
 			if content['type'] == "GATE.STATUS_CHANGE.REQUEST":
@@ -1259,16 +1273,11 @@ def thread_check():
 	global send_queue
 	global log_queue
 	global users
-	timer = 5
 	while True:
 		time.sleep(1)
 		if EXIT_FLAG:
 			exit()
 			break
-		timer -= 1
-		if timer:
-			continue
-		timer = 5
 		down = []
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"] and not users[i]['busy']:
@@ -1298,13 +1307,15 @@ def thread_input():
 			pass
 		blocked = True
 		command = input("\033[0m\033[1;30m> ")
-		while not command:
-			command = input("\033[0m\033[1;30m> ")
+		if not command:
+			print("\033[8;30m", end="")
+			blocked = False
+			continue
 		command = command.split(' ', 1)
 		if len(command) == 1:
 			command = [command[0], ""]
-		if not command[0] in ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'deliver', 'doorman', 'exit', 'help', 'kick', 'save', 'send', 'transfer', 'whisper']:
-			print("命令输入错误。\n\033[8;30m", end="")
+		if not command[0] in ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'distribute', 'doorman', 'exit', 'help', 'kick', 'save', 'send', 'transfer', 'whisper']:
+			print("指令输入错误。\n\033[8;30m", end="")
 			blocked = False
 			continue
 		now = eval("do_{}".format(command[0]))
