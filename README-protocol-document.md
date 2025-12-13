@@ -164,24 +164,7 @@
 - `server_version`: 字符串，表示服务端程序版本。（下同） 
 - `config`: JSON 对象，表示启动参数。（具体格式详见代码，下同）
 
-## 3.2 Stop
-
-服务端正常关闭时的协议。
-
-### 3.2.1 Announce
-
-服务端正常关闭时，向全体客户端进行广播。
-
-- `type`: `"SERVER.STOP.ANNOUNCE"`
-
-### 3.2.2 Log
-
-服务端正常关闭时将事件写入日志。
-
-- `type`: `"SERVER.STOP.LOG"`
-- `time`: 同上。
-
-## 3.3 Data
+## 3.2 Data
 
 用于向新连接的客户端提供完整上下文。
 
@@ -197,6 +180,23 @@
   - `from`: 同上；
   - `content`: 同上；
   - `to`: 同上。
+
+## 3.3 Stop
+
+服务端正常关闭时的协议。
+
+### 3.3.1 Announce
+
+服务端正常关闭时，向全体客户端进行广播。
+
+- `type`: `"SERVER.STOP.ANNOUNCE"`
+
+### 3.3.2 Log
+
+服务端正常关闭时将事件写入日志。
+
+- `type`: `"SERVER.STOP.LOG"`
+- `time`: 同上。
 
 ## 3.4 Config
 

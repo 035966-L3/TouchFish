@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 
-VERSION = "v4.1.0-alpha"
+VERSION = "v4.1.0"
 
 RESULTS = \
 {
@@ -107,14 +107,17 @@ HELP_HINT_2 = \
         distribute <filename>        发送文件
         exit                         退出或关闭聊天室
         help                         显示本帮助文本
-        send                         发送消息
+        send                         发送多行消息
+        send <message>               发送单行消息
         transfer <uid> <filename>    向某个用户发送私有文件
-        whisper <uid>                向某个用户发送私聊消息
+        whisper <uid>                向某个用户发送多行私聊消息
+        whisper <uid> <message>      向某个用户发送单行私聊消息
       * ban ip add <ip>              封禁 IP 或 IP 段
       * ban ip remove <ip>           解除封禁 IP 或 IP 段
       * ban words add <word>         屏蔽某个词语
       * ban words remove <word>      解除屏蔽某个词语
-      * broadcast                    向全体用户广播消息
+      * broadcast                    向全体用户广播多行消息
+      * broadcast <message>          向全体用户广播单行消息
       * config <key> <value>         修改聊天室配置项
       * doorman accept <uid>         通过某个用户的加入申请
       * doorman reject <uid>         拒绝某个用户的加入申请
@@ -187,6 +190,9 @@ EXIT_FLAG = False
 
 
 
+
+def ring():
+	print('\a', end="", flush=True)
 
 def clear_screen():
 	if platform.system() == 'Windows':
@@ -323,6 +329,7 @@ def process(message):
 	global users
 	global online_count
 	global EXIT_FLAG
+	ring()
 	if message['type'] == "CHAT.RECEIVE":
 		message['time'] = str(datetime.datetime.now())
 		print_message(message)
@@ -417,7 +424,10 @@ def do_broadcast(arg, message=None, verbose=True, by=-1):
 		printc(verbose, "只有处于 Admin 或 Root 状态的用户有权执行该操作。")
 		return
 	if message == None:
-		message = enter()
+		if arg:
+			message = arg
+		else:
+			message = enter()
 	if side == "Server":
 		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2}))
 		history.append({'time': time_str(), 'from': by, 'content': message, 'to': -2})
@@ -775,7 +785,10 @@ def do_send(arg, message=None, verbose=True, by=-1):
 	if by == -1:
 		by = my_uid
 	if message == None:
-		message = enter()
+		if arg:
+			message = arg
+		else:
+			message = enter()
 	if not message:
 		printc(verbose, "发送失败：消息不能为空。")
 		return
@@ -805,6 +818,10 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
 	if not config['message']['allow_private']:
 		printc(verbose, "此聊天室目前不允许发送私聊消息。")
 		return
+	try:
+		arg, message = arg.split(' ', 1)
+	except:
+		pass
 	try:
 		arg = int(arg)
 		if arg <= -1 or arg >= len(users):
@@ -1541,6 +1558,7 @@ def main():
 		
 		side = "Server"
 		prints("启动成功！", "green")
+		ring()
 		do_help()
 		do_dashboard()
 		if config['gate']['enter_hint']:
@@ -1657,6 +1675,7 @@ def main():
 		
 		if message['result'] == "Accepted":
 			prints("连接成功！", "green")
+			ring()
 		
 		if message['result'] == "Pending review":
 			prints("服务端需要对连接请求进行人工审核，请等待...", "white")
@@ -1675,6 +1694,7 @@ def main():
 						time.sleep(3)
 						prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
 						prints("连接成功！", "green")
+						ring()
 						break
 				except:
 					pass
