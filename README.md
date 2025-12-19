@@ -1,7 +1,22 @@
 > [!WARNING]
 > **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
 
+> **重要通知：贡献者须知**
+> 
+> 感谢您对 TouchFish 项目的关注和贡献！为避免您的努力付诸东流，请在提交 PR 前务必仔细阅读
+> **[贡献者指南](https://github.com/2044-space-elevator/TouchFish/blob/main/CONTRIBUTING.md)**，
+> 确保您的贡献符合项目规范。感谢您的配合！
+
 # TouchFish - 局域网聊天解决方案
+
+## 目录：
+- [演示](#演示)
+- [快速开始](#快速开始)
+  - [作为服务端](#作为服务端)
+  - [最为客户端](#作为客户端)
+- [系统要求](#系统要求)
+- [下载方式](#下载方式)
+- [发行版本生态](#发行版本生态)
 
 ## 演示
 
@@ -70,6 +85,22 @@
 ### Linux
 无特殊限制
 
+## 下载方式
+
+### 推荐镜像站点
+**镜像站**: [https://mirror.ilovescratch.dpdns.org/](https://mirror.ilovescratch.dpdns.org/)
+
+> **优势**: 下载速度快，网络连接稳定
+> 
+> **限制**: 仅提供稳定版本，无法下载 PR 分支和开发中版本
+
+### 官方源
+**GitHub**: [https://github.com/2044-space-elevator/TouchFish](https://github.com/2044-space-elevator/TouchFish)
+
+> **优势**: 包含所有分支、PR 和最新开发版本
+> 
+> **限制**: 国内访问可能较慢
+
 ---
 以上是软件使用方法，以下是与软件生态等相关内容
 
@@ -81,7 +112,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 **这里的大部分发行版都暂不支持 v4 版本，如需使用请前往 [Release](https://github.com/2044-space-elevator/TouchFish/releases) 页面下载旧版本**
 
 | 版本名称 | 简称 | 主要作者 | 链接 | 对v1-3支持 | 语言 | 平台支持 | 特色 | 对v4支持
-|---------|------|----------|----|-----|------|----------|------|--|
+|---------|------|----------|----|-------|------|----------|------|--|
 | LTS | TF | @2044-space-elevator, @035966-L3 和其他 LTS 贡献者 | [github](#发行版本生态),[mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/LTS/) | ✅ | Python | Win, macOS, Linux | 根版本，长期支持 | ✅ |
 | Astra | TFA | @ILoveScratch2 | [github](https://github.com/ILoveScratch2/TouchFish-Astra),[mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Astra/) | ✅ | Dart | 全平台(UI) | 最佳发行版之一，现代化UI | ✅ |
 | UI Remake | TFUR | @pztsdy | [github](https://github.com/pztsdy/touchfish_ui_remake),[main-mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/UI%20Remake/),[update-branch](https://github.com/pztsdy/touchfish_ui_remake/tree/update) | ✅ | Node.JS | Win, macOS*, Linux* | 现代化 UI，Markdown，代码高亮（可能会停更） | ❌ |
