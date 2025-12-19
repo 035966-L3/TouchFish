@@ -60,7 +60,8 @@
 
 ### Windows
 - **Windows 7 及以下系统用户**：可能需要安装额外的 DLL 文件
-- 部分 Windows 版本可能不支持 ASCII 转义显示文字，建议使用 Windows 10 及以上系统
+- 部分 Windows 版本可能不支持 ANSI 转义显示文字，建议使用 Windows 10 及以上系统
+- 如果提示文件写入失败，请以管理员身份重新运行
 
 ### macOS
 > [!WARNING]
@@ -82,11 +83,11 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 
 **这里的大部分发行版都暂不支持 v4 版本，如需使用请前往 [Release](https://github.com/2044-space-elevator/TouchFish/releases) 页面下载旧版本**
 
-| 版本名称 | 简称 | 主要作者 | 链接 | 对v1-3支持 | 语言 | 平台支持 | 特色 | 对v4支持
+| 版本名称 | 简称 | 主要作者 | 链接 | 对 v1-3 支持 | 语言 | 平台支持 | 特色 | 对 v4 支持
 |---------|------|----------|----|-----|------|----------|------|--|
 | LTS | TF | @2044-space-elevator, @035966-L3 和其他 LTS 贡献者 | [github](#发行版本生态), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/LTS/) | ✅ | Python | Win, macOS, Linux | 根版本，长期支持 | ✅ |
 | Astra | TFA | @ILoveScratch2 | [github](https://github.com/ILoveScratch2/TouchFish-Astra), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Astra/) | ✅ | Dart | 全平台 (UI) | 最佳发行版之一，现代化 UI | ✅ |
-| UI Remake | TFUR | @pztsdy | [github](https://github.com/pztsdy/touchfish_ui_remake), [main-mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/UI%20Remake/),[update-branch](https://github.com/pztsdy/touchfish_ui_remake/tree/update) | ✅ | Node.JS | Win, macOS*, Linux* | 现代化 UI，Markdown，代码高亮（可能会停更） | ❌ |
+| UI Remake | TFUR | @pztsdy | [github](https://github.com/pztsdy/touchfish_ui_remake), [main-mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/UI%20Remake/), [update-branch](https://github.com/pztsdy/touchfish_ui_remake/tree/update) | ✅ | Node.JS | Win, macOS*, Linux* | 现代化 UI，Markdown，代码高亮（可能会停更） | ❌ |
 | Plus | Plus | @ayf2192538031 | [github](https://github.com/2044-space-elevator/TouchFishPlus), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Plus%20(%E6%BA%90%E4%BB%A3%E7%A0%81)/) | ❌ | Python | Win*, macOS*, Linux* | 增强功能集 | ❌ |
 | Pro | Pro | @BoXueDuoCai | [github](https://github.com/PigeonTechGroup/TouchFishPro), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Pro%20(%E6%BA%90%E4%BB%A3%E7%A0%81)/) | ✅ | Python | Win*, macOS*, Linux* | Markdown，LaTeX，用户高亮 | ❌ |
 | Android | (已废除) | @pztsdy | [github](https://github.com/pztsdy/TouchFish-for-mobile), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Mobile%20%EF%BC%88%E4%B8%8D%E6%8E%A8%E8%8D%90%EF%BC%89/) | ✅ | Kotlin | Android | 移动端（有使用限制）（已停更） | ❌ |
