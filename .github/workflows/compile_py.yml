@@ -21,7 +21,7 @@ jobs:
       - name: Compile Python scripts for Linux
         run: |
           mkdir -p bin/linux
-          pyinstaller --onefile --distpath bin/linux LTS.py
+          pyinstaller --onefile --icon=TouchFish.ico --distpath bin/linux LTS.py
           rm LTS.spec
           rm -rf build/
 
@@ -50,7 +50,7 @@ jobs:
           # 动态获取 Python 安装路径（适配 3.6 版本）
           $site_packages = python -c "import site; print(site.getsitepackages()[0])"
           mkdir -Force bin/windows
-          pyinstaller --onefile --distpath bin/windows LTS.py
+          pyinstaller --onefile --icon=TouchFish.ico --distpath bin/windows LTS.py
           Remove-Item -Path "LTS.spec" -Force
           Remove-Item -Path ".\build" -Recurse -Force
           
@@ -84,8 +84,11 @@ jobs:
           name: Development Build
           body: |
             这是一个基于 `main` 分支最新代码的自动版本。
+
+            不要被左侧的时间骗了！本Release会不断随着 Commit 更新。
+
             Commit SHA: ${{ github.sha }}
-            
+
             提示：
              - 此版本为开发测试版，可能包含不稳定的功能或未知的错误。
              - 不建议用于生产环境或正式用途。
