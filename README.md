@@ -2,14 +2,15 @@
 > **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
 
 > **重要通知：贡献者须知**
-> 
+>
 > 感谢您对 TouchFish 项目的关注和贡献！为避免您的努力付诸东流，请在提交 PR 前务必仔细阅读
 > **[贡献者指南](https://github.com/2044-space-elevator/TouchFish/blob/main/CONTRIBUTING.md)**，
 > 确保您的贡献符合项目规范。感谢您的配合！
 
 # TouchFish - 局域网聊天解决方案
 
-## 目录：
+## 目录
+
 - [演示](#演示)
 - [快速开始](#快速开始)
   - [作为服务端](#作为服务端)
@@ -43,7 +44,7 @@
 
 3. **第一次启动服务器**：
    - 运行程序
-   - 在 5 秒内按下 `Ctrl + C`
+   - 按下 `Enter`
    - 指定启动方式（`Server`）
    - 输入内网 IP 地址
    - 指定可用端口
@@ -53,14 +54,14 @@
 
 4. **后续启动服务器**：
    - 运行程序
-   - 等待 5 秒
+   - 根据指示按下 `Ctrl + C` 或 `Ctrl + D`
    - 程序将自动以上次的配置启动
 
 ### 作为客户端
 
 1. **第一次启动程序**：
    - 运行程序
-   - 在 5 秒内按下 `Ctrl + C`
+   - 按下 `Enter`
    - 指定启动方式（`Client`）
    - 输入服务器 IP 地址
    - 输入服务器端口
@@ -68,38 +69,43 @@
 
 2. **后续启动程序**：
    - 运行程序
-   - 等待 5 秒
+   - 根据指示按下 `Ctrl + C` 或 `Ctrl + D`
    - 程序将自动以上次的配置启动
 
 ## 系统要求
 
 ### Windows
+
 - **Windows 7 及以下系统用户**：可能需要安装额外的 DLL 文件
 - 部分 Windows 版本可能不支持 ANSI 转义显示文字，建议使用 Windows 10 及以上系统
 - 如果提示文件写入失败，请以管理员身份重新运行
 
 ### macOS
+
 > [!WARNING]
 > 需要启用 "任何来源" 应用运行权限：  
 > 系统设置 → 安全性与隐私 → 安全性 → 允许以下来源的应用程序 → 选择 "任何来源"
 
 ### Linux
-无特殊限制
+
+无特殊限制，服务端部署**不建议**使用编译后的二进制，更推荐使用源代码。
 
 ## 下载方式
 
 ### 推荐镜像站点
+
 **镜像站**: [https://mirror.ilovescratch.dpdns.org/](https://mirror.ilovescratch.dpdns.org/)
 
 > **优势**: 下载速度快，网络连接稳定
-> 
+>
 > **限制**: 仅提供稳定版本，无法下载 PR 分支和开发中版本
 
 ### 官方源
+
 **GitHub**: [https://github.com/2044-space-elevator/TouchFish](https://github.com/2044-space-elevator/TouchFish)
 
 > **优势**: 包含所有分支、PR 和最新开发版本
-> 
+>
 > **限制**: 国内访问可能较慢
 
 ---
@@ -122,7 +128,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 | Plus | Plus | @ayf2192538031 | [github](https://github.com/2044-space-elevator/TouchFishPlus), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Plus%20(%E6%BA%90%E4%BB%A3%E7%A0%81)/) | ❌ | Python | Win*, macOS*, Linux* | 增强功能集 | ❌ |
 | Pro | Pro | @BoXueDuoCai | [github](https://github.com/PigeonTechGroup/TouchFishPro), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Pro%20(%E6%BA%90%E4%BB%A3%E7%A0%81)/) | ✅ | Python | Win*, macOS*, Linux* | Markdown，LaTeX，用户高亮 | ❌ |
 | Android | (已废除) | @pztsdy | [github](https://github.com/pztsdy/TouchFish-for-mobile), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/Mobile%20%EF%BC%88%E4%B8%8D%E6%8E%A8%E8%8D%90%EF%BC%89/) | ✅ | Kotlin | Android | 移动端（有使用限制）（已停更） | ❌ |
-| More | More | @xx2860 | [gitee](https://gitee.com/xx2870/touchfish_more), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/More(Lite)/) | ✅ | Python | Win*, macOS*, Linux (UI) | 性能优化，镜像站 | ❌^ |
+| More | More | @xx2860 | [gitee](https://gitee.com/xx2870/touchfish_more), [mirror](https://mirror.ilovescratch.dpdns.org/TouchFish/More(Lite)/) | ✅ | Python | Win*, macOS*, Linux (UI) | 性能优化，镜像站 | ❓^ |
 
 > *注：*  
 > 标 * 的版本可能需要自行编译、直接运行代码或缺少预编译包  

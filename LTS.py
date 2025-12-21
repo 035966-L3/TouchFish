@@ -30,7 +30,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.3.0"
+VERSION = "v4.3.2"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -56,7 +56,7 @@ RESULTS = \
 - 启动阶段的成功提示
 蓝色 (blue):
 - [发给您的]，[您发送的] 标签的颜色
-- help 指令显示的帮助消息中的第二段（可用的命令列表）
+- help 指令显示的帮助消息中的第三段和第六段
 白色 (white):
 - 普通消息和加入提示的文本
 - 启动阶段的参数输入提示
@@ -68,7 +68,7 @@ RESULTS = \
 - 启动阶段中上面没有提到的所有文本
 青色 (cyan):
 - 所有除普通消息和加入提示以外的消息的文本
-- help 指令显示的帮助消息中的第一段和第三段（其余补充信息）
+- help 指令显示的帮助消息中的其余段落
 - 程序关闭时的「再见！」文本
 
 （注：洋红色 (magenta) 目前没有使用过）
@@ -157,20 +157,20 @@ username                    不能为空串
 # 用于 dashboard 指令中列出参数列表
 CONFIG_LIST = \
 """
-参数名称                   当前值      修改示例       描述
+参数名称                当前值      修改示例        描述
 
-ban.ip                     <1>         ["8.8.8.8"]    IP 黑名单
-ban.words                  <2>         ["a", "b"]     屏蔽词列表
+ban.ip                  <1>         ["8.8.8.8"]     IP 黑名单
+ban.words               <2>         ["a", "b"]      屏蔽词列表
 
-gate.enter_hint            <3>         "Hi there!\\n"  进入提示
-gate.enter_check           {!s:<12}True           加入是否需要人工放行
+gate.enter_hint         <3>         "Hi there!\\n"   进入提示
+gate.enter_check        {!s:<12}True            加入是否需要人工放行
 
-message.allow_private      {!s:<12}False          是否允许私聊
-message.max_length         {:<12}256            最大消息长度（字符个数）
+message.allow_private   {!s:<12}False           是否允许私聊
+message.max_length      {:<12}256             最大消息长度（字符个数）
 
-file.allow_any             {!s:<12}False          是否允许发送文件
-file.allow_private         {!s:<12}False          是否允许发送私有文件
-file.max_size              {:<12}16384          最大文件大小（字节数）
+file.allow_any          {!s:<12}False           是否允许发送文件
+file.allow_private      {!s:<12}False           是否允许发送私有文件
+file.max_size           {:<12}16384           最大文件大小（字节数）
 
 为了防止尖括号处的内容写不下，此处单独列出：
 <1>:
@@ -583,7 +583,7 @@ def process(message):
 			# 防止干扰用户后续的终端使用
 			prints("\033[0m\033[1;36m再见！\033[0m")
 			EXIT_FLAG = True
-			exit()
+			return
 	if message['type'] == "SERVER.CONFIG.CHANGE": # 服务端参数变更 (协议 3.4.2)
 		announce(message['operator'])
 		prints("配置项 {} 变更为：".format(message['key']) + str(message['value']), "cyan")
@@ -601,7 +601,7 @@ def process(message):
 			prints("聊天室服务端已经关闭。", "cyan")
 			prints("\033[0m\033[1;36m再见！\033[0m")
 			EXIT_FLAG = True
-			exit()
+			return
 
 # 从 my_socket 读取数据，每次 128 KiB，读完为止
 def read():
@@ -1357,7 +1357,7 @@ def do_exit(arg=None):
 			if users[i]['status'] in ["Pending", "Online", "Admin", "Root"]:
 				send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.STOP.ANNOUNCE'}})) # 协议 3.2.1
 	EXIT_FLAG = True
-	exit()
+	return
 
 def do_help(arg=None):
 	print()
@@ -1400,7 +1400,7 @@ def thread_gate():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		
 		# 尝试开启新连接
@@ -1493,7 +1493,7 @@ def thread_process():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		while not receive_queue.empty():
 			message = json.loads(receive_queue.get())
@@ -1527,7 +1527,7 @@ def thread_receive():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"]:
@@ -1561,7 +1561,7 @@ def thread_send():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		while not send_queue.empty():
 			message = json.loads(send_queue.get())
@@ -1620,7 +1620,7 @@ def thread_log():
 		# 与其他线程不同，先写入日志再读取程序终止信号，
 		# 确保程序终止时没有日志残留在 log_queue 中
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 
 def thread_check():
@@ -1631,7 +1631,7 @@ def thread_check():
 	while True:
 		time.sleep(1) # 该部分对整体性能影响较大，因此执行频率下调至 1 秒一次
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		down = []
 		# 先完成全部下线用户检测工作再一并广播，
@@ -1660,7 +1660,7 @@ def thread_input():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		# 输出模式
 		try:
@@ -1693,7 +1693,7 @@ def thread_output():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		read()
 		message = get_message()
@@ -1731,6 +1731,8 @@ def main():
 	global receive_queue
 	global send_queue
 	global print_queue
+
+	can_read_config = True
 	
 	# 尝试读取配置文件 (config.json)，
 	# 检查规则详见第一部分的相关注释；
@@ -1789,22 +1791,33 @@ def main():
 				if not check_ip(tmp_config['ip']):
 					raise
 				config = tmp_config
-	except:
+		prints("配置文件 config.json 读取成功！", "yellow")
+	except FileNotFoundError:
+		prints("未找到配置文件 config.json。如果该文件存在，请尝试以管理员权限重新运行。", "yellow")
+		prints("下面将使用默认服务端配置启动程序。", "yellow")
 		config = DEFAULT_SERVER_CONFIG
+	except:
+		prints("配置文件 config.json 中的配置项存在错误。", "yellow")
+		prints("下面将使用默认服务端配置启动程序。", "yellow")
+		config = DEFAULT_SERVER_CONFIG
+		can_read_config = False
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
+	if platform.system() == "Windows":
+		shortcut = 'C'
+	else:
+		shortcut = 'D'
 	prints("欢迎使用 TouchFish 聊天室！", "yellow")
 	prints("当前程序版本：{}".format(VERSION), "yellow")
 	prints("5 秒后将会自动按上次的配置启动。", "yellow")
-	prints("按下 Ctrl + C 以指定启动配置。", "yellow")
-	auto_start = True
+	prints("按下 Ctrl + {} 以按照配置文件中的配置自动启动。".format(shortcut), "yellow")
+	prints("按下 Enter 以指定启动配置。", "yellow")
+	auto_start = False
 	try:
-		for i in range(5, 0, -1):
-			prints("剩余 " + str(i) + " 秒...", "yellow")
-			time.sleep(1)
-	except KeyboardInterrupt:
-		auto_start = False
+		input()
+	except BaseException as e:
+		auto_start = True
 	except:
 		pass
 	tmp_side = None
