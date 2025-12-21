@@ -56,7 +56,7 @@ RESULTS = \
 - 启动阶段的成功提示
 蓝色 (blue):
 - [发给您的]，[您发送的] 标签的颜色
-- help 指令显示的帮助消息中的第二段（可用的命令列表）
+- help 指令显示的帮助消息中的第三段和第六段（可用的命令列表）
 白色 (white):
 - 普通消息和加入提示的文本
 - 启动阶段的参数输入提示
@@ -68,7 +68,7 @@ RESULTS = \
 - 启动阶段中上面没有提到的所有文本
 青色 (cyan):
 - 所有除普通消息和加入提示以外的消息的文本
-- help 指令显示的帮助消息中的第一段和第三段（其余补充信息）
+- help 指令显示的帮助消息中的其余段落（其余补充信息）
 - 程序关闭时的「再见！」文本
 
 （注：洋红色 (magenta) 目前没有使用过）
@@ -583,7 +583,7 @@ def process(message):
 			# 防止干扰用户后续的终端使用
 			prints("\033[0m\033[1;36m再见！\033[0m")
 			EXIT_FLAG = True
-			exit()
+			return
 	if message['type'] == "SERVER.CONFIG.CHANGE": # 服务端参数变更 (协议 3.4.2)
 		announce(message['operator'])
 		prints("配置项 {} 变更为：".format(message['key']) + str(message['value']), "cyan")
@@ -601,7 +601,7 @@ def process(message):
 			prints("聊天室服务端已经关闭。", "cyan")
 			prints("\033[0m\033[1;36m再见！\033[0m")
 			EXIT_FLAG = True
-			exit()
+			return
 
 # 从 my_socket 读取数据，每次 128 KiB，读完为止
 def read():
@@ -1357,7 +1357,7 @@ def do_exit(arg=None):
 			if users[i]['status'] in ["Pending", "Online", "Admin", "Root"]:
 				send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.STOP.ANNOUNCE'}})) # 协议 3.2.1
 	EXIT_FLAG = True
-	exit()
+	return
 
 def do_help(arg=None):
 	print()
@@ -1400,7 +1400,7 @@ def thread_gate():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		
 		# 尝试开启新连接
@@ -1493,7 +1493,7 @@ def thread_process():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		while not receive_queue.empty():
 			message = json.loads(receive_queue.get())
@@ -1527,7 +1527,7 @@ def thread_receive():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"]:
@@ -1561,7 +1561,7 @@ def thread_send():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		while not send_queue.empty():
 			message = json.loads(send_queue.get())
@@ -1620,7 +1620,7 @@ def thread_log():
 		# 与其他线程不同，先写入日志再读取程序终止信号，
 		# 确保程序终止时没有日志残留在 log_queue 中
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 
 def thread_check():
@@ -1631,7 +1631,7 @@ def thread_check():
 	while True:
 		time.sleep(1) # 该部分对整体性能影响较大，因此执行频率下调至 1 秒一次
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		down = []
 		# 先完成全部下线用户检测工作再一并广播，
@@ -1660,7 +1660,7 @@ def thread_input():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		# 输出模式
 		try:
@@ -1693,7 +1693,7 @@ def thread_output():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			exit()
+			return
 			break
 		read()
 		message = get_message()
@@ -1731,6 +1731,8 @@ def main():
 	global receive_queue
 	global send_queue
 	global print_queue
+
+	can_read_config = True
 	
 	# 尝试读取配置文件 (config.json)，
 	# 检查规则详见第一部分的相关注释；
@@ -1789,24 +1791,47 @@ def main():
 				if not check_ip(tmp_config['ip']):
 					raise
 				config = tmp_config
+	except FileNotFoundError:
+		config = DEFAULT_SERVER_CONFIG
 	except:
 		config = DEFAULT_SERVER_CONFIG
+		can_read_config = False
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
 	prints("欢迎使用 TouchFish 聊天室！", "yellow")
 	prints("当前程序版本：{}".format(VERSION), "yellow")
-	prints("5 秒后将会自动按上次的配置启动。", "yellow")
-	prints("按下 Ctrl + C 以指定启动配置。", "yellow")
-	auto_start = True
-	try:
+	if (can_read_config):
+		prints("5 秒后将会自动按上次的配置启动。", "yellow")
+		prints("按下 Ctrl + C 以指定启动配置。", "yellow")
+		auto_start = True
+		
 		for i in range(5, 0, -1):
-			prints("剩余 " + str(i) + " 秒...", "yellow")
-			time.sleep(1)
-	except KeyboardInterrupt:
+			try:
+				prints("剩余 " + str(i) + " 秒...", "yellow")
+				time.sleep(1)
+			except KeyboardInterrupt:
+				auto_start = False
+				break
+			except EOFError:
+				auto_start = False
+				break
+			except:
+				pass
+	else:
 		auto_start = False
-	except:
-		pass
+		prints("无法读取配置文件，请确认目录内是否存在 config.json，如果存在请使用管理员模式重新运行。", "red")
+		prints("请手动指定配置，如需退出请按 Ctrl + C，否则请按 Enter。", "yellow")
+		try:
+			input()
+		except KeyboardInterrupt:
+			os._exit(0)
+		except EOFError:
+			os._exit(0)
+		except Exception as e:
+			pass
+			os._exit(1)
+	
 	tmp_side = None
 	if not auto_start:
 		tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
