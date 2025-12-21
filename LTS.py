@@ -1731,6 +1731,8 @@ def main():
 	global receive_queue
 	global send_queue
 	global print_queue
+
+	can_read_config = True
 	
 	# 尝试读取配置文件 (config.json)，
 	# 检查规则详见第一部分的相关注释；
@@ -1798,6 +1800,7 @@ def main():
 		prints("配置文件 config.json 中的配置项存在错误。", "yellow")
 		prints("下面将使用默认服务端配置启动程序。", "yellow")
 		config = DEFAULT_SERVER_CONFIG
+		can_read_config = False
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
