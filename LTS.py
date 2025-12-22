@@ -1930,8 +1930,8 @@ def main():
 			users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
 			my_uid = 0
 			my_socket = root_socket
-		except:
-			prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
+		except Exception as e:
+			prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。\n详细信息：" + str(e), "red")
 			input("\033[0m")
 			sys.exit(1)
 		
