@@ -28,7 +28,7 @@
 
 - 合并 Client 和 Server 为一个程序（`LTS.py`）
 - 目前仅提供命令行（GUI 版本即将跟进）
-- 更换协议（见 `protocol.txt` 或 [`协议文档`](README-protocol-document.md)）
+- 更换协议（见源代码开头）
 
 ## 快速开始
 
