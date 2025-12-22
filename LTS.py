@@ -2012,6 +2012,8 @@ def main():
 	global receive_queue
 	global send_queue
 	global print_queue
+
+	can_read_config = True
 	
 	# 尝试读取配置文件 (config.json)，
 	# 检查规则详见第一部分的相关注释；
@@ -2079,6 +2081,7 @@ def main():
 		prints("配置文件 config.json 中的配置项存在错误。", "yellow")
 		prints("下面将使用默认服务端配置启动程序。", "yellow")
 		config = DEFAULT_SERVER_CONFIG
+		can_read_config = False
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
@@ -2088,7 +2091,6 @@ def main():
 		shortcut = 'D'
 	prints("欢迎使用 TouchFish 聊天室！", "yellow")
 	prints("当前程序版本：{}".format(VERSION), "yellow")
-	prints("5 秒后将会自动按上次的配置启动。", "yellow")
 	prints("按下 Ctrl + {} 以按照配置文件中的配置自动启动。".format(shortcut), "yellow")
 	prints("按下 Enter 以指定启动配置。", "yellow")
 	auto_start = False
@@ -2208,8 +2210,8 @@ def main():
 			users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
 			my_uid = 0
 			my_socket = root_socket
-		except:
-			prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。", "red")
+		except Exception as e:
+			prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。\n详细信息：" + str(e), "red")
 			input("\033[0m")
 			sys.exit(1)
 		
