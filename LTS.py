@@ -306,7 +306,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.3.3"
+VERSION = "v4.3.3-rc1"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -2348,6 +2348,7 @@ def main():
 				raise
 		except:
 			prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
+			prints("注：也有可能是对方服务器端口被防火墙拦截，请联系服务器所有者确认，或检查本地网络及防火墙设置。", "black")
 			input("\033[0m")
 			sys.exit(1)
 		
