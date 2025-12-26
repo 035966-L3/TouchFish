@@ -159,9 +159,9 @@
 
 - `type`: `"CHAT.RECEIVE"` 
 - `from`: 发送者的用户 ID。（下同）
-- `order`: 文件编号（用户区分不同的文件发送请求），可能取值包括：（下同）
-  - `0`：普通文本消息；
-  - 正整数：文件编号。
+- `order`: 消息编号，可能取值包括：（下同）
+  - 正整数：普通文本消息；
+  - 负整数：文件编号。
 - `filename`: 同上。
 - `content`: 同上。
 - `to`: 同上。
@@ -212,6 +212,7 @@
   - `status`: 同上。 
 - `chat_history`: 历史聊天记录，每条记录包含：（不包含私聊记录和文件发送记录）
   - `time`: 同上；
+  - `order`：同上；
   - `from`: 同上；
   - `content`: 同上；
   - `to`: 同上。
@@ -306,7 +307,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.3.3-rc1"
+VERSION = "v4.4.0"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -368,7 +369,7 @@ ip              服务端 IP
 port            服务端端口
 username        连接时使用的用户名
 """
-DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "127.0.0.1", "port": 8080, "username": "user"}
+DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "touchfish.xin", "port": 7001, "username": "user"}
 
 # 默认服务端配置（side 和 general.* 必须在启动时指定）：
 """
@@ -425,7 +426,7 @@ CONFIG_TYPE_CHECK_TABLE = \
 # 客户端配置中的期望数据类型如下，此处没有单独编写代码：
 """
 side                        必须为 "Client"
-ip                          必须为合法 IPv4
+ip                          不能为空串
 port                        必须在 [1, 65535] 中取值
 username                    不能为空串
 """
@@ -459,6 +460,19 @@ file.max_size           {:<12}16384           最大文件大小（字节数）
 
 # 指令列表
 COMMAND_LIST = ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'distribute', 'doorman', 'exit', 'help', 'kick', 'save', 'send', 'transfer', 'whisper']
+
+# 缩写表
+ABBREVIATION_TABLE = \
+{
+	"D": "dashboard", "F": "distribute", "E": "exit", "H": "help", "S": "send", "T": "transfer", "P": "whisper",
+	"I+": "ban ip add", "I-": "ban ip remove", "W+": "ban words add", "W-": "ban words remove",
+	"B": "broadcast", "C": "config", "G+": "doorman accept", "G-": "doorman reject", "K": "kick",
+	"A+": "admin add", "A-": "admin remove", "V": "save",
+	"d": "dashboard", "f": "distribute", "e": "exit", "h": "help", "s": "send", "t": "transfer", "p": "whisper",
+	"i+": "ban ip add", "i-": "ban ip remove", "w+": "ban words add", "w-": "ban words remove",
+	"b": "broadcast", "c": "config", "g+": "doorman accept", "g-": "doorman reject", "k": "kick",
+	"a+": "admin add", "a-": "admin remove", "v": "save"
+}
 
 # help 指令显示的帮助消息（分为 8 段）
 HELP_HINT_CONTENT = \
@@ -496,31 +510,35 @@ HELP_HINT_CONTENT = \
 """[1:-1],
 
 """
-        dashboard                    展示聊天室各项数据
-        distribute <filename>        发送文件
-        exit                         退出或关闭聊天室
-        help                         显示本帮助文本
-        send                         发送多行消息
-        send <message>               发送单行消息
-        transfer <uid> <filename>    向某个用户发送私有文件
-        whisper <uid>                向某个用户发送多行私聊消息
-        whisper <uid> <message>      向某个用户发送单行私聊消息
-      * ban ip add <ip>              封禁 IP 或 IP 段
-      * ban ip remove <ip>           解除封禁 IP 或 IP 段
-      * ban words add <word>         屏蔽某个词语
-      * ban words remove <word>      解除屏蔽某个词语
-      * broadcast                    向全体用户广播多行消息
-      * broadcast <message>          向全体用户广播单行消息
-      * config <key> <value>         修改聊天室配置项
-      * doorman accept <uid>         通过某个用户的加入申请
-      * doorman reject <uid>         拒绝某个用户的加入申请
-      * kick <uid>                   踢出某个用户
-     ** admin add <uid>              添加管理员
-     ** admin remove <uid>           移除管理员
-     ** save                         保存聊天室配置项信息
+     [D]    dashboard                    展示聊天室各项数据
+     [F]    distribute <filename>        发送文件
+     [E]    exit                         退出或关闭聊天室
+     [H]    help                         显示本帮助文本
+     [S]    send                         发送多行消息
+     [S]    send <message>               发送单行消息
+     [T]    transfer <user> <filename>   向某个用户发送私有文件
+     [P]    whisper <user>               向某个用户发送多行私聊消息
+     [P]    whisper <user> <message>     向某个用户发送单行私聊消息
+    [I+]  * ban ip add <ip>              封禁 IP 或 IP 段
+    [I-]  * ban ip remove <ip>           解除封禁 IP 或 IP 段
+    [W+]  * ban words add <word>         屏蔽某个词语
+    [W-]  * ban words remove <word>      解除屏蔽某个词语
+     [B]  * broadcast                    向全体用户广播多行消息
+     [B]  * broadcast <message>          向全体用户广播单行消息
+     [C]  * config <key> <value>         修改聊天室配置项
+    [G+]  * doorman accept <user>        通过某个用户的加入申请
+    [G-]  * doorman reject <user>        拒绝某个用户的加入申请
+     [K]  * kick <user>                  踢出某个用户
+    [A+] ** admin add <uid>              添加管理员
+    [A-] ** admin remove <uid>           移除管理员
+     [V] ** save                         保存聊天室配置项信息
 """,
 
 """
+缩略表示形式不区分大小写，其他字段区分大小写。
+支持用左边方括号内的内容缩略表示右边所有没有用尖括号括起来的字段。
+所有 <user> 字段可以输入 UID 或用户名均可，优先解析为 UID。
+解析用户名遇到冲突时采纳 UID 最小的合法解析结果。
 标注 * 的指令只有状态为 Admin 或 Root 的用户可以使用。
 标注 ** 的指令只有状态为 Root 的用户可以使用。
 对于 dashboard 指令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。
@@ -597,7 +615,9 @@ print_queue         用于输入模式下记录被阻塞的输出内容（每行
 
 以下是服务端启用而客户端不启用的变量：
 file_order          目前服务端已经传送的文件个数，
-                    用于从 1 开始分配文件 ID，区分文件
+                    用于从 -1 开始分配文件 ID (-1, -2, -3, ...)，区分文件
+message_order       目前服务端已经传送的消息个数，
+                    用于从 1 开始分配消息 ID (1, 2, 3, ...)，区分文件
 server_socket       服务端向客户端暴露用于连接的 TCP socket
 history             用于记录聊天上下文，在新客户端建立连接时
                     通过协议 3.2 发送给客户端
@@ -628,6 +648,7 @@ blocked = False
 my_username = "user"
 my_uid = 0
 file_order = 0
+message_order = 0
 my_socket = None
 users = []
 server_socket = socket.socket()
@@ -717,6 +738,20 @@ def printf(text, color_code=None):
 def printc(verbose, text):
 	if verbose:
 		print(dye(text, "black"))
+
+# 解析用户名
+def parse_username(arg, expected_status):
+	try:
+		uid = int(arg.split()[0])
+		if uid >= 0 and uid < len(users) and users[uid]['status'] in expected_status:
+			return arg
+		raise
+	except:
+		for i in range(len(users)):
+			if users[i]['status'] in expected_status:
+				if arg.startswith(users[i]['username'] + " ") or arg == users[i]['username']:
+					return str(i) + arg[len(users[i]['username']):]
+		return ""
 
 # 检查 element 是不是合法 IP
 def check_ip(element):
@@ -870,7 +905,7 @@ def process(message):
 				deletions = [item for item in config[message['key'].split('.')[0]][message['key'].split('.')[1]] if not item in message['value']]
 				prints("该配置项相比修改前增加了：{}".format(str(additions)), "cyan")
 				prints("该配置项相比修改前移除了：{}".format(str(deletions)), "cyan")
-			config[message['key'].split('.')[0]][message['key'].split('.')[1]] = message['value']
+		config[message['key'].split('.')[0]][message['key'].split('.')[1]] = message['value']
 		return
 	if message['type'] == "SERVER.STOP.ANNOUNCE": # 服务端关闭 (协议 3.3.1)
 		if side == "Client": # 同上
@@ -966,21 +1001,14 @@ def do_doorman(arg, verbose=True, by=-1):
 	if len(arg) != 2:
 		printc(verbose, "参数错误：应当给出恰好 2 个参数。")
 		return
+	arg[1] = parse_username(arg[1], ["Pending"])
 	try:
 		arg[1] = int(arg[1])
 	except:
-		printc(verbose, "参数错误：UID 必须是整数。")
+		printc(verbose, "参数错误：用户解析失败，只能对状态为 Pending 的用户操作。")
 		return
 	if not arg[0] in ['accept', 'reject']:
 		printc(verbose, "参数错误：第一个参数必须是 accept 和 reject 中的某一项。")
-		return
-	if arg[1] <= -1 or arg[1] >= len(users):
-		printc(verbose, "UID 输入错误。")
-		return
-	if users[arg[1]]['status'] != "Pending":
-		printc(verbose, "只能对状态为 Pending 的用户操作。")
-		if users[arg[1]]['status'] in ["Online", "Admin", "Root"] and arg[0] == "reject":
-			printc(verbose, "您似乎想要踢出该用户，请使用以下指令：kick {}".format(arg))
 		return
 	
 	if arg[0] == "accept":
@@ -1028,21 +1056,14 @@ def do_kick(arg, verbose=True, by=-1):
 	if not arg:
 		printc(verbose, "参数错误：应当给出恰好 1 个参数。")
 		return
+	arg = parse_username(arg, ["Online", "Admin"])
 	try:
 		arg = int(arg)
 	except:
-		printc(verbose, "参数错误：UID 必须是整数。")
-		return
-	if arg <= -1 or arg >= len(users):
-		printc(verbose, "UID 输入错误。")
-		return
-	if not users[arg]['status'] in ["Online", "Admin"]:
-		printc(verbose, "只能对状态为 Online 或 Admin 的用户操作。")
-		if users[arg]['status'] == "Pending":
-			printc(verbose, "您似乎想要拒绝该用户的加入申请，请使用以下指令：doorman reject {}".format(arg))
+		printc(verbose, "参数错误：用户解析失败，只能对状态为 Online 或 Admin 的用户操作。")
 		return
 	if users[by]['status'] == "Admin" and users[arg]['status'] == "Admin":
-		printc(verbose, "状态为 Admin 的用户只能对状态为 Online 的用户操作。")
+		printc(verbose, "参数错误：用户解析失败，状态为 Admin 的用户只能对状态为 Online 的用户操作。")
 		return
 	
 	if side == "Server":
@@ -1079,18 +1100,19 @@ def do_admin(arg, verbose=True, by=-1):
 	if not arg[0] in ['add', 'remove']:
 		printc(verbose, "参数错误：第一个参数必须是 add 或 remove。")
 		return
+	arg[1] = parse_username(arg[1], ["Online", "Admin"])
 	try:
 		arg[1] = int(arg[1])
 	except:
-		printc(verbose, "参数错误：UID 必须是整数。")
-		return
-	if arg[1] <= 0 or arg[1] >= len(users):
-		printc(verbose, "UID 输入错误。")
+		if arg[0] == 'add':
+			printc(verbose, "参数错误：用户解析失败，只能对状态为 Online 的用户操作。")
+		if arg[0] == 'remove':
+			printc(verbose, "参数错误：用户解析失败，只能对状态为 Admin 的用户操作。")
 		return
 	
 	if arg[0] == 'add':
 		if users[arg[1]]['status'] != "Online":
-			printc(verbose, "只能对状态为 Online 的用户操作。")
+			printc(verbose, "参数错误：用户解析失败，只能对状态为 Online 的用户操作。")
 			return
 		users[arg[1]]['status'] = "Admin"
 		log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Admin', 'uid': arg[1], 'operator': by})) # 协议 1.6.3
@@ -1100,7 +1122,7 @@ def do_admin(arg, verbose=True, by=-1):
 	
 	if arg[0] == 'remove':
 		if users[arg[1]]['status'] != "Admin":
-			printc(verbose, "只能对状态为 Admin 的用户操作。")
+			printc(verbose, "参数错误：用户解析失败，只能对状态为 Admin 的用户操作。")
 			return
 		users[arg[1]]['status'] = "Online"
 		log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': by})) # 协议 1.6.3
@@ -1276,7 +1298,7 @@ def do_ban(arg, verbose=True, by=-1):
 					if users[i]['status'] in ["Online", "Admin", "Root"]:
 						send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': by}})) # 协议 3.4.2
 			if side == "Client":
-				new_value = config['ban']['words']
+				new_value = config['ban']['words'][:]
 				new_value.append(arg[2])
 				my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8")) # 协议 3.4.1
 			printc(verbose, "操作成功。")
@@ -1292,7 +1314,7 @@ def do_ban(arg, verbose=True, by=-1):
 					if users[i]['status'] in ["Online", "Admin", "Root"]:
 						send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.CONFIG.CHANGE', 'key': 'ban.words', 'value': config['ban']['words'], 'operator': by}})) # 协议 3.4.2
 			if side == "Client":
-				new_value = config['ban']['words']
+				new_value = config['ban']['words'][:]
 				new_value.remove(arg[2])
 				my_socket.send(bytes(json.dumps({'type': 'SERVER.CONFIG.POST', 'key': 'ban.words', 'value': new_value}) + "\n", encoding="utf-8")) # 协议 3.4.1
 			printc(verbose, "操作成功。")
@@ -1302,6 +1324,7 @@ def do_broadcast(arg, message=None, verbose=True, by=-1):
 	global log_queue
 	global send_queue
 	global my_socket
+	global message_order
 	if by == -1:
 		by = my_uid
 	if not users[by]['status'] in ["Admin", "Root"]:
@@ -1316,11 +1339,12 @@ def do_broadcast(arg, message=None, verbose=True, by=-1):
 			message = enter()
 	
 	if side == "Server":
-		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2})) # 协议 2.3
-		history.append({'time': time_str(), 'from': by, 'content': message, 'to': -2}) # 公开消息，记入 history 列表
+		message_order += 1 # 给该消息分配一个新的编号，从 1 开始递增（下同）
+		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': message_order, 'filename': "", 'content': message, 'to': -2})) # 协议 2.3
+		history.append({'time': time_str(), 'from': by, 'content': message, 'to': -2, 'order': message_order}) # 公开消息，记入 history 列表
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"]:
-				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -2}})) # 协议 2.2
+				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': message_order, 'filename': "", 'content': message, 'to': -2}})) # 协议 2.2
 	if side == "Client":
 		my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -2}) + "\n", encoding="utf-8")) # 协议 2.1
 	
@@ -1331,6 +1355,7 @@ def do_send(arg, message=None, verbose=True, by=-1):
 	global log_queue
 	global send_queue
 	global my_socket
+	global message_order
 	if by == -1:
 		by = my_uid
 	if message == None: # 同上，识别调用方法
@@ -1350,11 +1375,12 @@ def do_send(arg, message=None, verbose=True, by=-1):
 			return
 	
 	if side == "Server":
-		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -1})) # 协议 2.3
-		history.append({'time': time_str(), 'from': by, 'content': message, 'to': -1}) # 公开消息，记入 history 列表
+		message_order += 1 # 同上，给该消息分配一个新的编号
+		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': message_order, 'filename': "", 'content': message, 'to': -1})) # 协议 2.3
+		history.append({'time': time_str(), 'from': by, 'content': message, 'to': -1, 'order': message_order}) # 公开消息，记入 history 列表
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"]:
-				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': -1}})) # 协议 2.2
+				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': message_order, 'filename': "", 'content': message, 'to': -1}})) # 协议 2.2
 	if side == "Client":
 		my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': -1}) + "\n", encoding="utf-8")) # 协议 2.1
 	
@@ -1364,11 +1390,13 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
 	global log_queue
 	global send_queue
 	global my_socket
+	global message_order
 	if by == -1:
 		by = my_uid
 	if not config['message']['allow_private']:
 		printc(verbose, "此聊天室目前不允许发送私聊消息。")
 		return
+	arg = parse_username(arg, ["Online", "Admin", "Root"])
 	# 分离接收方 UID 和（可能不存在的）单行消息
 	try:
 		arg, message = arg.split(' ', 1)
@@ -1376,13 +1404,8 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
 		pass
 	try:
 		arg = int(arg)
-		if arg <= -1 or arg >= len(users):
-			raise
 	except:
-		printc(verbose, "UID 输入错误。")
-		return
-	if not users[arg]['status'] in ["Online", "Admin", "Root"]:
-		printc(verbose, "只能向状态处于 Online、Admin、Root 中的某一项的用户发送私聊消息。")
+		printc(verbose, "参数错误：用户解析失败，只能对状态处于 Online、Admin、Root 中的某一项的用户操作。")
 		return
 	if arg == by:
 		printc(verbose, "不能向自己发送私聊消息。")
@@ -1403,12 +1426,13 @@ def do_whisper(arg, message=None, verbose=True, by=-1):
 	if side == "Server":
 		# 非公开消息，不记入 history 列表，
 		# 于是这里没有了 history.append 语句
-		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': arg})) # 协议 2.3
+		message_order += 1 # 同上，给该消息分配一个新的编号
+		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': message_order, 'filename': "", 'content': message, 'to': arg})) # 协议 2.3
 		for i in range(len(users)):
 			# 私聊消息只对收发方，状态为 Admin 的用户和
 			# 状态为 Root 的用户可见
 			if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg:
-				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': 0, 'filename': "", 'content': message, 'to': arg}})) # 协议 2.2
+				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': message_order, 'filename': "", 'content': message, 'to': arg}})) # 协议 2.2
 	if side == "Client":
 		my_socket.send(bytes(json.dumps({'type': 'CHAT.SEND', 'filename': "", 'content': message, 'to': arg}) + "\n", encoding="utf-8")) # 协议 2.1
 	
@@ -1448,7 +1472,7 @@ def do_distribute(arg, message=None, verbose=True, by=-1):
 		return
 	
 	if side == "Server":
-		file_order += 1 # 给该文件分配一个新的编号，从 1 开始（下同）
+		file_order -= 1 # 给该文件分配一个新的编号，从 -1 开始递减（下同）
 		# 服务端在此处接收文件（下同）；
 		# 先写入到磁盘（相当于写入日志，尽快释放内存，且减小意外断电的情况下的损失），
 		# 然后在第四部分的 thread_send 线程中重新读取并发送
@@ -1501,37 +1525,37 @@ def do_transfer(arg, message=None, verbose=True, by=-1):
 	global file_order
 	if by == -1:
 		by = my_uid
-	arg = arg.split(' ', 1)
-	if len(arg) != 2:
-		printc(verbose, "参数错误：应当给出恰好 2 个参数。")
-		return
 	if not config['file']['allow_any']:
 		printc(verbose, "此聊天室目前不允许发送文件。")
 		return
 	if not config['file']['allow_private']:
 		printc(verbose, "此聊天室目前不允许发送私有文件。")
 		return
+	arg = parse_username(arg, ["Online", "Admin", "Root"])
+	# 分离接收方 UID 和（可能不存在的）文件名
 	try:
-		arg[0] = int(arg[0])
-		if arg[0] <= -1 or arg[0] >= len(users):
-			raise
+		arg, filename = arg.split(' ', 1)
 	except:
-		printc(verbose, "UID 输入错误。")
+		pass
+	try:
+		arg = int(arg)
+	except:
+		printc(verbose, "参数错误：用户解析失败，只能对状态处于 Online、Admin、Root 中的某一项的用户操作。")
 		return
-	if not users[arg[0]]['status'] in ["Online", "Admin", "Root"]:
+	if not users[arg]['status'] in ["Online", "Admin", "Root"]:
 		printc(verbose, "只能向状态处于 Online、Admin、Root 中的某一项的用户发送私有文件。")
 		return
-	if arg[0] == by:
+	if arg == by:
 		printc(verbose, "不能向自己发送私有文件。")
 		return
 	for word in config['ban']['words']:
-		if word in arg[1]:
+		if word in filename:
 			printc(verbose, "发送失败：文件名中包含屏蔽词：" + word)
 			return
 	if not message: # 同上，跳过重复的加密操作
 		try:
 			# 同上，读取文件并转换
-			with open(arg[1], 'rb') as f:
+			with open(filename, 'rb') as f:
 				file_data = f.read()
 			message = base64.b64encode(file_data).decode('utf-8')
 		except:
@@ -1542,7 +1566,7 @@ def do_transfer(arg, message=None, verbose=True, by=-1):
 		return
 	
 	if side == "Server":
-		file_order += 1 # 同上，给该文件分配一个新的编号
+		file_order -= 1 # 同上，给该文件分配一个新的编号
 		# 同上，服务端在此处接收文件
 		try:
 			# 同上，不同系统的目录格式不同
@@ -1559,16 +1583,16 @@ def do_transfer(arg, message=None, verbose=True, by=-1):
 			tmp_filename = "TouchFishFiles\\{}.file".format(file_order)
 		else:
 			tmp_filename = "TouchFishFiles/{}.file".format(file_order)
-		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': file_order, 'filename': arg[1], 'content': "", 'to': arg[0]})) # 协议 2.3
+		log_queue.put(json.dumps({'type': 'CHAT.LOG', 'time': time_str(), 'from': by, 'order': file_order, 'filename': filename, 'content': "", 'to': arg})) # 协议 2.3
 		for i in range(len(users)):
 			# 同上，先以保存文件时使用的文件名填充 content 字段；
 			# 私有文件只对收发方，状态为 Admin 的用户和
 			# 状态为 Root 的用户可见
-			if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg[0]:
-				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': file_order, 'filename': arg[1], 'content': tmp_filename, 'to': arg[0]}})) # 协议 2.2
+			if users[i]['status'] in ["Admin", "Root"] or i == by or i == arg:
+				send_queue.put(json.dumps({'to': i, 'content': {'type': 'CHAT.RECEIVE', 'from': by, 'order': file_order, 'filename': filename, 'content': tmp_filename, 'to': arg}})) # 协议 2.2
 	if side == "Client":
 		# 协议 2.1
-		token = json.dumps({'type': 'CHAT.SEND', 'filename': arg[1], 'content': message, 'to': arg[0]}) + "\n"
+		token = json.dumps({'type': 'CHAT.SEND', 'filename': filename, 'content': message, 'to': arg}) + "\n"
 		chunks = [token[i:i+32768] for i in range(0, len(token), 32768)]
 		# 同上，分段发送数据
 		for chunk in chunks:
@@ -1612,7 +1636,6 @@ def do_dashboard(arg=None):
 def do_save(arg=None):
 	global log_queue
 	if users[my_uid]['status'] != "Root":
-		print(users[my_uid]['status'])
 		print("只有处于 Root 状态的用户有权执行该操作。")
 		return
 	try:
@@ -1680,7 +1703,6 @@ def thread_gate():
 		time.sleep(0.1)
 		if EXIT_FLAG:
 			return
-			break
 		
 		# 尝试开启新连接
 		conntmp, addresstmp = None, None
@@ -1730,7 +1752,7 @@ def thread_gate():
 		if online_count == config['general']['max_connections']:
 			result = "Room is full"
 		for user in users[:-1]:
-			if user['status'] in ["Online", "Admin", "Root"] and users[uid]['username'] == user['username']:
+			if user['status'] in ["Online", "Admin", "Root", "Pending"] and users[uid]['username'] == user['username']:
 				result = "Duplicate usernames"
 		for word in config['ban']['words']:
 			if word in users[uid]['username']:
@@ -1773,7 +1795,7 @@ def thread_process():
 		time.sleep(0.1)
 		if EXIT_FLAG:
 			return
-			break
+		
 		while not receive_queue.empty():
 			message = json.loads(receive_queue.get())
 			sender, content = message['from'], message['content']
@@ -1807,7 +1829,7 @@ def thread_receive():
 		time.sleep(0.1)
 		if EXIT_FLAG:
 			return
-			break
+		
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"]:
 				data = ""
@@ -1844,7 +1866,7 @@ def thread_send():
 		time.sleep(0.1)
 		if EXIT_FLAG:
 			return
-			break
+		
 		while not send_queue.empty():
 			message = json.loads(send_queue.get())
 			if not users[message['to']]['status'] in ["Online", "Admin", "Root"]:
@@ -1904,7 +1926,6 @@ def thread_log():
 		# 确保程序终止时没有日志残留在 log_queue 中
 		if EXIT_FLAG:
 			return
-			break
 
 def thread_check():
 	global online_count
@@ -1915,7 +1936,7 @@ def thread_check():
 		time.sleep(1) # 该部分对整体性能影响较大，因此执行频率下调至 1 秒一次
 		if EXIT_FLAG:
 			return
-			break
+		
 		down = []
 		# 先完成全部下线用户检测工作再一并广播，
 		# 避免将状态变更通知（不必要地）发送给
@@ -1941,8 +1962,9 @@ def thread_input():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
+			print("\033[0m", end="")
 			return
-			break
+		
 		# 输出模式
 		try:
 			input()
@@ -1955,6 +1977,10 @@ def thread_input():
 			print("\033[8;30m", end="")
 			blocked = False
 			continue
+		for i in list(ABBREVIATION_TABLE.keys()):
+			if command.startswith(i + " ") or command == i:
+				command = ABBREVIATION_TABLE[i] + command[len(i):]
+				break
 		command = command.split(' ', 1)
 		if len(command) == 1:
 			command = [command[0], ""]
@@ -1974,8 +2000,9 @@ def thread_output():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
+			print("\033[0m", end="")
 			return
-			break
+		
 		read()
 		message = get_message()
 		flush()
@@ -1999,6 +2026,7 @@ def main():
 	global my_username
 	global my_uid
 	global file_order
+	global message_order
 	global my_socket
 	global users
 	global server_socket
@@ -2012,8 +2040,6 @@ def main():
 	global receive_queue
 	global send_queue
 	global print_queue
-
-	can_read_config = True
 	
 	# 尝试读取配置文件 (config.json)，
 	# 检查规则详见第一部分的相关注释；
@@ -2069,22 +2095,30 @@ def main():
 					raise
 				if not tmp_config['username']:
 					raise
-				if not check_ip(tmp_config['ip']):
+				if not tmp_config['ip']:
 					raise
 				config = tmp_config
-		prints("配置文件 config.json 读取成功！", "yellow")
+		config_read_result = "OK"
 	except FileNotFoundError:
-		prints("未找到配置文件 config.json。如果该文件存在，请尝试以管理员权限重新运行。", "yellow")
-		prints("下面将使用默认服务端配置启动程序。", "yellow")
 		config = DEFAULT_SERVER_CONFIG
+		config_read_result = "Not found"
 	except:
-		prints("配置文件 config.json 中的配置项存在错误。", "yellow")
-		prints("下面将使用默认服务端配置启动程序。", "yellow")
 		config = DEFAULT_SERVER_CONFIG
-		can_read_config = False
+		config_read_result = "Broken"
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
+	
+	if config_read_result == "OK":
+		prints("配置文件 config.json 读取成功！", "yellow")
+	if config_read_result == "Not found":
+		prints("未找到配置文件 config.json。如果该文件存在，请尝试以管理员权限重新运行。", "yellow")
+		prints("下面将使用默认服务端配置启动程序。", "yellow")
+	if config_read_result == "Broken":
+		prints("配置文件 config.json 中的配置项存在错误。", "yellow")
+		prints("下面将使用默认服务端配置启动程序。", "yellow")
+	print()
+	
 	if platform.system() == "Windows":
 		shortcut = 'C'
 	else:
@@ -2184,34 +2218,58 @@ def main():
 			sys.exit(1)
 		
 		try:
-			# 启动服务端 socket
+			# 启动服务端 socket：
+			# 每两步操作之间间隔 0.01 秒，
+			# 防止爆出 BlockingIOError
 			server_socket = socket.socket()
+			time.sleep(0.01)
 			server_socket.bind((config['general']['server_ip'], config['general']['server_port']))
+			time.sleep(0.01)
 			server_socket.listen(config['general']['max_connections'])
+			time.sleep(0.01)
 			server_socket.setblocking(False)
+			time.sleep(0.01)
 			users = [{"body": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}] # 初始化用户列表
+			time.sleep(0.01)
 			root_socket = socket.socket() # 为服务端创建一个连接用于接收信息（不用于发送请求）
+			time.sleep(0.01)
 			root_socket.connect((config['general']['server_ip'], config['general']['server_port'])) # 连接到服务端 socket
+			time.sleep(0.01)
 			# 同上，调整为非阻塞模式，缓冲区大小设置为 1 MiB，改善性能
 			root_socket.setblocking(False)
+			time.sleep(0.01)
 			root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+			time.sleep(0.01)
 			root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+			time.sleep(0.01)
 			users[0]['body'], users[0]['ip'] = server_socket.accept() # 完成连接
+			time.sleep(0.01)
 			# 同上，设置 TCP 保活参数：启用功能，5 分钟后开始探测，间隔 30 秒
 			if platform.system() != "Windows":
 				users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+				time.sleep(0.01)
 				users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 300)
+				time.sleep(0.01)
 				users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+				time.sleep(0.01)
 			else:
 				users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+				time.sleep(0.01)
 				users[0]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 300000, 30000))
+				time.sleep(0.01)
 			users[0]['body'].setblocking(False)
+			time.sleep(0.01)
 			users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+			time.sleep(0.01)
 			users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+			time.sleep(0.01)
 			my_uid = 0
+			time.sleep(0.01)
 			my_socket = root_socket
+			time.sleep(0.01)
 		except Exception as e:
-			prints("启动时遇到错误：无法在给定的地址上启动 socket，请检查 IP 地址或更换端口。\n详细信息：" + str(e), "red")
+			prints("启动时遇到错误：" + str(e), "red")
+			prints("请检查 IP 地址或更换端口。", "red")
 			input("\033[0m")
 			sys.exit(1)
 		
@@ -2260,16 +2318,15 @@ def main():
 		# 则覆写为默认客户端配置
 		if config['side'] == "Server":
 			config = DEFAULT_CLIENT_CONFIG
+			config['username'] += time_str()[20:26]
+			# 截取 "xxxx-xx-xx xx:xx:xx.xxxxxx" 中最后的 "xxxxxx"
+			# 当作随机的用户名后缀，形成形如 "user123456" 的用户名
 		tmp_ip = None
 		if not auto_start:
 			tmp_ip = input("\033[0m\033[1;37m服务端 IP [{}]：".format(config['ip']))
 		if not tmp_ip:
 			tmp_ip = config['ip']
 		config['ip'] = tmp_ip
-		if not check_ip(tmp_ip):
-			prints("参数错误：输入的服务端 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
-			input("\033[0m")
-			sys.exit(1)
 		tmp_port = None
 		if not auto_start:
 			tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
@@ -2315,7 +2372,7 @@ def main():
 			my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
 			my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8")) # 协议 1.1
 		except Exception as e:
-			prints("连接失败：{}".format(e), "red")
+			prints("启动时遇到错误：{}".format(e), "red")
 			input("\033[0m")
 			sys.exit(1)
 		
