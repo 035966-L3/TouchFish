@@ -153,7 +153,7 @@
 
 ## 2.2 Receive
 
-`{ type: "CHAT.RECEIVE", from: number, order: number, filename: string, content: string, to: number | -1 | -2 }`
+`{ type: "CHAT.RECEIVE", from: number, order: signed number, filename: string, content: string, to: number | -1 | -2 }`
 
 服务端将消息转发给目标客户端。
 
@@ -168,7 +168,7 @@
 
 ## 2.3 Log
 
-`{ type: "CHAT.LOG", time: time, from: number, order: number, filename: string, content: string, to: number | -1 | -2 }`
+`{ type: "CHAT.LOG", time: time, from: number, order: signed number, filename: string, content: string, to: number | -1 | -2 }`
 
 服务端将收到的聊天记录写入日志。
 
@@ -307,7 +307,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.4.0"
+VERSION = "v4.5.0"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -348,7 +348,9 @@ RESULTS = \
 - help 指令显示的帮助消息中的其余段落
 - 程序关闭时的「再见！」文本
 
-（注：洋红色 (magenta) 目前没有使用过）
+特别说明：
+- shell 指令的输出文本颜色为系统默认颜色
+- 洋红色 (magenta) 目前没有使用过
 """
 COLORS = \
 {
@@ -369,6 +371,9 @@ ip              服务端 IP
 port            服务端端口
 username        连接时使用的用户名
 """
+# 需要指出的是，第五部分中会给 username 字段
+# 的默认值后面加上一个随机六位数作为后缀，
+# 形成形如 "user123456" 的用户名
 DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "touchfish.xin", "port": 7001, "username": "user"}
 
 # 默认服务端配置（side 和 general.* 必须在启动时指定）：
@@ -459,20 +464,35 @@ file.max_size           {:<12}16384           最大文件大小（字节数）
 """[1:-1]
 
 # 指令列表
-COMMAND_LIST = ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'distribute', 'doorman', 'exit', 'help', 'kick', 'save', 'send', 'transfer', 'whisper']
+COMMAND_LIST = ['admin', 'ban', 'broadcast', 'config', 'dashboard', 'distribute', 'doorman', 'evaluate', 'exit', 'flood', 'help', 'kick', 'save', 'send', 'shell', 'transfer', 'whisper']
 
 # 缩写表
 ABBREVIATION_TABLE = \
 {
-	"D": "dashboard", "F": "distribute", "E": "exit", "H": "help", "S": "send", "T": "transfer", "P": "whisper",
+	"D": "dashboard", "F": "distribute", "Q": "evaluate", "E": "exit", "L": "flood", 
+	"H": "help", "S": "send", "J": "shell", "T": "transfer", "P": "whisper",
 	"I+": "ban ip add", "I-": "ban ip remove", "W+": "ban words add", "W-": "ban words remove",
 	"B": "broadcast", "C": "config", "G+": "doorman accept", "G-": "doorman reject", "K": "kick",
 	"A+": "admin add", "A-": "admin remove", "V": "save",
-	"d": "dashboard", "f": "distribute", "e": "exit", "h": "help", "s": "send", "t": "transfer", "p": "whisper",
+	"d": "dashboard", "f": "distribute", "q": "evaluate", "e": "exit", "l": "flood", 
+	"h": "help", "s": "send", "j": "shell", "t": "transfer", "p": "whisper",
 	"i+": "ban ip add", "i-": "ban ip remove", "w+": "ban words add", "w-": "ban words remove",
 	"b": "broadcast", "c": "config", "g+": "doorman accept", "g-": "doorman reject", "k": "kick",
 	"a+": "admin add", "a-": "admin remove", "v": "save"
 }
+
+# flood 指令开启的简易命令行模式的进入提示
+SIMPLE_COMMAND_LINE_HINT_CONTENT = \
+"""
+您已经进入简易命令行模式。
+在简易命令行模式中，您只需要执行以下三个步骤，即可完成单行公开消息的发送：
+    1. 按下 Enter 进入输入模式
+    2. 直接输入想要发送的单行消息（不需要显式执行 send 指令）
+    3. 再按下 Enter 返回输出模式
+本模式下发送结果不会进行显式反馈，而是根据下面的特性间接反馈：
+发送成功的消息能够在输出模式中看到（带有响铃），发送失败的消息则不会。
+在任何模式下按下 Ctrl + {} 以退出简易命令行模式。
+"""[1:-1]
 
 # help 指令显示的帮助消息（分为 8 段）
 HELP_HINT_CONTENT = \
@@ -506,16 +526,19 @@ HELP_HINT_CONTENT = \
 """[1:-1],
 
 """
-聊天室内可用的指令分为以下 14 条 22 项：
+聊天室内可用的指令分为以下 17 条 25 项：
 """[1:-1],
 
 """
      [D]    dashboard                    展示聊天室各项数据
      [F]    distribute <filename>        发送文件
+     [Q]    evaluate <input>             像 Python IDLE 那样计算输入数据
      [E]    exit                         退出或关闭聊天室
+     [L]    flood                        开启简易命令行模式
      [H]    help                         显示本帮助文本
      [S]    send                         发送多行消息
      [S]    send <message>               发送单行消息
+     [J]    shell <command>              执行 Shell 指令
      [T]    transfer <user> <filename>   向某个用户发送私有文件
      [P]    whisper <user>               向某个用户发送多行私聊消息
      [P]    whisper <user> <message>     向某个用户发送单行私聊消息
@@ -539,9 +562,13 @@ HELP_HINT_CONTENT = \
 支持用左边方括号内的内容缩略表示右边所有没有用尖括号括起来的字段。
 所有 <user> 字段可以输入 UID 或用户名均可，优先解析为 UID。
 解析用户名遇到冲突时采纳 UID 最小的合法解析结果。
+简易命令行模式允许您直接输入并发送单行消息而省略 send，但会禁用其他指令。
 标注 * 的指令只有状态为 Admin 或 Root 的用户可以使用。
 标注 ** 的指令只有状态为 Root 的用户可以使用。
 对于 dashboard 指令，状态为 Root 的用户可以看到所有用户的 IP 地址，其他用户不能。
+对于 evaluate 指令，该指令直接使用 eval() 函数实现，其中二进制发行版的 Python 版本为 3.6。
+对于 evaluate 指令，请不要注入恶意代码（典型的有 globals(), locals() 等），否则后果自负。
+对于 shell 指令，请不要试图执行危害本程序（或您的设备）的指令（此处从略），否则后果自负。
 对于 ban ip 指令，支持输入形如 a.b.c.d/e 的 IP 段，但前缀长度 (e 值) 不得小于 24。
 对于 config 指令，<key> 的格式以 dashboard 指令输出的参数名称为准。
 对于 config 指令，<value> 的格式以 dashboard 指令输出的修改示例为准。
@@ -551,7 +578,7 @@ HELP_HINT_CONTENT = \
 """[1:-1],
 
 """
-你可以在 TouchFish 的官方 Github 仓库页面获取更多联机帮助：
+您可以在 TouchFish 的官方 Github 仓库页面获取更多联机帮助：
 https://github.com/2044-space-elevator/TouchFish
 """[1:-1]
 ]
@@ -594,6 +621,8 @@ For more information, please visit the official Github repository of this projec
 以下是在服务端和客户端都启用的变量：
 config              服务端参数（对于客户端，启动前存储客户端参数，
                     启动后存储服务端参数）
+flooded             True 表示通过 flood 指令开启的「简易命令行模式」，
+                    False 表示「简易命令行模式」
 blocked             True 表示 HELP_HINT 第 1 段提到的「输入模式」，
                     False 表示「输出模式」
 my_username         自身连接的用户名
@@ -645,6 +674,7 @@ busy                bool 类型变量，表示服务端是否在向该客户端�
 """
 config = DEFAULT_SERVER_CONFIG
 blocked = False
+flooded = False
 my_username = "user"
 my_uid = 0
 file_order = 0
@@ -725,8 +755,9 @@ def prints(text, color_code=None):
 	else:
 		print_queue.put(dye(text, color_code))
 
-# 不受 blocked 变量控制的强制文本输出（只用于
-# dashboard 指令和 help 命令输出信息）
+# 不受 blocked 变量控制的强制文本输出：
+# 只用于 dashboard 指令、flood 指令（部分）
+# 和 help 指令输出信息
 def printf(text, color_code=None):
 	print(dye(text, color_code))
 
@@ -956,7 +987,7 @@ def get_message():
 
 # 对于用户直接调用的指令，参数传递规则如下（某些指令只出现部分参数）：
 """
-arg         指令参数：紧跟命令后的全部文本，
+arg         指令参数：紧跟指令后的全部文本，
             如输入 "admin add 1" 则传入 "add 1"
 message     消息：固定为 None（缺省值）
 verbose     是否为直接调用的指令：固定为 True（缺省值）
@@ -982,7 +1013,7 @@ by          请求发送者的 UID：固定传入 receive_queue
 # 而不是在客户端判定指令执行成功并向服务端发送请求时就修改；
 # 因此服务端广播任何消息时都不应该将请求发送者排除在广播对象之外
 
-# 对于完全不需要参数的命令 (dashboard, exit, help)，
+# 对于完全不需要参数的指令 (dashboard, exit, help)，
 # 服务端不会重新调用函数（因为根本没有请求），
 # 参数中只有一个 arg (缺省为 None，函数中不会调用)，
 # 用于在第四部分的 thread_input 线程中统一调用接口
@@ -1159,7 +1190,7 @@ def do_config(arg, verbose=True, by=-1):
 			printc(verbose, r'  config gate.enter_hint "Hi there!\n"')
 			if not input("\033[0m\033[1;30m确定要继续吗？[y/N] ") in ['y', 'Y']:
 				return
-			print("\033[8;30m", end="")
+			print("\033[8;30m", end="", flush=True)
 		if arg[0] == "ban.ip" or arg[0] == "ban.words":
 			printc(verbose, "请注意，本参数修改时 <value> 需要带引号并转义。")
 			printc(verbose, "例如，将 fuck 和 shit 设置为屏蔽词：")
@@ -1167,7 +1198,7 @@ def do_config(arg, verbose=True, by=-1):
 			printc(verbose, "该操作将【清空】原有的屏蔽词列表（或 IP 黑名单），请谨慎操作！")
 			if not input("\033[0m\033[1;30m确定要继续吗？[y/N] ") in ['y', 'Y']:
 				return
-			print("\033[8;30m", end="")
+			print("\033[8;30m", end="", flush=True)
 	
 	try:
 		if not eval("isinstance({}, {})".format(arg[1], CONFIG_TYPE_CHECK_TABLE[arg[0]])):
@@ -1285,7 +1316,7 @@ def do_ban(arg, verbose=True, by=-1):
 				printc(verbose, "^", arg[2], "$", sep="")
 				if not input("\033[0m\033[1;30m确定要继续吗？[y/N] ") in ['y', 'Y']:
 					return
-				print("\033[8;30m", end="")
+				print("\033[8;30m", end="", flush=True)
 		
 		if arg[1] == 'add':
 			if arg[2] in config['ban']['words']:
@@ -1646,11 +1677,20 @@ def do_save(arg=None):
 	except:
 		print("无法将参数保存到配置文件 config.json，请稍后重试。")
 
+def do_evaluate(arg=None):
+	try:
+		print(eval(arg))
+	except Exception as e:
+		print("计算时遇到错误：" + str(e))
+
 def do_exit(arg=None):
 	global log_queue
 	global send_queue
 	global EXIT_FLAG
-	print("\033[0m\033[1;36m再见！\033[0m") # 此处不能调用 dye 函数，原因参见第二部分 process 函数中的注释
+	# 此处不能调用 dye 函数，因为需要使用 \033[0m
+	# 来清除 ANSI 文本序列带来的显示效果，
+	# 防止干扰用户后续的终端使用
+	print("\033[0m\033[1;36m再见！\033[0m")
 	if side == "Server":
 		log_queue.put(json.dumps({'type': 'SERVER.STOP.LOG', 'time': time_str()})) # 协议 3.2.2
 		for i in range(len(users)):
@@ -1661,11 +1701,67 @@ def do_exit(arg=None):
 	my_socket.close()
 	return
 
+def do_flood(arg=None):
+	global flooded
+	global blocked
+	global EXIT_FLAG
+	flooded = True
+	if platform.system() == "Windows":
+		shortcut = 'C'
+	else:
+		shortcut = 'D'
+	print(SIMPLE_COMMAND_LINE_HINT_CONTENT.format(shortcut))
+	print("\033[8;30m", end="", flush=True)
+	while True:
+		time.sleep(0.1)
+		if EXIT_FLAG:
+			print("\033[0m", end="", flush=True)
+			flooded = False
+			return
+		
+		# 输出模式
+		try:
+			input()
+		except EOFError:
+			printf("已经退出了简易命令行模式。", "black")
+			flooded = False
+			return
+		except:
+			pass
+		
+		# 变更为输入模式
+		blocked = True
+		try:
+			message = input("\033[0m\033[1;30m> ")
+		except EOFError:
+			print()
+			printf("已经退出了简易命令行模式。", "black")
+			flooded = False
+			return
+		except:
+			pass
+		if not message:
+			print("\033[8;30m", end="", flush=True)
+			blocked = False
+			continue
+		
+		# 发送消息
+		do_send(message, None, False, -1)
+		print("\033[8;30m", end="", flush=True)
+		
+		# 变更为输出模式
+		blocked = False
+
 def do_help(arg=None):
 	print()
 	for hint in HELP_HINT:
 		printf(hint['content'], hint['color'])
 		print()
+
+def do_shell(arg=None):
+	print("\033[0m", end="", flush=True) # 执行前清除现有文本效果
+	os.system(arg)
+	print("\033[8;30m", end="", flush=True) # 执行后恢复现有文本效果
 
 
 
@@ -1962,7 +2058,7 @@ def thread_input():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			print("\033[0m", end="")
+			print("\033[0m", end="", flush=True)
 			return
 		
 		# 输出模式
@@ -1970,13 +2066,19 @@ def thread_input():
 			input()
 		except:
 			pass
+		
 		# 变更为输入模式
 		blocked = True
-		command = input("\033[0m\033[1;30m> ")
+		try:
+			command = input("\033[0m\033[1;30m> ")
+		except:
+			pass
 		if not command:
-			print("\033[8;30m", end="")
+			print("\033[8;30m", end="", flush=True)
 			blocked = False
 			continue
+		
+		# 将缩写形式替换为完整形式
 		for i in list(ABBREVIATION_TABLE.keys()):
 			if command.startswith(i + " ") or command == i:
 				command = ABBREVIATION_TABLE[i] + command[len(i):]
@@ -1985,13 +2087,18 @@ def thread_input():
 		if len(command) == 1:
 			command = [command[0], ""]
 		if not command[0] in COMMAND_LIST:
-			print("指令输入错误。\n\033[8;30m", end="")
+			print("指令输入错误。\n\033[8;30m", end="", flush=True)
 			blocked = False
 			continue
+		
 		# 将对应指令函数加载到 now，然后执行 now 函数
 		now = eval("do_{}".format(command[0]))
 		now(command[1])
-		print("\033[8;30m", end="")
+		time.sleep(0.1) # 同上，等待 0.1 秒以规避竞态数据问题
+		while flooded: # 如果命令行被 flood 函数接管，则等待
+			time.sleep(1)
+		print("\033[8;30m", end="", flush=True)
+		
 		# 变更为输出模式
 		blocked = False
 
@@ -2000,7 +2107,7 @@ def thread_output():
 	while True:
 		time.sleep(0.1)
 		if EXIT_FLAG:
-			print("\033[0m", end="")
+			print("\033[0m", end="", flush=True)
 			return
 		
 		read()
@@ -2022,6 +2129,7 @@ def thread_output():
 
 def main():
 	global config
+	global flooded
 	global blocked
 	global my_username
 	global my_uid
@@ -2043,7 +2151,7 @@ def main():
 	
 	# 尝试读取配置文件 (config.json)，
 	# 检查规则详见第一部分的相关注释；
-	# 检查不通过则加载默认服务端配置
+	# 检查不通过则加载默认客户端配置
 	try:
 		with open("config.json", "r", encoding="utf-8") as f:
 			tmp_config = json.load(f)
@@ -2100,10 +2208,10 @@ def main():
 				config = tmp_config
 		config_read_result = "OK"
 	except FileNotFoundError:
-		config = DEFAULT_SERVER_CONFIG
+		config = DEFAULT_CLIENT_CONFIG
 		config_read_result = "Not found"
 	except:
-		config = DEFAULT_SERVER_CONFIG
+		config = DEFAULT_CLIENT_CONFIG
 		config_read_result = "Broken"
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
@@ -2113,10 +2221,10 @@ def main():
 		prints("配置文件 config.json 读取成功！", "yellow")
 	if config_read_result == "Not found":
 		prints("未找到配置文件 config.json。如果该文件存在，请尝试以管理员权限重新运行。", "yellow")
-		prints("下面将使用默认服务端配置启动程序。", "yellow")
+		prints("下面将使用默认客户端配置启动程序。", "yellow")
 	if config_read_result == "Broken":
 		prints("配置文件 config.json 中的配置项存在错误。", "yellow")
-		prints("下面将使用默认服务端配置启动程序。", "yellow")
+		prints("下面将使用默认客户端配置启动程序。", "yellow")
 	print()
 	
 	if platform.system() == "Windows":
@@ -2127,361 +2235,367 @@ def main():
 	prints("当前程序版本：{}".format(VERSION), "yellow")
 	prints("按下 Ctrl + {} 以按照配置文件中的配置自动启动。".format(shortcut), "yellow")
 	prints("按下 Enter 以指定启动配置。", "yellow")
-	auto_start = False
+	
 	try:
-		input()
-	except BaseException as e:
-		auto_start = True
-	except:
-		pass
-	tmp_side = None
-	if not auto_start:
-		tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
-	if not tmp_side:
-		tmp_side = config['side']
-	if not tmp_side in ["Server", "Client"]:
-		prints("参数错误。", "red")
-		input("\033[0m")
-		sys.exit(1)
-	
-	if tmp_side == "Server":
-		# 当程序以服务端启动时，
-		# 若 config.json 中加载到的 side 参数为 "Client"，
-		# 则覆写为默认服务端配置
-		if config['side'] == "Client":
-			config = DEFAULT_SERVER_CONFIG
-		tmp_ip = None
-		if not auto_start:
-			tmp_ip = input("\033[0m\033[1;37m服务端 IP [{}]：".format(config['general']['server_ip']))
-		if not tmp_ip:
-			tmp_ip = config['general']['server_ip']
-		config['general']['server_ip'] = tmp_ip
-		if not check_ip(tmp_ip):
-			prints("参数错误：输入的服务端 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		tmp_port = None
-		if not auto_start:
-			tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
-		if not tmp_port:
-		   tmp_port = config['general']['server_port']
+		auto_start = False
 		try:
-			tmp_port = int(tmp_port)
-			if tmp_port < 1 or tmp_port > 65535:
-				raise
+			input()
+		except BaseException as e:
+			auto_start = True
 		except:
-			prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		config['general']['server_port'] = tmp_port
-		tmp_server_username = None
+			pass
+		tmp_side = None
 		if not auto_start:
-			tmp_server_username = input("\033[0m\033[1;37m服务端管理员的用户名 [{}]：".format(config['general']['server_username']))
-		if not tmp_server_username:
-		   tmp_server_username = config['general']['server_username']
-		config['general']['server_username'] = tmp_server_username
-		my_username = config['general']['server_username']
-		tmp_max_connections = None
-		if not auto_start:
-			tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['general']['max_connections']))
-		if not tmp_max_connections:
-		   tmp_max_connections = config['general']['max_connections']
-		try:
-			tmp_max_connections = int(tmp_max_connections)
-			if tmp_max_connections < 1 or tmp_max_connections > 128:
-				raise
-		except:
-			prints("参数错误：最大在线连接数应为不大于 128 的正整数。", "red")
+			tmp_side = input("\033[0m\033[1;37m启动类型 (Server = 服务端, Client = 客户端) [{}]：".format(config['side']))
+		if not tmp_side:
+			tmp_side = config['side']
+		if not tmp_side in ["Server", "Client"]:
+			prints("参数错误。", "red")
 			input("\033[0m")
 			sys.exit(1)
-		config['general']['max_connections'] = tmp_max_connections
-		
-		# 创建保存文件时使用的目录（下同）
-		if platform.system() == "Windows":
-			os.system('mkdir TouchFishFiles 1>nul 2>&1')
-		else:
-			os.system('mkdir TouchFishFiles 1>/dev/null 2>&1')
-		try:
-			with open("config.json", "w", encoding="utf-8") as f:
-				json.dump(config, f)
-			prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
-		except:
-			prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		try:
-			with open("log.ndjson", "a", encoding="utf-8") as f:
-				pass
-		except:
-			prints("启动时遇到错误：无法向日志文件 log.ndjson 写入内容。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		
-		try:
-			# 启动服务端 socket：
-			# 每两步操作之间间隔 0.01 秒，
-			# 防止爆出 BlockingIOError
-			server_socket = socket.socket()
-			time.sleep(0.01)
-			server_socket.bind((config['general']['server_ip'], config['general']['server_port']))
-			time.sleep(0.01)
-			server_socket.listen(config['general']['max_connections'])
-			time.sleep(0.01)
-			server_socket.setblocking(False)
-			time.sleep(0.01)
-			users = [{"body": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}] # 初始化用户列表
-			time.sleep(0.01)
-			root_socket = socket.socket() # 为服务端创建一个连接用于接收信息（不用于发送请求）
-			time.sleep(0.01)
-			root_socket.connect((config['general']['server_ip'], config['general']['server_port'])) # 连接到服务端 socket
-			time.sleep(0.01)
-			# 同上，调整为非阻塞模式，缓冲区大小设置为 1 MiB，改善性能
-			root_socket.setblocking(False)
-			time.sleep(0.01)
-			root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-			time.sleep(0.01)
-			root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-			time.sleep(0.01)
-			users[0]['body'], users[0]['ip'] = server_socket.accept() # 完成连接
-			time.sleep(0.01)
-			# 同上，设置 TCP 保活参数：启用功能，5 分钟后开始探测，间隔 30 秒
-			if platform.system() != "Windows":
-				users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-				time.sleep(0.01)
-				users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 300)
-				time.sleep(0.01)
-				users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-				time.sleep(0.01)
+			
+		if tmp_side == "Server":
+			# 当程序以服务端启动时，
+			# 若 config.json 中加载到的 side 参数为 "Client"，
+			# 则覆写为默认服务端配置
+			if config['side'] == "Client":
+				config = DEFAULT_SERVER_CONFIG
+			tmp_ip = None
+			if not auto_start:
+				tmp_ip = input("\033[0m\033[1;37m服务端 IP [{}]：".format(config['general']['server_ip']))
+			if not tmp_ip:
+				tmp_ip = config['general']['server_ip']
+			config['general']['server_ip'] = tmp_ip
+			if not check_ip(tmp_ip):
+				prints("参数错误：输入的服务端 IP 不是有效的点分十进制格式 IPv4 地址。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			tmp_port = None
+			if not auto_start:
+				tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['general']['server_port']))
+			if not tmp_port:
+				tmp_port = config['general']['server_port']
+			try:
+				tmp_port = int(tmp_port)
+				if tmp_port < 1 or tmp_port > 65535:
+					raise
+			except:
+				prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			config['general']['server_port'] = tmp_port
+			tmp_server_username = None
+			if not auto_start:
+				tmp_server_username = input("\033[0m\033[1;37m服务端管理员的用户名 [{}]：".format(config['general']['server_username']))
+			if not tmp_server_username:
+				tmp_server_username = config['general']['server_username']
+			config['general']['server_username'] = tmp_server_username
+			my_username = config['general']['server_username']
+			tmp_max_connections = None
+			if not auto_start:
+				tmp_max_connections = input("\033[0m\033[1;37m最大在线连接数 [{}]：".format(config['general']['max_connections']))
+			if not tmp_max_connections:
+				tmp_max_connections = config['general']['max_connections']
+			try:
+				tmp_max_connections = int(tmp_max_connections)
+				if tmp_max_connections < 1 or tmp_max_connections > 128:
+					raise
+			except:
+				prints("参数错误：最大在线连接数应为不大于 128 的正整数。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			config['general']['max_connections'] = tmp_max_connections
+			
+			# 创建保存文件时使用的目录（下同）
+			if platform.system() == "Windows":
+				os.system('mkdir TouchFishFiles 1>nul 2>&1')
 			else:
-				users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-				time.sleep(0.01)
-				users[0]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 300000, 30000))
-				time.sleep(0.01)
-			users[0]['body'].setblocking(False)
-			time.sleep(0.01)
-			users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-			time.sleep(0.01)
-			users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-			time.sleep(0.01)
-			my_uid = 0
-			time.sleep(0.01)
-			my_socket = root_socket
-			time.sleep(0.01)
-		except Exception as e:
-			prints("启动时遇到错误：" + str(e), "red")
-			prints("请检查 IP 地址或更换端口。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		
-		with open("./log.ndjson", "a", encoding="utf-8") as file:
-			file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n") # 协议 3.1
-		
-		side = "Server"
-		prints("启动成功！", "green")
-		# 响铃，显示帮助文本，显示聊天室各项信息，显示加入提示
-		ring()
-		do_help()
-		do_dashboard()
-		if config['gate']['enter_hint']:
-			first_line = dye("[" + time_str()[11:19] + "]", "black")
-			first_line += dye(" [您发送的]", "blue")
-			first_line += " "
-			first_line += dye(" [加入提示]", "red")
-			first_line += " "
-			first_line += dye("@", "black")
-			first_line += dye(config['general']['server_username'], "yellow")
-			first_line += dye(":", "black")
-			prints(first_line)
-			prints(config['gate']['enter_hint'], "white")
-		
-		THREAD_GATE = threading.Thread(target=thread_gate)
-		THREAD_PROCESS = threading.Thread(target=thread_process)
-		THREAD_RECEIVE = threading.Thread(target=thread_receive)
-		THREAD_SEND = threading.Thread(target=thread_send)
-		THREAD_LOG = threading.Thread(target=thread_log)
-		THREAD_CHECK = threading.Thread(target=thread_check)
-		THREAD_INPUT = threading.Thread(target=thread_input)
-		THREAD_OUTPUT = threading.Thread(target=thread_output)
-		
-		THREAD_GATE.start()
-		THREAD_PROCESS.start()
-		THREAD_RECEIVE.start()
-		THREAD_SEND.start()
-		THREAD_LOG.start()
-		THREAD_CHECK.start()
-		THREAD_INPUT.start()
-		THREAD_OUTPUT.start()
-	
-	if tmp_side == "Client":
-		# 当程序以客户端启动时，
-		# 若 config.json 中加载到的 side 参数为 "Client"，
-		# 则覆写为默认客户端配置
-		if config['side'] == "Server":
-			config = DEFAULT_CLIENT_CONFIG
-			config['username'] += time_str()[20:26]
-			# 截取 "xxxx-xx-xx xx:xx:xx.xxxxxx" 中最后的 "xxxxxx"
-			# 当作随机的用户名后缀，形成形如 "user123456" 的用户名
-		tmp_ip = None
-		if not auto_start:
-			tmp_ip = input("\033[0m\033[1;37m服务端 IP [{}]：".format(config['ip']))
-		if not tmp_ip:
-			tmp_ip = config['ip']
-		config['ip'] = tmp_ip
-		tmp_port = None
-		if not auto_start:
-			tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
-		if not tmp_port:
-		   tmp_port = config['port']
-		try:
-			tmp_port = int(tmp_port)
-			if tmp_port < 1 or tmp_port > 65535:
-				raise
-		except:
-			prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		config['port'] = tmp_port
-		tmp_username = None
-		if not auto_start:
-			tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
-		if not tmp_username:
-		   tmp_username = config['username']
-		config['username'] = tmp_username
-		my_username = config['username']
-		# 同上，创建保存文件时使用的目录
-		if platform.system() == "Windows":
-			os.system('mkdir TouchFishFiles 1>nul 2>&1')
-		else:
-			os.system('mkdir TouchFishFiles 1>/dev/null 2>&1')
-		try:
-			with open("config.json", "w", encoding="utf-8") as f:
-				json.dump(config, f)
-			prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
-		except:
-			prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
-			input("\033[0m")
-			sys.exit(1)
-		
-		prints("正在连接聊天室...", "yellow")
-		my_socket = socket.socket()
-		try:
-			my_socket.connect((config['ip'], config['port'])) # 连接到服务端 socket
-			# 同上，调整为非阻塞模式，缓冲区大小设置为 1 MiB，改善性能
-			my_socket.setblocking(False)
-			my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
-			my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
-			my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8")) # 协议 1.1
-		except Exception as e:
-			prints("启动时遇到错误：{}".format(e), "red")
-			input("\033[0m")
-			sys.exit(1)
-		
-		# 同上，设置 TCP 保活参数：启用功能，5 分钟后开始探测，间隔 30 秒
-		if platform.system() == "Windows":
-			my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-			my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 300000, 30000))
-		else:
-			my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
-			my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 300)
-			my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-		
-		# 核验协议 1.2，获取加入请求结果
-		try:
-			message = None
-			time.sleep(0.5) # 与服务端「错峰」0.5 秒，期望第一次验证就成功（总用时 1.5 秒）
-			for i in range(10): # 设置 10 秒的「窗口期」，每秒验证一次
-				time.sleep(1)
-				try:
-					read()
-					message = get_message()
-					if not message:
-						raise
-					break
-				except:
+				os.system('mkdir TouchFishFiles 1>/dev/null 2>&1')
+			try:
+				with open("config.json", "w", encoding="utf-8") as f:
+					json.dump(config, f)
+				prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
+			except:
+				prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			try:
+				with open("log.ndjson", "a", encoding="utf-8") as f:
 					pass
-			if not message:
-				raise
-			if not message['result'] in ["Accepted", "Pending review"] + list(RESULTS.keys()):
-				raise
-		except:
-			prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
-			prints("注：也有可能是对方服务器端口被防火墙拦截，请联系服务器所有者确认，或检查本地网络及防火墙设置。", "black")
-			input("\033[0m")
-			sys.exit(1)
-		
-		if not message['result'] in ["Accepted", "Pending review"]:
-			prints("连接失败：{}".format(RESULTS[message['result']]), "red")
-			input("\033[0m")
-			sys.exit(1)
-		
-		if message['result'] == "Accepted":
-			prints("连接成功！", "green")
+			except:
+				prints("启动时遇到错误：无法向日志文件 log.ndjson 写入内容。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			
+			try:
+				# 启动服务端 socket：
+				# 每两步操作之间间隔 0.01 秒，
+				# 防止爆出 BlockingIOError
+				server_socket = socket.socket()
+				time.sleep(0.01)
+				server_socket.bind((config['general']['server_ip'], config['general']['server_port']))
+				time.sleep(0.01)
+				server_socket.listen(config['general']['max_connections'])
+				time.sleep(0.01)
+				server_socket.setblocking(False)
+				time.sleep(0.01)
+				users = [{"body": None, "buffer": "", "ip": None, "username": config['general']['server_username'], "status": "Root", "busy": False}] # 初始化用户列表
+				time.sleep(0.01)
+				root_socket = socket.socket() # 为服务端创建一个连接用于接收信息（不用于发送请求）
+				time.sleep(0.01)
+				root_socket.connect((config['general']['server_ip'], config['general']['server_port'])) # 连接到服务端 socket
+				time.sleep(0.01)
+				# 同上，调整为非阻塞模式，缓冲区大小设置为 1 MiB，改善性能
+				root_socket.setblocking(False)
+				time.sleep(0.01)
+				root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+				time.sleep(0.01)
+				root_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+				time.sleep(0.01)
+				users[0]['body'], users[0]['ip'] = server_socket.accept() # 完成连接
+				time.sleep(0.01)
+				# 同上，设置 TCP 保活参数：启用功能，5 分钟后开始探测，间隔 30 秒
+				if platform.system() != "Windows":
+					users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+					time.sleep(0.01)
+					users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 300)
+					time.sleep(0.01)
+					users[0]['body'].setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+					time.sleep(0.01)
+				else:
+					users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+					time.sleep(0.01)
+					users[0]['body'].ioctl(socket.SIO_KEEPALIVE_VALS, (1, 300000, 30000))
+					time.sleep(0.01)
+					users[0]['body'].setblocking(False)
+					time.sleep(0.01)
+					users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+					time.sleep(0.01)
+				users[0]['body'].setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+				time.sleep(0.01)
+				my_uid = 0
+				time.sleep(0.01)
+				my_socket = root_socket
+				time.sleep(0.01)
+			except Exception as e:
+				prints("启动时遇到错误：" + str(e), "red")
+				prints("请检查 IP 地址或更换端口。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			
+			with open("./log.ndjson", "a", encoding="utf-8") as file:
+				file.write(json.dumps({'type': 'SERVER.START', 'time': time_str(), 'server_version': VERSION, 'config': config}) + "\n") # 协议 3.1
+			
+			side = "Server"
+			prints("启动成功！", "green")
+			# 响铃，显示帮助文本，显示聊天室各项信息，显示加入提示
 			ring()
+			do_help()
+			do_dashboard()
+			if config['gate']['enter_hint']:
+				first_line = dye("[" + time_str()[11:19] + "]", "black")
+				first_line += dye(" [您发送的]", "blue")
+				first_line += " "
+				first_line += dye(" [加入提示]", "red")
+				first_line += " "
+				first_line += dye("@", "black")
+				first_line += dye(config['general']['server_username'], "yellow")
+				first_line += dye(":", "black")
+				prints(first_line)
+				prints(config['gate']['enter_hint'], "white")
+			
+			THREAD_GATE = threading.Thread(target=thread_gate)
+			THREAD_PROCESS = threading.Thread(target=thread_process)
+			THREAD_RECEIVE = threading.Thread(target=thread_receive)
+			THREAD_SEND = threading.Thread(target=thread_send)
+			THREAD_LOG = threading.Thread(target=thread_log)
+			THREAD_CHECK = threading.Thread(target=thread_check)
+			THREAD_INPUT = threading.Thread(target=thread_input)
+			THREAD_OUTPUT = threading.Thread(target=thread_output)
+			
+			THREAD_GATE.start()
+			THREAD_PROCESS.start()
+			THREAD_RECEIVE.start()
+			THREAD_SEND.start()
+			THREAD_LOG.start()
+			THREAD_CHECK.start()
+			THREAD_INPUT.start()
+			THREAD_OUTPUT.start()
 		
-		if message['result'] == "Pending review":
-			prints("服务端需要对连接请求进行人工审核，请等待...", "white")
-			while True:
-				try:
-					read()
-					message = get_message()
-					if not message:
-						continue
-					# 特殊情况：聊天室服务端已经关闭 (协议 3.3.1)
-					if message['type'] == "SERVER.STOP.ANNOUNCE":
-						prints("聊天室服务端已经关闭。", "red")
-						prints("连接失败。", "red")
-						input("\033[0m")
-						sys.exit(1)
-					# 一般情况：人工审核完成 (协议 1.3)
-					if not message['accepted']:
-						prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
-						prints("连接失败。", "red")
-						input("\033[0m")
-						sys.exit(1)
-					if message['accepted']:
-						time.sleep(1) # 等待 1 秒，确认协议 3.2 提供的完整上下文传输完成
-						prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
-						prints("连接成功！", "green")
-						ring()
+		if tmp_side == "Client":
+			# 当程序以客户端启动时，
+			# 若 config.json 中加载到的 side 参数为 "Client"，
+			# 则覆写为默认客户端配置
+			if config['side'] == "Server" or config_read_result != "OK":
+				config = DEFAULT_CLIENT_CONFIG
+				config['username'] += time_str()[20:26]
+				# 截取 "xxxx-xx-xx xx:xx:xx.xxxxxx" 中最后的 "xxxxxx"
+				# 当作随机的用户名后缀，形成形如 "user123456" 的用户名
+			tmp_ip = None
+			if not auto_start:
+				tmp_ip = input("\033[0m\033[1;37m服务端 IP [{}]：".format(config['ip']))
+			if not tmp_ip:
+				tmp_ip = config['ip']
+			config['ip'] = tmp_ip
+			tmp_port = None
+			if not auto_start:
+				tmp_port = input("\033[0m\033[1;37m端口 [{}]：".format(config['port']))
+			if not tmp_port:
+				tmp_port = config['port']
+			try:
+				tmp_port = int(tmp_port)
+				if tmp_port < 1 or tmp_port > 65535:
+					raise
+			except:
+				prints("参数错误：端口号应为不大于 65535 的正整数。", "red")
+				input("\033[0m")
+				sys.exit(1)
+			config['port'] = tmp_port
+			tmp_username = None
+			if not auto_start:
+				tmp_username = input("\033[0m\033[1;37m用户名 [{}]：".format(config['username']))
+			if not tmp_username:
+				tmp_username = config['username']
+			config['username'] = tmp_username
+			my_username = config['username']
+			# 同上，创建保存文件时使用的目录
+			if platform.system() == "Windows":
+				os.system('mkdir TouchFishFiles 1>nul 2>&1')
+			else:
+				os.system('mkdir TouchFishFiles 1>/dev/null 2>&1')
+			try:
+				with open("config.json", "w", encoding="utf-8") as f:
+					json.dump(config, f)
+				prints("本次连接中输入的参数已经保存到配置文件 config.json，下次连接时将自动加载。", "yellow")
+			except:
+				prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
+				input("\033[0m")
+				sys.exit(1)
+		
+			prints("正在连接聊天室...", "yellow")
+			my_socket = socket.socket()
+			try:
+				my_socket.connect((config['ip'], config['port'])) # 连接到服务端 socket
+				# 同上，调整为非阻塞模式，缓冲区大小设置为 1 MiB，改善性能
+				my_socket.setblocking(False)
+				my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1048576)
+				my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1048576)
+				my_socket.send(bytes(json.dumps({'type': 'GATE.REQUEST', 'username': my_username}), encoding="utf-8")) # 协议 1.1
+			except Exception as e:
+				prints("启动时遇到错误：{}".format(e), "red")
+				input("\033[0m")
+				sys.exit(1)
+			
+			# 同上，设置 TCP 保活参数：启用功能，5 分钟后开始探测，间隔 30 秒
+			if platform.system() == "Windows":
+				my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+				my_socket.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 300000, 30000))
+			else:
+				my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
+				my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 300)
+				my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+			
+			# 核验协议 1.2，获取加入请求结果
+			try:
+				message = None
+				time.sleep(0.5) # 与服务端「错峰」0.5 秒，期望第一次验证就成功（总用时 1.5 秒）
+				for i in range(10): # 设置 10 秒的「窗口期」，每秒验证一次
+					time.sleep(1)
+					try:
+						read()
+						message = get_message()
+						if not message:
+							raise
 						break
-				except:
-					pass
-		
-		side = "Client"
-		# 获取服务端通过协议 3.2 提供的完整上下文；
-		# 此时自己应当处于 Online 状态
-		read()
-		first_data = get_message()
-		server_version = first_data['server_version']
-		my_uid = first_data['uid']
-		config = first_data['config']
-		users = first_data['users']
-		# 自行计算在线人数（包括自己）
-		online_count = 0
-		for user in users:
-			if user['status'] in ["Pending", "Online", "Admin", "Root"]:
-				online_count += 1
-		
-		# 显示帮助文本，显示聊天室各项信息，显示加入提示
-		do_help()
-		do_dashboard()
-		for i in first_data['chat_history']:
-			print_message(i)
-		if config['gate']['enter_hint']:
-			first_line = dye("[" + time_str()[11:19] + "]", "black")
-			first_line += dye(" [加入提示]", "red")
-			first_line += " "
-			first_line += dye("@", "black")
-			first_line += dye(config['general']['server_username'], "yellow")
-			first_line += dye(":", "black")
-			prints(first_line)
-			prints(config['gate']['enter_hint'], "white")
-		
-		THREAD_INPUT = threading.Thread(target=thread_input)
-		THREAD_OUTPUT = threading.Thread(target=thread_output)
-		
-		THREAD_INPUT.start()
-		THREAD_OUTPUT.start()
+					except:
+						pass
+				if not message:
+					raise
+				if not message['result'] in ["Accepted", "Pending review"] + list(RESULTS.keys()):
+					raise
+			except:
+				prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
+				prints("（也有可能是对方服务器端口被防火墙拦截，请联系服务器所有者确认，或检查本地网络及防火墙设置。）", "red")
+				input("\033[0m")
+				sys.exit(1)
+			
+			if not message['result'] in ["Accepted", "Pending review"]:
+				prints("连接失败：{}".format(RESULTS[message['result']]), "red")
+				input("\033[0m")
+				sys.exit(1)
+			
+			if message['result'] == "Accepted":
+				prints("连接成功！", "green")
+				ring()
+			
+			if message['result'] == "Pending review":
+				prints("服务端需要对连接请求进行人工审核，请等待...", "white")
+				while True:
+					try:
+						read()
+						message = get_message()
+						if not message:
+							continue
+						# 特殊情况：聊天室服务端已经关闭 (协议 3.3.1)
+						if message['type'] == "SERVER.STOP.ANNOUNCE":
+							prints("聊天室服务端已经关闭。", "red")
+							prints("连接失败。", "red")
+							input("\033[0m")
+							sys.exit(1)
+						# 一般情况：人工审核完成 (协议 1.3)
+						if not message['accepted']:
+							prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
+							prints("连接失败。", "red")
+							input("\033[0m")
+							sys.exit(1)
+						if message['accepted']:
+							time.sleep(1) # 等待 1 秒，确认协议 3.2 提供的完整上下文传输完成
+							prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
+							prints("连接成功！", "green")
+							ring()
+							break
+					except:
+						pass
+			
+			side = "Client"
+			# 获取服务端通过协议 3.2 提供的完整上下文；
+			# 此时自己应当处于 Online 状态
+			read()
+			first_data = get_message()
+			server_version = first_data['server_version']
+			my_uid = first_data['uid']
+			config = first_data['config']
+			users = first_data['users']
+			# 自行计算在线人数（包括自己）
+			online_count = 0
+			for user in users:
+				if user['status'] in ["Pending", "Online", "Admin", "Root"]:
+					online_count += 1
+			
+			# 显示帮助文本，显示聊天室各项信息，显示加入提示
+			do_help()
+			do_dashboard()
+			for i in first_data['chat_history']:
+				print_message(i)
+			if config['gate']['enter_hint']:
+				first_line = dye("[" + time_str()[11:19] + "]", "black")
+				first_line += dye(" [加入提示]", "red")
+				first_line += " "
+				first_line += dye("@", "black")
+				first_line += dye(config['general']['server_username'], "yellow")
+				first_line += dye(":", "black")
+				prints(first_line)
+				prints(config['gate']['enter_hint'], "white")
+			
+			THREAD_INPUT = threading.Thread(target=thread_input)
+			THREAD_OUTPUT = threading.Thread(target=thread_output)
+			
+			THREAD_INPUT.start()
+			THREAD_OUTPUT.start()
+	except BaseException as e:
+		print()
+		prints("程序运行时遇到错误：" + str(e), "red")
+		print("\033[0m")
 
 if __name__ == "__main__":
 	main()
