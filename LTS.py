@@ -621,8 +621,6 @@ For more information, please visit the official Github repository of this projec
 以下是在服务端和客户端都启用的变量：
 config              服务端参数（对于客户端，启动前存储客户端参数，
                     启动后存储服务端参数）
-flooded             True 表示通过 flood 指令开启的「简易命令行模式」，
-                    False 表示「简易命令行模式」
 blocked             True 表示 HELP_HINT 第 1 段提到的「输入模式」，
                     False 表示「输出模式」
 my_username         自身连接的用户名
@@ -674,7 +672,6 @@ busy                bool 类型变量，表示服务端是否在向该客户端�
 """
 config = DEFAULT_SERVER_CONFIG
 blocked = False
-flooded = False
 my_username = "user"
 my_uid = 0
 file_order = 0
@@ -1702,10 +1699,8 @@ def do_exit(arg=None):
 	return
 
 def do_flood(arg=None):
-	global flooded
 	global blocked
 	global EXIT_FLAG
-	flooded = True
 	if platform.system() == "Windows":
 		shortcut = 'C'
 	else:
@@ -1716,15 +1711,13 @@ def do_flood(arg=None):
 		time.sleep(0.1)
 		if EXIT_FLAG:
 			print("\033[0m", end="", flush=True)
-			flooded = False
 			return
 		
 		# 输出模式
 		try:
 			input()
 		except EOFError:
-			printf("已经退出了简易命令行模式。", "black")
-			flooded = False
+			printf("您已经退出简易命令行模式。", "black")
 			return
 		except:
 			pass
@@ -1735,8 +1728,7 @@ def do_flood(arg=None):
 			message = input("\033[0m\033[1;30m> ")
 		except EOFError:
 			print()
-			printf("已经退出了简易命令行模式。", "black")
-			flooded = False
+			printf("您已经退出简易命令行模式。", "black")
 			return
 		except:
 			pass
@@ -2094,9 +2086,6 @@ def thread_input():
 		# 将对应指令函数加载到 now，然后执行 now 函数
 		now = eval("do_{}".format(command[0]))
 		now(command[1])
-		time.sleep(0.1) # 同上，等待 0.1 秒以规避竞态数据问题
-		while flooded: # 如果命令行被 flood 函数接管，则等待
-			time.sleep(1)
 		print("\033[8;30m", end="", flush=True)
 		
 		# 变更为输出模式
@@ -2129,7 +2118,6 @@ def thread_output():
 
 def main():
 	global config
-	global flooded
 	global blocked
 	global my_username
 	global my_uid
