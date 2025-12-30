@@ -307,7 +307,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.5.0"
+VERSION = "v4.5.1"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -1041,7 +1041,8 @@ def do_doorman(arg, verbose=True, by=-1):
 	
 	if arg[0] == "accept":
 		if side == "Server":
-			send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True, 'operator': {'username': users[by]['username'], 'uid': by}}})) # 协议 1.3
+			# 重要：最后再给该用户发送信息，防止出现
+			# 该用户已经断开连接而状态没有更新的情况
 			log_queue.put(json.dumps({'type': 'GATE.STATUS_CHANGE.LOG', 'time': time_str(), 'status': 'Online', 'uid': arg[1], 'operator': by})) # 协议 1.6.3
 			for i in range(len(users)):
 				if users[i]['status'] in ["Online", "Admin", "Root"]:
@@ -1051,6 +1052,7 @@ def do_doorman(arg, verbose=True, by=-1):
 			users_abstract = []
 			for i in range(len(users)):
 				users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
+			send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'GATE.REVIEW_RESULT', 'accepted': True, 'operator': {'username': users[by]['username'], 'uid': by}}})) # 协议 1.3
 			send_queue.put(json.dumps({'to': arg[1], 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': arg[1], 'config': config, 'users': users_abstract, 'chat_history': history}})) # 协议 3.2
 		if side == "Client":
 			my_socket.send(bytes(json.dumps({'type': 'GATE.STATUS_CHANGE.REQUEST', 'status': 'Online', 'uid': arg[1]}) + "\n", encoding="utf-8")) # 协议 1.6.1
@@ -1846,7 +1848,15 @@ def thread_gate():
 			if word in users[uid]['username']:
 				result = "Username consists of banned words"
 		
-		users[uid]['body'].send(bytes(json.dumps({'type': 'GATE.RESPONSE', 'result': result}) + "\n", encoding="utf-8")) # 协议 1.2
+		while True:
+			try:
+				users[uid]['body'].send(bytes(json.dumps({'type': 'GATE.RESPONSE', 'result': result}) + "\n", encoding="utf-8")) # 协议 1.2
+				break
+			except BlockingIOError:
+				continue
+			except:
+				break
+		
 		log_queue.put(json.dumps({'type': 'GATE.CLIENT_REQUEST.LOG', 'time': time_str(), 'ip': users[uid]['ip'], 'username': users[uid]['username'], 'uid': uid, 'result': result})) # 协议 1.5.2
 		for i in range(len(users)):
 			if users[i]['status'] in ["Online", "Admin", "Root"]:
@@ -1871,7 +1881,7 @@ def thread_gate():
 			users_abstract = []
 			for i in range(len(users)):
 				users_abstract.append({"username": users[i]['username'], "status": users[i]['status']})
-			users[uid]['body'].send(bytes(json.dumps({'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history}) + "\n", encoding="utf-8")) # 协议 3.2
+			send_queue.put(json.dumps({'to': uid, 'content': {'type': 'SERVER.DATA', 'server_version': VERSION, 'uid': uid, 'config': config, 'users': users_abstract, 'chat_history': history}})) # 协议 3.2
 
 def thread_process():
 	global online_count
@@ -1957,7 +1967,7 @@ def thread_send():
 		
 		while not send_queue.empty():
 			message = json.loads(send_queue.get())
-			if not users[message['to']]['status'] in ["Online", "Admin", "Root"]:
+			if not users[message['to']]['status'] in ["Online", "Admin", "Root", "Pending"]:
 				continue
 			# 先发送心跳数据（单个换行符）检查客户端是否下线
 			try:
@@ -2459,8 +2469,7 @@ def main():
 				prints("启动时遇到错误：配置文件 config.json 写入失败。", "red")
 				input("\033[0m")
 				sys.exit(1)
-		
-			prints("正在连接聊天室...", "yellow")
+			
 			my_socket = socket.socket()
 			try:
 				my_socket.connect((config['ip'], config['port'])) # 连接到服务端 socket
@@ -2486,9 +2495,14 @@ def main():
 			# 核验协议 1.2，获取加入请求结果
 			try:
 				message = None
-				time.sleep(0.5) # 与服务端「错峰」0.5 秒，期望第一次验证就成功（总用时 1.5 秒）
-				for i in range(10): # 设置 10 秒的「窗口期」，每秒验证一次
+				seconds_consumed = 0
+				print(dye("正在连接聊天室... (已经等待了 {} / 10 秒)\r", "yellow").format(seconds_consumed), end="", flush=True)
+				for i in range(10):
+					# 设置 10 秒的「窗口期」，每秒验证一次
+					# 与服务端「错峰」0.5 秒，期望第一次验证就成功（总用时 1 秒）
 					time.sleep(1)
+					seconds_consumed += 1
+					print(dye("正在连接聊天室... (已经等待了 {} / 10 秒)\r", "yellow").format(seconds_consumed), end="", flush=True)
 					try:
 						read()
 						message = get_message()
@@ -2498,32 +2512,44 @@ def main():
 					except:
 						pass
 				if not message:
+					seconds_consumed += 1
 					raise
 				if not message['result'] in ["Accepted", "Pending review"] + list(RESULTS.keys()):
 					raise
 			except:
-				prints("连接失败：对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
-				prints("（也有可能是对方服务器端口被防火墙拦截，请联系服务器所有者确认，或检查本地网络及防火墙设置。）", "red")
+				print()
+				if seconds_consumed == 11:
+					prints("连接失败：连接超时。", "red")
+				else:
+					prints("连接失败：对方返回的内容不符合 TouchFish v4 协议。", "red")
+				prints("对方似乎不是 v4 及以上的 TouchFish 服务端。", "red")
+				if seconds_consumed == 11:
+					prints("（也有可能是对方服务器端口被防火墙拦截，请联系服务器所有者确认，或检查本地网络及防火墙设置。）", "red")
 				input("\033[0m")
 				sys.exit(1)
 			
 			if not message['result'] in ["Accepted", "Pending review"]:
+				print()
 				prints("连接失败：{}".format(RESULTS[message['result']]), "red")
 				input("\033[0m")
 				sys.exit(1)
 			
 			if message['result'] == "Accepted":
+				print()
 				prints("连接成功！", "green")
 				ring()
 			
 			if message['result'] == "Pending review":
-				prints("服务端需要对连接请求进行人工审核，请等待...", "white")
+				print()
+				seconds_consumed = 0
 				while True:
+					clock_start = datetime.datetime.now().timestamp()
+					print(dye("服务端需要对连接请求进行人工审核，请等待... (已经等待了 {} 秒)\r", "white").format(seconds_consumed), end="", flush=True)
 					try:
 						read()
 						message = get_message()
 						if not message:
-							continue
+							raise
 						# 特殊情况：聊天室服务端已经关闭 (协议 3.3.1)
 						if message['type'] == "SERVER.STOP.ANNOUNCE":
 							prints("聊天室服务端已经关闭。", "red")
@@ -2532,18 +2558,23 @@ def main():
 							sys.exit(1)
 						# 一般情况：人工审核完成 (协议 1.3)
 						if not message['accepted']:
+							print()
 							prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "red")
 							prints("连接失败。", "red")
 							input("\033[0m")
 							sys.exit(1)
 						if message['accepted']:
 							time.sleep(1) # 等待 1 秒，确认协议 3.2 提供的完整上下文传输完成
+							print()
 							prints("服务端管理员 {} (UID = {}) 通过了您的连接请求。".format(message['operator']['username'], message['operator']['uid']), "green")
 							prints("连接成功！", "green")
 							ring()
 							break
 					except:
 						pass
+					clock_end = datetime.datetime.now().timestamp()
+					seconds_consumed += 1
+					time.sleep(1 - (clock_end - clock_start))
 			
 			side = "Client"
 			# 获取服务端通过协议 3.2 提供的完整上下文；
