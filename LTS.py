@@ -307,7 +307,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.5.1"
+VERSION = "v4.5.2"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -636,7 +636,7 @@ online_count        在线人数（包括状态为 Root，Admin，
                     参见 HELP_HINT 第 3 段，下同）
 buffer              my_socket 读取时模拟的缓冲区
                     （发送的数据都是 NDJSON，因此遇到换行符则清空）
-EXIT_FLAG           默认为 False，程序终止改为 True，通知所有线程终止
+exit_flag           默认为 False，程序终止改为 True，通知所有线程终止
 print_queue         用于输入模式下记录被阻塞的输出内容（每行一条），
                     切换到输出模式后一并输出
 
@@ -684,7 +684,7 @@ server_version = VERSION
 history = []
 online_count = 1
 buffer = ""
-EXIT_FLAG = False
+exit_flag = False
 log_queue = queue.Queue()
 receive_queue = queue.Queue()
 send_queue = queue.Queue()
@@ -888,7 +888,7 @@ def print_message(message):
 def process(message):
 	global users
 	global online_count
-	global EXIT_FLAG
+	global exit_flag
 	ring() # 响铃
 	if message['type'] == "CHAT.RECEIVE": # 收到消息 (协议 2.2)
 		message['time'] = time_str()
@@ -922,7 +922,7 @@ def process(message):
 			# 来清除 ANSI 文本序列带来的显示效果，
 			# 防止干扰用户后续的终端使用
 			prints("\033[0m\033[1;36m再见！\033[0m")
-			EXIT_FLAG = True
+			exit_flag = True
 			return
 	if message['type'] == "SERVER.CONFIG.CHANGE": # 服务端参数变更 (协议 3.4.2)
 		announce(message['operator'])
@@ -940,7 +940,7 @@ def process(message):
 			announce(0)
 			prints("聊天室服务端已经关闭。", "cyan")
 			prints("\033[0m\033[1;36m再见！\033[0m")
-			EXIT_FLAG = True
+			exit_flag = True
 			return
 
 # 从 my_socket 读取数据，每次 128 KiB，读完为止
@@ -1685,7 +1685,7 @@ def do_evaluate(arg=None):
 def do_exit(arg=None):
 	global log_queue
 	global send_queue
-	global EXIT_FLAG
+	global exit_flag
 	# 此处不能调用 dye 函数，因为需要使用 \033[0m
 	# 来清除 ANSI 文本序列带来的显示效果，
 	# 防止干扰用户后续的终端使用
@@ -1696,13 +1696,13 @@ def do_exit(arg=None):
 			if users[i]['status'] in ["Pending", "Online", "Admin", "Root"]:
 				send_queue.put(json.dumps({'to': i, 'content': {'type': 'SERVER.STOP.ANNOUNCE'}})) # 协议 3.2.1
 		server_socket.close()
-	EXIT_FLAG = True
+	exit_flag = True
 	my_socket.close()
 	return
 
 def do_flood(arg=None):
 	global blocked
-	global EXIT_FLAG
+	global exit_flag
 	if platform.system() == "Windows":
 		shortcut = 'C'
 	else:
@@ -1711,7 +1711,7 @@ def do_flood(arg=None):
 	print("\033[8;30m", end="", flush=True)
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			print("\033[0m", end="", flush=True)
 			return
 		
@@ -1782,7 +1782,7 @@ thread_check        轮番检查各客户端是否下线，并给服务端保活
 
 # 所有线程均使用 while True 的无限循环，
 # 每轮开始前暂停 0.1 秒防止 CPU 占用过高，
-# 且均受程序终止信号 EXIT_FLAG 的调控。
+# 且均受程序终止信号 exit_flag 的调控。
 
 def thread_gate():
 	global online_count
@@ -1791,7 +1791,7 @@ def thread_gate():
 	global users
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			return
 		
 		# 尝试开启新连接
@@ -1891,7 +1891,7 @@ def thread_process():
 	global users
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			return
 		
 		while not receive_queue.empty():
@@ -1925,7 +1925,7 @@ def thread_receive():
 	global users
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			return
 		
 		for i in range(len(users)):
@@ -1962,7 +1962,7 @@ def thread_send():
 	global users
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			return
 		
 		while not send_queue.empty():
@@ -2022,7 +2022,7 @@ def thread_log():
 					file.write(log_queue.get() + "\n")
 		# 与其他线程不同，先写入日志再读取程序终止信号，
 		# 确保程序终止时没有日志残留在 log_queue 中
-		if EXIT_FLAG:
+		if exit_flag:
 			return
 
 def thread_check():
@@ -2032,7 +2032,7 @@ def thread_check():
 	global users
 	while True:
 		time.sleep(1) # 该部分对整体性能影响较大，因此执行频率下调至 1 秒一次
-		if EXIT_FLAG:
+		if exit_flag:
 			return
 		
 		down = []
@@ -2056,10 +2056,10 @@ def thread_check():
 
 def thread_input():
 	global blocked
-	global EXIT_FLAG
+	global exit_flag
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			print("\033[0m", end="", flush=True)
 			return
 		
@@ -2102,10 +2102,10 @@ def thread_input():
 		blocked = False
 
 def thread_output():
-	global EXIT_FLAG
+	global exit_flag
 	while True:
 		time.sleep(0.1)
-		if EXIT_FLAG:
+		if exit_flag:
 			print("\033[0m", end="", flush=True)
 			return
 		
@@ -2141,7 +2141,7 @@ def main():
 	global history
 	global online_count
 	global buffer
-	global EXIT_FLAG
+	global exit_flag
 	global log_queue
 	global receive_queue
 	global send_queue
@@ -2214,6 +2214,12 @@ def main():
 	
 	os.system('') # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
+	
+	prints("祝大家 2026 年新年快乐！", "magenta")
+	prints("我们准备了一些新年彩蛋，详情请见：", "magenta")
+	prints("https://github.com/ILoveScratch2/TouchFish-Astra/releases/tag/v2.1.0", "magenta")
+	prints("这段文本只在此版本 (v4.5.2) 中出现。", "magenta")
+	print()
 	
 	if config_read_result == "OK":
 		prints("配置文件 config.json 读取成功！", "yellow")
