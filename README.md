@@ -92,21 +92,20 @@
 
 ## 下载方式
 
-### 推荐镜像站点
+### ILS 镜像站
 
 **镜像站**: [https://mirror.ilovescratch.us.ci/](https://mirror.ilovescratch.us.ci/)
 
-> **优势**: 下载速度快，网络连接稳定
->
-> **限制**: 仅提供稳定版本，无法下载 PR 分支和开发中版本
+### 官方源（稳定通道）
 
-### 官方源
+**GitHub**: [GitHub Release](/2044-space-elevator/TouchFish/release)
 
-**GitHub**: [https://github.com/2044-space-elevator/TouchFish](https://github.com/2044-space-elevator/TouchFish)
+### 官方源（开发通道）
 
-> **优势**: 包含所有分支、PR 和最新开发版本
->
-> **限制**: 国内访问可能较慢
+**GitHub**: [Development Build](/2044-space-elevator/TouchFish/releases/tag/dev-build)
+
+> [!WARNING]
+> 请不要在生产环境中使用开发版，除非你知道如何操作和排除 Bug
 
 ---
 
