@@ -1,4 +1,4 @@
-# TouchFish LTS Client/Server Unified Program (Version 4)
+# TouchFish LTS Client/Server Unified Program (Final Release, Version 4)
 
 
 
@@ -7,7 +7,7 @@
 """
 # TouchFish 协议文档
 
-本协议文档版本：v2.3.0
+本协议文档版本：v2.4.0
 
 本协议分为三个部分：`Gate`，`Chat`，`Misc`。
 
@@ -17,6 +17,8 @@
 
 # 协议更新日志
 
+- Protocol v2.4.0 (TouchFish v4.7.0)
+  - 在 MISC.START 添加 stamp 字段
 - Protocol v2.3.0 (TouchFish v4.6.0)
   - 将 SERVER 部分整体更名为 MISC 部分
   - 将 SERVER.STOP 部分整体更名为 MISC.SERVER_STOP 部分
@@ -211,12 +213,13 @@
 
 ## 3.1 Start
 
-`{ type: "MISC.START", time: time, server_version: string, config: JSON }`
+`{ type: "MISC.START", time: time, stamp: number, server_version: string, config: JSON }`
 
-服务端将启动时的启动参数写入日志。
+程序将启动时的启动参数写入日志。
 
 - `type`: `"MISC.START"`
 - `time`: 同上。 
+- `stamp`: 用于指定文件保存路径，取启动时的 UNIX 时间戳乘 `10 ** 6` 后向下取整。
 - `server_version`: 字符串，表示服务端程序版本。（下同） 
 - `config`: JSON 对象，表示启动参数。（具体格式详见代码，下同）
 
@@ -349,7 +352,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.6.0"
+VERSION = "v4.7.0"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -665,6 +668,10 @@ config              服务端参数（对于客户端，启动前存储客户端
                     启动后存储服务端参数）
 blocked             True 表示 HELP_HINT 第 1 段提到的「输入模式」，
                     False 表示「输出模式」
+stamp               自身保存文件时的路径，具体为
+                    ./TouchFishFiles/<stamp>/<file_order>.file
+                    （<file_order> 取绝对值），取值为启动时的
+                    UNIX 时间戳乘上 (10 ** 6) 后向下取整的值
 my_username         自身连接的用户名
 my_uid              自身的用户 ID（服务端为 0，客户端从 1 开始分配）
 my_socket           自身的 TCP socket 连接（服务端也有连接，
@@ -687,7 +694,7 @@ print_queue         用于输入模式下记录被阻塞的输出内容（每行
 file_order          目前服务端已经传送的文件个数，
                     用于从 -1 开始分配文件 ID (-1, -2, -3, ...)，区分文件
 message_order       目前服务端已经传送的消息个数，
-                    用于从 1 开始分配消息 ID (1, 2, 3, ...)，区分文件
+                    用于从 1 开始分配消息 ID (1, 2, 3, ...)，区分消息
 server_socket       服务端向客户端暴露用于连接的 TCP socket
 history             用于记录聊天上下文，在新客户端建立连接时
                     通过协议 3.2 发送给客户端
@@ -714,6 +721,7 @@ busy                bool 类型变量，表示服务端是否在向该客户端�
 """
 config = DEFAULT_CLIENT_CONFIG
 blocked = False
+stamp = int(time.time() * (10 ** 6))
 my_username = "user"
 my_uid = 0
 file_order = 0
@@ -903,7 +911,7 @@ def print_message(message):
 	try:
 	# 对于文件消息，保存到 TouchFishFiles/<order>.file，
 	# 其中 <order> 的定义参见第一部分对 file_order 变量
-	# 用途的介绍和协议 2.2 的协议文档
+	# 用途的介绍和协议 2.2 的协议文档，取绝对值
 		if message["filename"]:
 			# 服务端的文件保存工作已经在第三部分的
 			# do_distribute 函数和 do_transfer 函数
@@ -913,14 +921,14 @@ def print_message(message):
 					# 以二进制格式输出 base64 解密后的结果，
 					# Windows 下子目录用反斜杠，其他用正斜杠（下同）
 					if platform.system() == "Windows":
-						with open("TouchFishFiles\\{}.file".format(message["order"]), "wb") as f:
+						with open("TouchFishFiles\\{}\\{}.file".format(stamp, -message["order"]), "wb") as f:
 							f.write(base64.b64decode(message["content"]))
 					else:
-						with open("TouchFishFiles/{}.file".format(message["order"]), "wb") as f:
+						with open("TouchFishFiles/{}/{}.file".format(stamp, -message["order"]), "wb") as f:
 							f.write(base64.b64decode(message["content"]))
 				except:
 					pass
-			prints("发送了文件 {}，已经保存到：TouchFishFiles/{}.file".format(message["filename"], message["order"]), "cyan")
+			prints("发送了文件 {}，已经保存到：TouchFishFiles/{}/{}.file".format(message["filename"], stamp, -message["order"]), "cyan")
 		else:
 			prints(message["content"], "white")
 	except KeyError:
@@ -1572,18 +1580,18 @@ def do_distribute(arg, message=None, verbose=True, by=-1):
 		try:
 			# 同上，不同系统的目录格式不同
 			if platform.system() == "Windows":
-				with open("TouchFishFiles\\{}.file".format(file_order), "wb") as f:
+				with open("TouchFishFiles\\{}\\{}.file".format(stamp, -file_order), "wb") as f:
 					f.write(base64.b64decode(message))
 			else:
-				with open("TouchFishFiles/{}.file".format(file_order), "wb") as f:
+				with open("TouchFishFiles/{}/{}.file".format(stamp, -file_order), "wb") as f:
 					f.write(base64.b64decode(message))
 		except:
 			pass
 		# 同上，不同系统的目录格式不同
 		if platform.system() == "Windows":
-			tmp_filename = "TouchFishFiles\\{}.file".format(file_order)
+			tmp_filename = "TouchFishFiles\\{}\\{}.file".format(stamp, -file_order)
 		else:
-			tmp_filename = "TouchFishFiles/{}.file".format(file_order)
+			tmp_filename = "TouchFishFiles/{}/{}.file".format(stamp, -file_order)
 		log_queue.put(json.dumps({"type": "CHAT.LOG", "time": time_str(), "from": by, "order": file_order, "filename": arg, "content": "", "to": -1})) # 协议 2.3
 		for i in range(len(users)):
 			if users[i]["status"] in ["Online", "Admin", "Root"]:
@@ -1664,18 +1672,18 @@ def do_transfer(arg, message=None, verbose=True, by=-1):
 		try:
 			# 同上，不同系统的目录格式不同
 			if platform.system() == "Windows":
-				with open("TouchFishFiles\\{}.file".format(file_order), "wb") as f:
+				with open("TouchFishFiles\\{}\\{}.file".format(stamp, -file_order), "wb") as f:
 					f.write(base64.b64decode(message))
 			else:
-				with open("TouchFishFiles/{}.file".format(file_order), "wb") as f:
+				with open("TouchFishFiles/{}/{}.file".format(stamp, -file_order), "wb") as f:
 					f.write(base64.b64decode(message))
 		except:
 			pass
 		# 同上，不同系统的目录格式不同
 		if platform.system() == "Windows":
-			tmp_filename = "TouchFishFiles\\{}.file".format(file_order)
+			tmp_filename = "TouchFishFiles\\{}\\{}.file".format(stamp, -file_order)
 		else:
-			tmp_filename = "TouchFishFiles/{}.file".format(file_order)
+			tmp_filename = "TouchFishFiles/{}/{}.file".format(stamp, -file_order)
 		log_queue.put(json.dumps({"type": "CHAT.LOG", "time": time_str(), "from": by, "order": file_order, "filename": filename, "content": "", "to": arg})) # 协议 2.3
 		for i in range(len(users)):
 			# 同上，先以保存文件时使用的文件名填充 content 字段；
@@ -2049,7 +2057,7 @@ def thread_send():
 				# 先按文件处理
 				if not message["content"]["filename"]: # filename 字段为空（或者 filename 字段根本不存在），表明不是文件
 					impossible_value = message["content"]["impossible_key"] # 故意引发 KeyError
-				with open(message["content"]["content"], "rb") as f:
+				with open(message["content"]["filename"], "rb") as f:
 					file_data = f.read() # 读取 do_distribute 或 do_transfer 函数先前写入到磁盘的对应文件
 				message["content"]["content"] = base64.b64encode(file_data).decode("utf-8") # 将 content 字段覆写为正确值
 				token = json.dumps(message["content"]) + "\n"
@@ -2196,6 +2204,7 @@ def thread_output():
 def main():
 	global config
 	global blocked
+	global stamp
 	global my_username
 	global my_uid
 	global file_order
@@ -2374,8 +2383,10 @@ def main():
 			# 创建保存文件时使用的目录（下同）
 			if platform.system() == "Windows":
 				os.system("mkdir TouchFishFiles 1>nul 2>&1")
+				os.system("mkdir TouchFishFiles\\{} 1>nul 2>&1".format(stamp))
 			else:
 				os.system("mkdir TouchFishFiles 1>/dev/null 2>&1")
+				os.system("mkdir TouchFishFiles/{} 1>/dev/null 2>&1".format(stamp))
 			try:
 				with open("./config.json", "w", encoding="utf-8") as f:
 					json.dump(config, f)
@@ -2449,7 +2460,7 @@ def main():
 				sys.exit(1)
 			
 			with open("./log.ndjson", "a", encoding="utf-8") as file:
-				file.write(json.dumps({"type": "MISC.START", "time": time_str(), "version": VERSION, "config": config}) + "\n") # 协议 3.1
+				file.write(json.dumps({"type": "MISC.START", "time": time_str(), "stamp": stamp, "version": VERSION, "config": config}) + "\n") # 协议 3.1
 			
 			side = "Server"
 			prints("启动成功！", "green")
@@ -2526,8 +2537,10 @@ def main():
 			# 同上，创建保存文件时使用的目录
 			if platform.system() == "Windows":
 				os.system("mkdir TouchFishFiles 1>nul 2>&1")
+				os.system("mkdir TouchFishFiles\\{} 1>nul 2>&1".format(stamp))
 			else:
 				os.system("mkdir TouchFishFiles 1>/dev/null 2>&1")
+				os.system("mkdir TouchFishFiles/{} 1>/dev/null 2>&1".format(stamp))
 			try:
 				with open("./config.json", "w", encoding="utf-8") as f:
 					json.dump(config, f)
@@ -2567,7 +2580,7 @@ def main():
 				my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 			
 			with open("./log.ndjson", "a", encoding="utf-8") as file:
-				file.write(json.dumps({"type": "MISC.START", "time": time_str(), "version": VERSION, "config": config}) + "\n") # 协议 3.1
+				file.write(json.dumps({"type": "MISC.START", "time": time_str(), "stamp": stamp, "version": VERSION, "config": config}) + "\n") # 协议 3.1
 			
 			# 核验协议 1.2，获取加入请求结果
 			try:
