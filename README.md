@@ -1,7 +1,7 @@
 > [!WARNING]
 > **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
 >
-> **根据规划，此版本（v4.7.0）是 TouchFish v4 的最后一个子版本，下一版本预计将进入 v5。**
+> **根据规划，此版本（v4.7.0）是 TouchFish v4 的最后一个子版本。TouchFish v5 正在施工，[链接](https://github.com/2044-space-elevator/TFV5_server)。下一版本预计将进入 v5。**
 
 > [!IMPORTANT]
 > **重要通知：贡献者须知**
@@ -24,7 +24,7 @@
 
 ## 演示
 
-请观看[此视频](https://www.bilibili.com/video/BV1qqSqB4E6x)以查看 v4 版本的用法。
+请观看 [此视频](https://www.bilibili.com/video/BV1qqSqB4E6x) 以查看 v4 版本的用法。
 
 该视频演示的程序为 v4.0.0-beta 版本，与当前发行版有若干出入，敬请谅解。
 
@@ -37,6 +37,15 @@
 ## 快速开始
 
 ### 作为服务端
+
+> [!TIP]
+>
+> （这里的命令只针对 Linux 用户）
+> 
+> 不建议下载预编译的二进制文件，建议通过源代码部署
+> `wget https://github.com/2044-space-elevator/TouchFish/releases/download/v4.7.0/LTS.py && python3 LTS.py`
+> 
+> （也可以通过 @ILoveScratch2 提供的镜像站，但是截至 2026/2/23 只更新到了 v4.6 版本：`wget https://mirror.ilovescratch.us.ci/api/net/379814722/LTS.py && python3 LTS.py`）
 
 1. **获取内网 IP 地址**：
    - **Windows**: 命令提示符执行 `ipconfig`，查找 "无线局域网适配器 WLAN" 下的 "IPv4 地址"
