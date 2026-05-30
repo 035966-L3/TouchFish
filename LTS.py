@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # TouchFish LTS Client/Server Unified Program (Final Release, Version 4)
 
 

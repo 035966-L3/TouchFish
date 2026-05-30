@@ -2,3 +2,7 @@ __pycache__
 config.json
 TouchFishFiles
 log.ndjson
+src/
+pkg/
+*.zst
+*.gz
