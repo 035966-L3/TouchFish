@@ -1,7 +1,7 @@
 > [!WARNING]
 > **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
 >
-> **根据规划，此版本（v4.7.0）是 TouchFish v4 的最后一个子版本。TouchFish v5 正在施工，[链接](https://github.com/2044-space-elevator/TFV5_server)。下一版本预计将进入 v5。**
+> **根据规划，此版本（v4.9.0）是 TouchFish v4 的最后一个子版本。TouchFish v5 正在施工，[链接](https://github.com/2044-space-elevator/TFV5_server)。下一版本预计将进入 v5。**
 
 > [!IMPORTANT]
 > **重要通知：贡献者须知**
@@ -143,7 +143,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 
 > 标 * 的版本可能需要自行编译、直接运行代码或缺少预编译包。
 >
-> 标 ^ 的版本可能与 LTS v4.6.0/v4.7.0 存在少量兼容性问题，此时建议使用 LTS v4.3.3。
+> 标 ^ 的版本与 LTS v4.9.0 存在兼容性问题，建议使用 LTS v4.8.0。
 
 ---
 
