@@ -2071,7 +2071,7 @@ def thread_send():
 				# 先按文件处理
 				if not message["content"]["filename"]: # filename 字段为空（或者 filename 字段根本不存在），表明不是文件
 					impossible_value = message["content"]["impossible_key"] # 故意引发 KeyError
-				with open(message["content"]["filename"], "rb") as f:
+				with open(message["content"]["content"], "rb") as f:
 					file_data = f.read() # 读取 do_distribute 或 do_transfer 函数先前写入到磁盘的对应文件
 				message["content"]["content"] = base64.b64encode(file_data).decode("utf-8") # 将 content 字段覆写为正确值
 				token = json.dumps(message["content"]) + "\n"
