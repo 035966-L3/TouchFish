@@ -43,7 +43,7 @@
 > （这里的命令只针对 Linux 用户）
 > 
 > 不建议下载预编译的二进制文件，建议通过源代码部署
-> `wget https://github.com/2044-space-elevator/TouchFish/releases/download/v4.7.0/LTS.py && python3 LTS.py`
+> `wget https://github.com/2044-space-elevator/TouchFish/releases/download/v4.9.0/LTS.py && python3 LTS.py`
 > 
 > （也可以通过 @ILoveScratch2 提供的镜像站，但是截至 2026/6/17 只更新到了 v4.7.0 版本：`wget https://mirror.ilovescratch.us.ci/api/net/183301217/LTS.py && python3 LTS.py`）
 
