@@ -1,7 +1,7 @@
 > [!WARNING]
 > **这是 TouchFish v4 版本，自 v4 开始不再向前兼容 v1 - v3。**
 >
-> **根据规划，此版本（v4.7.0）是 TouchFish v4 的最后一个子版本。TouchFish v5 正在施工，[链接](https://github.com/2044-space-elevator/TFV5_server)。下一版本预计将进入 v5。**
+> **根据规划，此版本（v4.9.0）是 TouchFish v4 的最后一个子版本。TouchFish v5 正在施工，[链接](https://github.com/2044-space-elevator/TFV5_server)。下一版本预计将进入 v5。**
 
 > [!IMPORTANT]
 > **重要通知：贡献者须知**
@@ -45,7 +45,7 @@
 > 不建议下载预编译的二进制文件，建议通过源代码部署
 > `wget https://github.com/2044-space-elevator/TouchFish/releases/download/v4.7.0/LTS.py && python3 LTS.py`
 > 
-> （也可以通过 @ILoveScratch2 提供的镜像站，但是截至 2026/2/23 只更新到了 v4.6 版本：`wget https://mirror.ilovescratch.us.ci/api/net/379814722/LTS.py && python3 LTS.py`）
+> （也可以通过 @ILoveScratch2 提供的镜像站，但是截至 2026/7/13 只更新到了 v4.7.0 版本：`wget https://mirror.ilovescratch.us.ci/api/net/183301217/LTS.py && python3 LTS.py`）
 
 1. **获取内网 IP 地址**：
    - **Windows**: 命令提示符执行 `ipconfig`，查找 "无线局域网适配器 WLAN" 下的 "IPv4 地址"
@@ -129,7 +129,7 @@
 
 TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 
-**这里的大部分发行版都暂不支持 v4 版本，如需使用请前往 [Release](https://github.com/2044-space-elevator/TouchFish/releases) 页面下载旧版本（v3及以前）**
+**这里的大部分发行版都暂不支持 v4 版本，如需使用请前往 [Release](https://github.com/2044-space-elevator/TouchFish/releases) 页面下载旧版本（v3 及以前）**
 
 | 版本名称 | 简称 | 主要作者 | 链接 | 对 v1-3 支持 | 语言 | 平台支持 | 特色 | 对 v4 支持
 |---------|------|----------|----|-----|------|----------|------|--|
@@ -143,7 +143,7 @@ TouchFish 拥有丰富的衍生版本生态系统，满足不同用户需求：
 
 > 标 * 的版本可能需要自行编译、直接运行代码或缺少预编译包。
 >
-> 标 ^ 的版本可能与 LTS v4.6.0/v4.7.0 存在少量兼容性问题，此时建议使用 LTS v4.3.3。
+> 标 ^ 的版本可能与 LTS v4.9.0 存在少量兼容性问题，此时建议使用 LTS v4.8.0。
 
 ---
 
