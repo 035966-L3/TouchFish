@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-# TouchFish LTS Client/Server Unified Program (Final Release, Version 4)
+
+
+
+
+# TouchFish LTS Client/Server Unified Program (Security Updates, Version 4)
 
 
 
@@ -9,9 +13,9 @@
 """
 # TouchFish 协议文档
 
-本协议文档版本：v2.4.0
+本协议文档版本：v2.5.0
 
-本协议分为三个部分：`Gate`，`Chat`，`Misc`。
+本协议分为三个部分：`Gate`，`Chat`，`Server`。
 
 协议均使用 NDJSON（JSON 格式，相邻两个 JSON 以换行符分隔）格式进行发送。
 
@@ -19,6 +23,8 @@
 
 # 协议更新日志
 
+- Protocol v2.5.0 (TouchFish v4.8.0)
+  - 撤销 v2.3.0 的字段更改
 - Protocol v2.4.0 (TouchFish v4.7.0)
   - 在 MISC.START 添加 stamp 字段
 - Protocol v2.3.0 (TouchFish v4.6.0)
@@ -111,7 +117,7 @@
 
 - `type`: `"GATE.CLIENT_REQUEST.LOG"`
 - `time`: 同上。
-- `ip`: 客户端 IP 地址与端口。  
+- `ip`: 客户端 IP 地址与端口。
 - `username`: 用户名。
 - `uid`: 用户 ID。
 
@@ -142,7 +148,7 @@
 
 当用户状态变更时，服务端进行广播。
 
-- `type`: `"GATE.STATUS_CHANGE.ANNOUNCE"` 
+- `type`: `"GATE.STATUS_CHANGE.ANNOUNCE"`
 - `status`: 新状态。
 - `uid`: 被变更状态的用户 ID。
 
@@ -152,9 +158,9 @@
 
 服务端将用户状态变更事件写入日志。
 
-- `type`: 固定为 `"GATE.STATUS_CHANGE.LOG"`。  
-- `time`: 同上。  
-- `status`: 新状态。（`Pending` 状态和 `Root` 状态不会出现）  
+- `type`: 固定为 `"GATE.STATUS_CHANGE.LOG"`。
+- `time`: 同上。
+- `status`: 新状态。（`Pending` 状态和 `Root` 状态不会出现）
 - `uid`: 被操作用户的用户 ID。
 - `operator`: 操作者的用户 ID。
 
@@ -172,9 +178,9 @@
 
 - `type`: `"CHAT.SEND"`
 - `filename`: 文件名。若发送的是普通文本消息，则为空字符串 `""`；若发送文件，则为原始文件名。（下同）
-- `content`: 若为消息，则为原始文本内容；若为文件，则为文件内容的 Base64 编码字符串。（下同） 
+- `content`: 若为消息，则为原始文本内容；若为文件，则为文件内容的 Base64 编码字符串。（下同）
 - `to`: 目标接收者，可能取值包括：（下同）
-  - `-2`：广播给所有在线用户（相较于普通发送有特殊提示）；  
+  - `-2`：广播给所有在线用户（相较于普通发送有特殊提示）；
   - `-1`：发送给所有在线用户；
   - 非负整数：私聊给拥有相应用户 ID 的用户。
 
@@ -184,7 +190,7 @@
 
 服务端将消息转发给目标客户端。
 
-- `type`: `"CHAT.RECEIVE"` 
+- `type`: `"CHAT.RECEIVE"`
 - `from`: 发送者的用户 ID。（下同）
 - `order`: 消息编号，可能取值包括：（下同）
   - 正整数：普通文本消息；
@@ -202,42 +208,42 @@
 - `type`: `"CHAT.LOG"`
 - `time`: 同上。
 - `from`: 同上。
-- `order`: 同上。 
+- `order`: 同上。
 - `filename`: 同上。
 - `content`: 若为消息，则为原始文本内容；若为文件，则为空字符串 `""`。（为了防止日志文件过大，具体的文件内容会单独存储）
 - `to`: 同上。
 
 ---
 
-# 3 Misc
+# 3 Server
 
 这个部分是关于程序运行情况的协议内容。
 
 ## 3.1 Start
 
-`{ type: "MISC.START", time: time, stamp: number, server_version: string, config: JSON }`
+`{ type: "SERVER.START", time: time, stamp: number, server_version: string, config: JSON }`
 
 程序将启动时的启动参数写入日志。
 
-- `type`: `"MISC.START"`
-- `time`: 同上。 
+- `type`: `"SERVER.START"`
+- `time`: 同上。
 - `stamp`: 用于指定文件保存路径，取启动时的 UNIX 时间戳乘 `10 ** 6` 后向下取整。
-- `server_version`: 字符串，表示服务端程序版本。（下同） 
+- `server_version`: 字符串，表示服务端程序版本。（下同）
 - `config`: JSON 对象，表示启动参数。（具体格式详见代码，下同）
 
 ## 3.2 Data
 
-`{ type: "MISC.DATA", server_version: string, uid: number, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] }`
+`{ type: "SERVER.DATA", server_version: string, uid: number, config: JSON, users: [JSON, ...], chat_history: [JSON, ...] }`
 
 用于向新连接的客户端提供完整上下文。
 
-- `type`: `"MISC.DATA"`
+- `type`: `"SERVER.DATA"`
 - `server_version`: 同上。
 - `uid`: 表示服务端分配给该用户的用户 ID。
 - `config`: 同上。
 - `users`: 用户列表，每个元素为：
   - `username`: 用户名；
-  - `status`: 同上。 
+  - `status`: 同上。
 - `chat_history`: 历史聊天记录，每条记录包含：（不包含私聊记录和文件发送记录）
   - `time`: 同上；
   - `order`：同上；
@@ -247,84 +253,84 @@
 
 ## 3.3 Command
 
-`{ type: "MISC.COMMAND", time: time, command: string }`
+`{ type: "SERVER.COMMAND", time: time, command: string }`
 
 程序将用户输入的指令写入日志。
 
-- `type`: `"MISC.COMMAND"`
+- `type`: `"SERVER.COMMAND"`
 - `time`: 同上。
 - `command`: 输入的指令。
 
 ## 3.4 Client Stop
 
-`{ type: "MISC.CLIENT_STOP", time: time }`
+`{ type: "SERVER.CLIENT_STOP", time: time }`
 
 客户端正常关闭时将事件写入日志。
 
-- `type`: `"MISC.MISC.CLIENT_STOP"`
+- `type`: `"MISC.SERVER.CLIENT_STOP"`
 - `time`: 同上。
 
-## 3.5 Server Stop
+## 3.5 Stop
 
 服务端正常关闭时的协议。
 
 ### 3.5.1 Announce
 
-`{ type: "MISC.SERVER_STOP.ANNOUNCE" }`
+`{ type: "SERVER.STOP.ANNOUNCE" }`
 
 服务端正常关闭时，向全体客户端进行广播。
 
-- `type`: `"MISC.SERVER_STOP.ANNOUNCE"`
+- `type`: `"SERVER.STOP.ANNOUNCE"`
 
 ### 3.5.2 Log
 
-`{ type: "MISC.SERVER_STOP.LOG", time: time }`
+`{ type: "SERVER.STOP.LOG", time: time }`
 
 服务端正常关闭时将事件写入日志。
 
-- `type`: `"MISC.SERVER_STOP.LOG"`
+- `type`: `"SERVER.STOP.LOG"`
 - `time`: 同上。
 
 ## 3.6 Config
 
 ### 3.6.1 Post
 
-`{ type: "MISC.CONFIG.POST", key: string, value: any }`
+`{ type: "SERVER.CONFIG.POST", key: string, value: any }`
 
 管理员向服务端发送配置修改请求。
 
-- `type`: `"MISC.CONFIG.POST"`
+- `type`: `"SERVER.CONFIG.POST"`
 - `key`: 配置项名称。（下同）
 - `value`: 配置值。（下同）
 
 ### 3.6.2 Change
 
-`{ type: "MISC.CONFIG.CHANGE", key: string, value: any, operator: number }`
+`{ type: "SERVER.CONFIG.CHANGE", key: string, value: any, operator: number }`
 
 服务端向客户端广播配置修改事件。
 
-- `type`: `"MISC.CONFIG.CHANGE"`
+- `type`: `"SERVER.CONFIG.CHANGE"`
 - `key`: 同上。
 - `value`: 同上。
 - `operator`: 执行修改操作的用户 ID。
 
 ### 3.6.3 Save
 
-`{ type: "MISC.CONFIG.SAVE", time: time }`
+`{ type: "SERVER.CONFIG.SAVE", time: time }`
 
 服务端将聊天室房主导出配置的事件写入日志。
 
-- `type`: `"MISC.CONFIG.SAVE"`
+- `type`: `"SERVER.CONFIG.SAVE"`
 - `time`: 同上。
 
 ### 3.6.4 Log
 
-`{ type: "MISC.CONFIG.LOG", time: time, key: string, value: any, operator: number }`
+`{ type: "SERVER.CONFIG.LOG", time: time, key: string, value: any, operator: number }`
 
 服务端将配置修改事件写入日志。
 
-- `type`: `"MISC.CONFIG.LOG"`
-- `time`: 同上。 
+- `type`: `"SERVER.CONFIG.LOG"`
+- `time`: 同上。
 - `key`: 同上。
 - `value`: 同上。
 - `operator`: 执行修改操作的用户 ID。
@@ -354,7 +360,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.7.0"
+VERSION = "v4.8.0"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -421,7 +427,7 @@ username        连接时使用的用户名
 # 需要指出的是，第五部分中会给 username 字段
 # 的默认值后面加上一个随机六位数作为后缀，
 # 形成形如 "user123456" 的用户名
-DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "touchfish.xin", "port": 7001, "username": "user"}
+DEFAULT_CLIENT_CONFIG = {"side": "Client", "ip": "touchfish.xin", "port": 11451, "username": "user"}
 
 # 默认服务端配置（side 和 general.* 必须在启动时指定）：
 """
@@ -464,7 +470,7 @@ file.max_size               必须在 [1, 1073741824] (1 Byte - 1 GiB) 中取值
 # 中指定的服务端用户名和所发送的文件的内容；
 # message.max_length 参数以「字符 (Unicode 码点) 个数」为准，
 # 例如「你好」算作 2 个字符；
-# message.max_length 参数以「字节个数」为准，
+# file.max_size 参数以「字节个数」为准，
 # 例如 UTF-8 格式的文本「你好」算作 6 个字节
 CONFIG_TYPE_CHECK_TABLE = \
 {
@@ -516,12 +522,12 @@ COMMAND_LIST = ["admin", "ban", "broadcast", "config", "dashboard", "distribute"
 # 缩写表
 ABBREVIATION_TABLE = \
 {
-	"D": "dashboard", "F": "distribute", "Q": "evaluate", "E": "exit", "L": "flood", 
+	"D": "dashboard", "F": "distribute", "Q": "evaluate", "E": "exit", "L": "flood",
 	"H": "help", "S": "send", "J": "shell", "T": "transfer", "P": "whisper",
 	"I+": "ban ip add", "I-": "ban ip remove", "W+": "ban words add", "W-": "ban words remove",
 	"B": "broadcast", "C": "config", "G+": "doorman accept", "G-": "doorman reject", "K": "kick",
 	"A+": "admin add", "A-": "admin remove", "V": "save",
-	"d": "dashboard", "f": "distribute", "q": "evaluate", "e": "exit", "l": "flood", 
+	"d": "dashboard", "f": "distribute", "q": "evaluate", "e": "exit", "l": "flood",
 	"h": "help", "s": "send", "j": "shell", "t": "transfer", "p": "whisper",
 	"i+": "ban ip add", "i-": "ban ip remove", "w+": "ban words add", "w-": "ban words remove",
 	"b": "broadcast", "c": "config", "g+": "doorman accept", "g-": "doorman reject", "k": "kick",
@@ -976,7 +982,7 @@ def process(message):
 			prints("\033[0m\033[1;36m再见！\033[0m")
 			exit_flag = True
 			return
-	if message["type"] == "MISC.CONFIG.CHANGE": # 服务端参数变更 (协议 3.6.2)
+	if message["type"] == "SERVER.CONFIG.CHANGE": # 服务端参数变更 (协议 3.6.2)
 		announce(message["operator"])
 		prints("配置项 {} 变更为：".format(message["key"]) + str(message["value"]), "cyan")
 		if side == "Client": # 同上
@@ -987,7 +993,7 @@ def process(message):
 				prints("该配置项相比修改前移除了：{}".format(str(deletions)), "cyan")
 		config[message["key"].split(".")[0]][message["key"].split(".")[1]] = message["value"]
 		return
-	if message["type"] == "MISC.SERVER_STOP.ANNOUNCE": # 服务端关闭 (协议 3.5.1)
+	if message["type"] == "SERVER.STOP.ANNOUNCE": # 服务端关闭 (协议 3.5.1)
 		if side == "Client": # 同上
 			announce(0)
 			prints("聊天室服务端已经关闭。", "cyan")
@@ -1001,7 +1007,7 @@ def read():
 	global buffer
 	while True:
 		try:
-			my_socket.setblocking(False)
+			my_socket.setblocking(False)  # 再次显式设置为非阻塞模式，避免不必要的问题
 			chunk = my_socket.recv(131072).decode("utf-8")
 			if not chunk:
 				break
@@ -1031,7 +1037,7 @@ def get_message():
 			partial_message = {key: value for key, value in message.items()}
 			partial_message["content"] = ""
 			log_queue.put(json.dumps(partial_message))
-		else:		
+		else:
 			# filename 字段为空（或者 filename 字段根本不存在），表明不是文件
 			impossible_value = message["impossible_key"] # 故意引发 KeyError
 	except KeyError:
@@ -1126,7 +1132,7 @@ def do_doorman(arg, verbose=True, by=-1):
 			for i in range(len(users)):
 				users_abstract.append({"username": users[i]["username"], "status": users[i]["status"]})
 			send_queue.put(json.dumps({"to": arg[1], "content": {"type": "GATE.REVIEW_RESULT", "accepted": True, "operator": {"username": users[by]["username"], "uid": by}}})) # 协议 1.3
-			send_queue.put(json.dumps({"to": arg[1], "content": {"type": "MISC.DATA", "server_version": VERSION, "uid": arg[1], "config": config, "users": users_abstract, "chat_history": history}})) # 协议 3.2
+			send_queue.put(json.dumps({"to": arg[1], "content": {"type": "SERVER.DATA", "server_version": VERSION, "uid": arg[1], "config": config, "users": users_abstract, "chat_history": history}})) # 协议 3.2
 		if side == "Client":
 			upload({"type": "GATE.STATUS_CHANGE.REQUEST", "status": "Online", "uid": arg[1]}) # 协议 1.6.1
 	
@@ -1307,16 +1313,16 @@ def do_config(arg, verbose=True, by=-1):
 		first, second = arg[0].split(".")
 		if side == "Server":
 			config[first][second] = eval(arg[1])
-			log_queue.put(json.dumps({"type": "MISC.CONFIG.LOG", "time": time_str(), "key": first + "." + second, "value": eval(arg[1]), "operator": by})) # 协议 3.6.4
+			log_queue.put(json.dumps({"type": "SERVER.CONFIG.LOG", "time": time_str(), "key": first + "." + second, "value": eval(arg[1]), "operator": by})) # 协议 3.6.4
 			for i in range(len(users)):
 				if users[i]["status"] in ["Online", "Admin", "Root"]:
-					send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.CONFIG.CHANGE", "key": first + "." + second, "value": eval(arg[1]), "operator": by}})) # 协议 3.6.2
+					send_queue.put(json.dumps({"to": i, "content": {"type": "SERVER.CONFIG.CHANGE", "key": first + "." + second, "value": eval(arg[1]), "operator": by}})) # 协议 3.6.2
 		if side == "Client":
-			upload({"type": "MISC.CONFIG.POST", "key": first + "." + second, "value": eval(arg[1])}) # 协议 3.6.1
+			upload({"type": "SERVER.CONFIG.POST", "key": first + "." + second, "value": eval(arg[1])}) # 协议 3.6.1
 	except:
 		printc(verbose, "指令格式不正确，请重试。")
 		return
-
+	
 	printc(verbose, "操作成功。")
 
 def do_ban(arg, verbose=True, by=-1):
@@ -1353,28 +1359,28 @@ def do_ban(arg, verbose=True, by=-1):
 			if side == "Server":
 				ips = [item for item in ips if item not in config["ban"]["ip"]]
 				config["ban"]["ip"] += ips
-				log_queue.put(json.dumps({"type": "MISC.CONFIG.LOG", "time": time_str(), "key": "ban.ip", "value": config["ban"]["ip"], "operator": by})) # 协议 3.6.4
+				log_queue.put(json.dumps({"type": "SERVER.CONFIG.LOG", "time": time_str(), "key": "ban.ip", "value": config["ban"]["ip"], "operator": by})) # 协议 3.6.4
 				for i in range(len(users)):
 					if users[i]["status"] in ["Online", "Admin", "Root"]:
-						send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.CONFIG.CHANGE", "key": "ban.ip", "value": config["ban"]["ip"], "operator": by}})) # 协议 3.6.2
+						send_queue.put(json.dumps({"to": i, "content": {"type": "SERVER.CONFIG.CHANGE", "key": "ban.ip", "value": config["ban"]["ip"], "operator": by}})) # 协议 3.6.2
 			if side == "Client":
 				ips = [item for item in ips if item not in config["ban"]["ip"]]
 				new_value = config["ban"]["ip"] + ips
-				upload({"type": "MISC.CONFIG.POST", "key": "ban.ip", "value": new_value}) # 协议 3.6.1
+				upload({"type": "SERVER.CONFIG.POST", "key": "ban.ip", "value": new_value}) # 协议 3.6.1
 			printc(verbose, "操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
 		
 		if arg[1] == "remove":
 			if side == "Server":
 				ips = [item for item in ips if item in config["ban"]["ip"]]
 				config["ban"]["ip"] = [item for item in config["ban"]["ip"] if not item in ips]
-				log_queue.put(json.dumps({"type": "MISC.CONFIG.LOG", "time": time_str(), "key": "ban.ip", "value": config["ban"]["ip"], "operator": by})) # 协议 3.6.4
+				log_queue.put(json.dumps({"type": "SERVER.CONFIG.LOG", "time": time_str(), "key": "ban.ip", "value": config["ban"]["ip"], "operator": by})) # 协议 3.6.4
 				for i in range(len(users)):
 					if users[i]["status"] in ["Online", "Admin", "Root"]:
-						send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.CONFIG.CHANGE", "key": "ban.ip", "value": config["ban"]["ip"], "operator": by}})) # 协议 3.6.2
+						send_queue.put(json.dumps({"to": i, "content": {"type": "SERVER.CONFIG.CHANGE", "key": "ban.ip", "value": config["ban"]["ip"], "operator": by}})) # 协议 3.6.2
 			if side == "Client":
 				ips = [item for item in ips if item in config["ban"]["ip"]]
 				new_value = [item for item in config["ban"]["ip"] if not item in ips]
-				upload({"type": "MISC.CONFIG.POST", "key": "ban.ip", "value": new_value}) # 协议 3.6.1
+				upload({"type": "SERVER.CONFIG.POST", "key": "ban.ip", "value": new_value}) # 协议 3.6.1
 			printc(verbose, "操作成功，共计解除封禁了 {} 个 IP 地址。".format(len(ips)))
 	
 	if arg[0] == "words":
@@ -1396,14 +1402,14 @@ def do_ban(arg, verbose=True, by=-1):
 				return
 			if side == "Server":
 				config["ban"]["words"].append(arg[2])
-				log_queue.put(json.dumps({"type": "MISC.CONFIG.LOG", "time": time_str(), "key": "ban.words", "value": config["ban"]["words"], "operator": by})) # 协议 3.6.4
+				log_queue.put(json.dumps({"type": "SERVER.CONFIG.LOG", "time": time_str(), "key": "ban.words", "value": config["ban"]["words"], "operator": by})) # 协议 3.6.4
 				for i in range(len(users)):
 					if users[i]["status"] in ["Online", "Admin", "Root"]:
-						send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.CONFIG.CHANGE", "key": "ban.words", "value": config["ban"]["words"], "operator": by}})) # 协议 3.6.2
+						send_queue.put(json.dumps({"to": i, "content": {"type": "SERVER.CONFIG.CHANGE", "key": "ban.words", "value": config["ban"]["words"], "operator": by}})) # 协议 3.6.2
 			if side == "Client":
 				new_value = config["ban"]["words"][:]
 				new_value.append(arg[2])
-				upload({"type": "MISC.CONFIG.POST", "key": "ban.words", "value": new_value}) # 协议 3.6.1
+				upload({"type": "SERVER.CONFIG.POST", "key": "ban.words", "value": new_value}) # 协议 3.6.1
 			printc(verbose, "操作成功。")
 		
 		if arg[1] == "remove":
@@ -1412,14 +1418,14 @@ def do_ban(arg, verbose=True, by=-1):
 				return
 			if side == "Server":
 				config["ban"]["words"].remove(arg[2])
-				log_queue.put(json.dumps({"type": "MISC.CONFIG.LOG", "time": time_str(), "key": "ban.words", "value": config["ban"]["words"], "operator": by})) # 协议 3.6.4
+				log_queue.put(json.dumps({"type": "SERVER.CONFIG.LOG", "time": time_str(), "key": "ban.words", "value": config["ban"]["words"], "operator": by})) # 协议 3.6.4
 				for i in range(len(users)):
 					if users[i]["status"] in ["Online", "Admin", "Root"]:
-						send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.CONFIG.CHANGE", "key": "ban.words", "value": config["ban"]["words"], "operator": by}})) # 协议 3.6.2
+						send_queue.put(json.dumps({"to": i, "content": {"type": "SERVER.CONFIG.CHANGE", "key": "ban.words", "value": config["ban"]["words"], "operator": by}})) # 协议 3.6.2
 			if side == "Client":
 				new_value = config["ban"]["words"][:]
 				new_value.remove(arg[2])
-				upload({"type": "MISC.CONFIG.POST", "key": "ban.words", "value": new_value}) # 协议 3.6.1
+				upload({"type": "SERVER.CONFIG.POST", "key": "ban.words", "value": new_value}) # 协议 3.6.1
 			printc(verbose, "操作成功。")
 
 def do_broadcast(arg, message=None, verbose=True, by=-1):
@@ -1745,7 +1751,7 @@ def do_save(arg=None):
 		with open("./config.json", "w", encoding="utf-8") as f:
 			json.dump(config, f)
 		print("参数已经成功保存到配置文件 config.json，下次启动时将自动加载配置项。")
-		log_queue.put(json.dumps({"type": "MISC.CONFIG.SAVE", "time": time_str()})) # 协议 3.5
+		log_queue.put(json.dumps({"type": "SERVER.CONFIG.SAVE", "time": time_str()})) # 协议 3.5
 	except:
 		print("无法将参数保存到配置文件 config.json，请稍后重试。")
 
@@ -1764,13 +1770,13 @@ def do_exit(arg=None):
 	# 防止干扰用户后续的终端使用
 	print("\033[0m\033[1;36m再见！\033[0m")
 	if side == "Server":
-		log_queue.put(json.dumps({"type": "MISC.SERVER_STOP.LOG", "time": time_str()})) # 协议 3.2.2
+		log_queue.put(json.dumps({"type": "SERVER.STOP.LOG", "time": time_str()})) # 协议 3.2.2
 		for i in range(len(users)):
 			if users[i]["status"] in ["Pending", "Online", "Admin", "Root"]:
-				send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.SERVER_STOP.ANNOUNCE"}})) # 协议 3.2.1
+				send_queue.put(json.dumps({"to": i, "content": {"type": "SERVER.STOP.ANNOUNCE"}})) # 协议 3.2.1
 		server_socket.close()
 	if side == "Client":
-		log_queue.put(json.dumps({"type": "MISC.CLIENT_STOP", "time": time_str()})) # 协议 3.4
+		log_queue.put(json.dumps({"type": "SERVER.CLIENT_STOP", "time": time_str()})) # 协议 3.4
 	exit_flag = True
 	my_socket.close()
 	return
@@ -1885,7 +1891,11 @@ def thread_gate():
 		data = ""
 		while True:
 			try:
-				data += conntmp.recv(131072).decode("utf-8")
+				conntmp.setblocking(False) # 再次显式设置为非阻塞模式，避免不必要的问题
+				chunk = conntmp.recv(131072).decode("utf-8")
+				if not chunk:
+					raise
+				data += chunk
 			except:
 				break
 		
@@ -1956,7 +1966,7 @@ def thread_gate():
 			users_abstract = []
 			for i in range(len(users)):
 				users_abstract.append({"username": users[i]["username"], "status": users[i]["status"]})
-			send_queue.put(json.dumps({"to": uid, "content": {"type": "MISC.DATA", "server_version": VERSION, "uid": uid, "config": config, "users": users_abstract, "chat_history": history}})) # 协议 3.2
+			send_queue.put(json.dumps({"to": uid, "content": {"type": "SERVER.DATA", "server_version": VERSION, "uid": uid, "config": config, "users": users_abstract, "chat_history": history}})) # 协议 3.2
 
 def thread_process():
 	global online_count
@@ -1992,7 +2002,7 @@ def thread_process():
 					do_doorman("reject " + str(content["uid"]), False, sender)
 				if content["status"] == "Online":
 					do_doorman("accept " + str(content["uid"]), False, sender)
-			if content["type"] == "MISC.CONFIG.POST": # 协议 3.6.1
+			if content["type"] == "SERVER.CONFIG.POST": # 协议 3.6.1
 				do_config("{} {}".format(content["key"], repr(content["value"])), False, sender)
 
 def thread_receive():
@@ -2059,7 +2069,7 @@ def thread_send():
 				# 先按文件处理
 				if not message["content"]["filename"]: # filename 字段为空（或者 filename 字段根本不存在），表明不是文件
 					impossible_value = message["content"]["impossible_key"] # 故意引发 KeyError
-				with open(message["content"]["filename"], "rb") as f:
+				with open(message["content"]["content"], "rb") as f:
 					file_data = f.read() # 读取 do_distribute 或 do_transfer 函数先前写入到磁盘的对应文件
 				message["content"]["content"] = base64.b64encode(file_data).decode("utf-8") # 将 content 字段覆写为正确值
 				token = json.dumps(message["content"]) + "\n"
@@ -2155,7 +2165,7 @@ def thread_input():
 			print("\033[8;30m", end="", flush=True)
 			blocked = False
 			continue
-		log_queue.put(json.dumps({"type": "MISC.COMMAND", "time": time_str(), "command": command})) # 协议 3.3
+		log_queue.put(json.dumps({"type": "SERVER.COMMAND", "time": time_str(), "command": command})) # 协议 3.3
 		
 		# 将缩写形式替换为完整形式
 		for i in list(ABBREVIATION_TABLE.keys()):
@@ -2292,6 +2302,11 @@ def main():
 	
 	os.system("") # 对 Windows 尝试开启 ANSI 转义字符（带颜色文本）支持
 	clear_screen()
+	
+	prints("我们即将推出 TouchFish v5，敬请期待！", "magenta")
+	prints("服务端 Github 仓库：https://github.com/2044-space-elevator/TFV5_server", "magenta")
+	prints("客户端 Github 仓库：https://github.com/ILoveScratch2/TouchFish-Client", "magenta")
+	print()
 	
 	if config_read_result == "OK":
 		prints("配置文件 config.json 读取成功！", "yellow")
@@ -2462,7 +2477,7 @@ def main():
 				sys.exit(1)
 			
 			with open("./log.ndjson", "a", encoding="utf-8") as file:
-				file.write(json.dumps({"type": "MISC.START", "time": time_str(), "stamp": stamp, "version": VERSION, "config": config}) + "\n") # 协议 3.1
+				file.write(json.dumps({"type": "SERVER.START", "time": time_str(), "stamp": stamp, "server_version": VERSION, "config": config}) + "\n") # 协议 3.1
 			
 			side = "Server"
 			prints("启动成功！", "green")
@@ -2582,7 +2597,7 @@ def main():
 				my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
 			
 			with open("./log.ndjson", "a", encoding="utf-8") as file:
-				file.write(json.dumps({"type": "MISC.START", "time": time_str(), "stamp": stamp, "version": VERSION, "config": config}) + "\n") # 协议 3.1
+				file.write(json.dumps({"type": "SERVER.START", "time": time_str(), "stamp": stamp, "server_version": VERSION, "config": config}) + "\n") # 协议 3.1
 			
 			# 核验协议 1.2，获取加入请求结果
 			try:
@@ -2618,7 +2633,7 @@ def main():
 				if seconds_consumed == 11:
 					prints("（也有可能是对方服务器端口被防火墙拦截，请联系服务器所有者确认，或检查本地网络及防火墙设置。）", "red")
 				with open("./log.ndjson", "a", encoding="utf-8") as file:
-					file.write(json.dumps({"type": "MISC.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
+					file.write(json.dumps({"type": "SERVER.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
 				input("\033[0m")
 				sys.exit(1)
 			
@@ -2626,7 +2641,7 @@ def main():
 				print()
 				prints("连接失败：{}".format(RESULTS[message["result"]]), "red")
 				with open("./log.ndjson", "a", encoding="utf-8") as file:
-					file.write(json.dumps({"type": "MISC.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
+					file.write(json.dumps({"type": "SERVER.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
 				input("\033[0m")
 				sys.exit(1)
 			
@@ -2647,11 +2662,11 @@ def main():
 						if not message:
 							raise
 						# 特殊情况：聊天室服务端已经关闭 (协议 3.5.1)
-						if message["type"] == "MISC.SERVER_STOP.ANNOUNCE":
+						if message["type"] == "SERVER.STOP.ANNOUNCE":
 							prints("聊天室服务端已经关闭。", "red")
 							prints("连接失败。", "red")
 							with open("./log.ndjson", "a", encoding="utf-8") as file:
-								file.write(json.dumps({"type": "MISC.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
+								file.write(json.dumps({"type": "SERVER.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
 							input("\033[0m")
 							sys.exit(1)
 						# 一般情况：人工审核完成 (协议 1.3)
@@ -2660,7 +2675,7 @@ def main():
 							prints("服务端管理员 {} (UID = {}) 拒绝了您的连接请求。".format(message["operator"]["username"], message["operator"]["uid"]), "red")
 							prints("连接失败。", "red")
 							with open("./log.ndjson", "a", encoding="utf-8") as file:
-								file.write(json.dumps({"type": "MISC.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
+								file.write(json.dumps({"type": "SERVER.CLIENT_STOP", "time": time_str()}) + "\n") # 协议 3.4
 							input("\033[0m")
 							sys.exit(1)
 						if message["accepted"]:
