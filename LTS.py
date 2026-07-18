@@ -15,7 +15,7 @@
 
 本协议文档版本：v2.8.0
 
-本协议分为三个部分：`Gate`，`Chat`，`Misc`。
+本协议分为三个部分：`Gate`，`Chat`，`Server`。
 
 协议均使用 NDJSON（JSON 格式，相邻两个 JSON 以换行符分隔）格式进行发送。
 
