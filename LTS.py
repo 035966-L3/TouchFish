@@ -13,7 +13,7 @@
 """
 # TouchFish 协议文档
 
-本协议文档版本：v2.6.0
+本协议文档版本：v2.7.0
 
 本协议分为三个部分：`Gate`，`Chat`，`Misc`。
 
@@ -23,6 +23,8 @@
 
 # 协议更新日志
 
+- Protocol v2.7.0 (TouchFish v4.10.0)
+  - 添加对心跳数据的说明，没有实际改动
 - Protocol v2.6.0 (TouchFish v4.9.0)
   - 恢复 v2.3.0 的字段更改
 - Protocol v2.5.0 (TouchFish v4.8.0)
@@ -269,7 +271,7 @@
 
 客户端正常关闭时将事件写入日志。
 
-- `type`: `"MISC.MISC.CLIENT_STOP"`
+- `type`: `"MISC.CLIENT_STOP"`
 - `time`: 同上。
 
 ## 3.5 Server Stop
@@ -336,6 +338,10 @@
 - `key`: 同上。
 - `value`: 同上。
 - `operator`: 执行修改操作的用户 ID。
+
+# 4 Keepalive
+
+发送的消息中可能包含空行，这些空行起心跳数据的作用。
 """
 
 
@@ -362,7 +368,7 @@ import threading
 import time
 
 # 程序版本
-VERSION = "v4.9.0"
+VERSION = "v4.10.0"
 
 # 用于客户端解析协议 1.2
 RESULTS = \
@@ -445,7 +451,7 @@ general.max_connections     最大允许连接数，
 DEFAULT_SERVER_CONFIG = \
 {
 	"side": "Server",
-	"general": {"server_ip": "127.0.0.1", "server_port": 8080, "server_username": "root", "max_connections": 128},
+	"general": {"server_ip": "0.0.0.0", "server_port": 8080, "server_username": "root", "max_connections": 128},
 	"ban": {"ip": [], "words": []},
 	"gate": {"enter_hint": "", "enter_check": False},
 	"message": {"allow_private": True, "max_length": 16384},
@@ -695,6 +701,9 @@ online_count        在线人数（包括状态为 Root，Admin，
                     参见 HELP_HINT 第 3 段，下同）
 buffer              my_socket 读取时模拟的缓冲区
                     （发送的数据都是 NDJSON，因此遇到换行符则清空）
+bell_countdown      用于在收到广播时响铃 5 次以体现公告的重要性，
+                    第 1 次为默认响铃，后 4 次中每 1.5 秒响铃一次，
+                    对应 15 次 thread_output 的循环
 exit_flag           默认为 False，程序终止改为 True，通知所有线程终止
 log_queue           记录需要写入日志的信息，数据格式为 str(JSON)
 print_queue         用于输入模式下记录被阻塞的输出内容（每行一条），
@@ -744,6 +753,7 @@ server_version = VERSION
 history = []
 online_count = 1
 buffer = ""
+bell_countdown = 0
 exit_flag = False
 log_queue = queue.Queue()
 receive_queue = queue.Queue()
@@ -894,7 +904,10 @@ def announce(uid):
 
 # 其他消息的消息头（根据协议 2.2 进行解析）
 def print_message(message):
+	global bell_countdown
 	first_line = dye("[" + message["time"][11:19] + "]", "black")
+	if message["order"] > 0:
+		first_line += dye(" (#" + str(message["order"]) + ")", "black")
 	if message["from"] == my_uid:
 		first_line += dye(" [您发送的]", "blue")
 	if message["to"] == my_uid:
@@ -906,6 +919,14 @@ def print_message(message):
 		pass
 	if message["to"] == -2:
 		first_line += dye(" [广播]", "red")
+		# 增加 bell_countdown 的值以请求
+		# thread_output 完成额外的 4 次响铃，
+		# 由于 thread_output 先将 bell_countdown
+		# 减去 1 再判断是否响铃，因此第 2 次
+		# 响铃出现在 1.5 秒后 bell_countdown
+		# 为 60 的时刻，第 5 次响铃出现在 6 秒后
+		# bell_countdown 为 15 的时刻
+		bell_countdown += 75
 	if message["to"] >= 0:
 		first_line += dye(" [私聊]", "green")
 	first_line += " "
@@ -1119,15 +1140,25 @@ def do_doorman(arg, verbose=True, by=-1):
 	if not arg[0] in ["accept", "reject"]:
 		printc(verbose, "参数错误：第一个参数必须是 accept 和 reject 中的某一项。")
 		return
+
+	if side == "Server":
+		# 先发送心跳数据（连续 10 个换行符）检查客户端是否下线
+		try:
+			for _ in range(10):
+				users[arg[1]]["body"].send(bytes("\n", encoding="utf-8"))
+		except:
+			users[arg[1]]["body"].close() # 关闭相应 TCP socket
+			users[arg[1]]["status"] = "Offline"
+			online_count -= 1
+			log_queue.put(json.dumps({"type": "GATE.STATUS_CHANGE.LOG", "time": time_str(), "status": "Offline", "uid": arg[1], "operator": 0})) # 协议 1.6.3
+			for i in range(len(users)):
+				if users[i]["status"] in ["Online", "Admin", "Root"]:
+						send_queue.put(json.dumps({"to": i, "content": {"type": "GATE.STATUS_CHANGE.ANNOUNCE", "status": "Offline", "uid": arg[1], "operator": 0}})) # 协议 1.6.2
+			printc(verbose, "操作失败：该用户在操作前已经下线。")
+			return
 	
 	if arg[0] == "accept":
 		if side == "Server":
-			# 重要：最后再给该用户发送信息，防止出现
-			# 该用户已经断开连接而状态没有更新的情况
-			log_queue.put(json.dumps({"type": "GATE.STATUS_CHANGE.LOG", "time": time_str(), "status": "Online", "uid": arg[1], "operator": by})) # 协议 1.6.3
-			for i in range(len(users)):
-				if users[i]["status"] in ["Online", "Admin", "Root"]:
-					send_queue.put(json.dumps({"to": i, "content": {"type": "GATE.STATUS_CHANGE.ANNOUNCE", "status": "Online", "uid": arg[1], "operator": by}})) # 协议 1.6.2
 			# 根据协议 3.2 生成适合客户端的 users 字段
 			users[arg[1]]["status"] = "Online"
 			users_abstract = []
@@ -1359,14 +1390,14 @@ def do_ban(arg, verbose=True, by=-1):
 		
 		if arg[1] == "add":
 			if side == "Server":
-				ips = [item for item in ips if item not in config["ban"]["ip"]]
+				ips = [item for item in ips if not item in config["ban"]["ip"]]
 				config["ban"]["ip"] += ips
 				log_queue.put(json.dumps({"type": "MISC.CONFIG.LOG", "time": time_str(), "key": "ban.ip", "value": config["ban"]["ip"], "operator": by})) # 协议 3.6.4
 				for i in range(len(users)):
 					if users[i]["status"] in ["Online", "Admin", "Root"]:
 						send_queue.put(json.dumps({"to": i, "content": {"type": "MISC.CONFIG.CHANGE", "key": "ban.ip", "value": config["ban"]["ip"], "operator": by}})) # 协议 3.6.2
 			if side == "Client":
-				ips = [item for item in ips if item not in config["ban"]["ip"]]
+				ips = [item for item in ips if not item in config["ban"]["ip"]]
 				new_value = config["ban"]["ip"] + ips
 				upload({"type": "MISC.CONFIG.POST", "key": "ban.ip", "value": new_value}) # 协议 3.6.1
 			printc(verbose, "操作成功，共计封禁了 {} 个 IP 地址。".format(len(ips)))
@@ -1865,7 +1896,7 @@ thread_check        轮番检查各客户端是否下线，并给服务端保活
 
 # 所有线程均使用 while True 的无限循环，
 # 每轮开始前暂停 0.1 秒防止 CPU 占用过高，
-# 且均受程序终止信号 exit_flag 的调控。
+# 且均受程序终止信号 exit_flag 的调控
 
 def thread_gate():
 	global online_count
@@ -2056,9 +2087,10 @@ def thread_send():
 			message = json.loads(send_queue.get())
 			if not users[message["to"]]["status"] in ["Online", "Admin", "Root", "Pending"]:
 				continue
-			# 先发送心跳数据（单个换行符）检查客户端是否下线
+			# 先发送心跳数据（连续 10 个换行符）检查客户端是否下线
 			try:
-				users[message["to"]]["body"].send(bytes("\n", encoding="utf-8"))
+				for _ in range(10):
+					users[message["to"]]["body"].send(bytes("\n", encoding="utf-8"))
 			except:
 				users[message["to"]]["body"].close() # 关闭相应 TCP socket
 				users[message["to"]]["status"] = "Offline"
@@ -2129,7 +2161,9 @@ def thread_check():
 		for i in range(len(users)):
 			if users[i]["status"] in ["Online", "Admin", "Root"] and not users[i]["busy"]:
 				try:
-					users[i]["body"].send(bytes("\n", encoding="utf-8")) # 发送心跳数据（单个换行符）
+					# 发送心跳数据（连续 10 个换行符）
+					for _ in range(10):
+						users[i]["body"].send(bytes("\n", encoding="utf-8"))
 				except:
 					users[i]["body"].close() # 关闭相应 TCP socket
 					users[i]["status"] = "Offline"
@@ -2191,12 +2225,18 @@ def thread_input():
 		blocked = False
 
 def thread_output():
+	global bell_countdown
 	global exit_flag
 	while True:
 		time.sleep(0.1)
 		if exit_flag:
 			print("\033[0m", end="", flush=True)
 			return
+		
+		if bell_countdown:
+			bell_countdown -= 1
+		if bell_countdown and bell_countdown % 15 == 0:
+			ring()
 		
 		read()
 		message = get_message()
@@ -2231,6 +2271,7 @@ def main():
 	global history
 	global online_count
 	global buffer
+	global bell_countdown
 	global exit_flag
 	global log_queue
 	global receive_queue
@@ -2687,11 +2728,13 @@ def main():
 							prints("连接成功！", "green")
 							ring()
 							break
+					except SystemExit:
+						sys.exit(1)
 					except:
 						pass
 					clock_end = datetime.datetime.now().timestamp()
 					seconds_consumed += 1
-					time.sleep(1 - (clock_end - clock_start))
+					time.sleep(max(1 - (clock_end - clock_start), 0))
 			
 			side = "Client"
 			# 获取服务端通过协议 3.2 提供的完整上下文；
@@ -2713,6 +2756,7 @@ def main():
 			do_dashboard()
 			for i in first_data["chat_history"]:
 				print_message(i)
+				bell_countdown = 0 # 历史消息中的广播不需要额外响铃
 			if config["gate"]["enter_hint"]:
 				first_line = dye("[" + time_str()[11:19] + "]", "black")
 				first_line += dye(" [加入提示]", "red")
